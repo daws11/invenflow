@@ -19,10 +19,16 @@
 
   .product-card {
     @apply bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-3 hover:shadow-md transition-all cursor-grab;
+    touch-action: none;
   }
 
   .product-card:active {
     @apply cursor-grabbing;
+  }
+
+  .product-card[data-dragging="true"] {
+    touch-action: none;
+    user-select: none;
   }
 
   .btn-primary {
@@ -106,14 +112,19 @@
     @apply opacity-10;
   }
 
-  /* Mobile optimizations */
+  /* Enhanced Mobile optimizations */
   @media (max-width: 640px) {
     .product-card {
-      @apply p-3 mb-2;
+      @apply p-3 mb-3 mx-1;
     }
 
-    .drag-handle {
-      @apply p-3;
+    /* Larger drag handle for mobile */
+    .drag-handle-area {
+      @apply w-12;
+    }
+
+    .product-card .pl-10 {
+      @apply pl-14;
     }
 
     /* Prevent zoom on tap for iOS */
@@ -131,6 +142,25 @@
       min-height: 44px;
       min-width: 44px;
     }
+
+    /* Mobile drag handle improvements */
+    .drag-handle-area .w-1\.5 {
+      @apply w-2 h-2;
+    }
+
+    .drag-handle-area .space-y-1\.5 {
+      @apply space-y-2;
+    }
+
+    /* Better spacing on mobile */
+    .product-card .space-x-2 {
+      @apply space-x-1;
+    }
+
+    /* Action buttons more accessible on mobile */
+    .product-card button {
+      @apply min-w-[48px] min-h-[48px];
+    }
   }
 
   /* Haptic feedback simulation with visual feedback */
@@ -138,5 +168,71 @@
     .crud-button:active {
       transform: scale(0.95);
     }
+  }
+
+  /* Product Sidebar Animations */
+  @keyframes slide-in-right {
+    0% {
+      transform: translateX(100%);
+    }
+    100% {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes slide-out-right {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes fade-in {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes fade-out {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  .sidebar-enter {
+    animation: slide-in-right 0.3s ease-out;
+  }
+
+  .sidebar-exit {
+    animation: slide-out-right 0.3s ease-out;
+  }
+
+  .backdrop-enter {
+    animation: fade-in 0.2s ease-out;
+  }
+
+  .backdrop-exit {
+    animation: fade-out 0.2s ease-out;
+  }
+
+  
+  /* Enhanced ProductCard drag feedback - simplified */
+  .product-card[data-dragging="true"] {
+    @apply shadow-2xl scale-105 rotate-1 border-blue-400;
+    z-index: 50;
+  }
+
+  
+  /* Enhanced loading states */
+  .loading-skeleton {
+    @apply bg-gray-200 animate-pulse rounded;
   }
 }

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Product, Location } from '@invenflow/shared';
+import { useState, useRef } from 'react';
+import { Product } from '@invenflow/shared';
 import { useDraggable } from '@dnd-kit/core';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useToast } from '../store/toastStore';
@@ -12,18 +14,17 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, onEdit, location }: ProductCardProps) {
+  onView?: () => void;
+}
+
+export default function ProductCard({ product, onView }: ProductCardProps) {
   const { deleteProduct } = useKanbanStore();
   const { success, error } = useToast();
   const [isExpanded, setIsExpanded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [showTransferHistory, setShowTransferHistory] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [dragStartTime, setDragStartTime] = useState(0);
-  const [isLongPress, setIsLongPress] = useState(false);
-  const [touchStartPos, setTouchStartPos] = useState({ x: 0, y: 0 });
-  const [showMobileActions, setShowMobileActions] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
 
   const {
     attributes,
@@ -54,95 +55,8 @@ export default function ProductCard({ product, onEdit, location }: ProductCardPr
     }
   };
 
-  // Prevent drag initiation on CRUD buttons
-  const handleButtonInteraction = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Temporarily disable drag during button interactions
-    if (cardRef.current) {
-      cardRef.current.style.pointerEvents = 'none';
-      setTimeout(() => {
-        if (cardRef.current) {
-          cardRef.current.style.pointerEvents = '';
-        }
-      }, 100);
-    }
-  };
-
-  // Enhanced drag listeners with delay to prevent accidental drags
-  const enhancedListeners = {
-    ...listeners,
-    onMouseDown: (e: React.MouseEvent) => {
-      setDragStartTime(Date.now());
-      listeners?.onMouseDown?.(e);
-    },
-    onClick: (e: React.MouseEvent) => {
-      const dragDuration = Date.now() - dragStartTime;
-      // Prevent click if it was part of a drag operation
-      if (dragDuration > 200) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    }
-  };
-
-  // Mobile touch handlers for long press
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStartPos({ x: e.touches[0].clientX, y: e.touches[0].clientY });
-    setIsLongPress(false);
-
-    longPressTimer.current = setTimeout(() => {
-      setIsLongPress(true);
-      setShowMobileActions(true);
-    }, 500); // 500ms for long press
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    const currentPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    const distance = Math.sqrt(
-      Math.pow(currentPos.x - touchStartPos.x, 2) +
-      Math.pow(currentPos.y - touchStartPos.y, 2)
-    );
-
-    // Cancel long press if moved too much
-    if (distance > 10) {
-      if (longPressTimer.current) {
-        clearTimeout(longPressTimer.current);
-        longPressTimer.current = null;
-      }
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-
-    // Hide mobile actions after a delay
-    setTimeout(() => {
-      if (!isLongPress) {
-        setShowMobileActions(false);
-      }
-    }, 2000);
-  };
-
-  // Mobile CRUD button handlers
-  const handleMobileEdit = () => {
-    setShowMobileActions(false);
-    onEdit?.();
-  };
-
-  const handleMobileDelete = () => {
-    setShowMobileActions(false);
-    handleDelete();
-  };
-
-  const handleMobileHistory = () => {
-    setShowMobileActions(false);
-    setShowTransferHistory(true);
-  };
-
+  
+  
   const getPriorityColor = (priority: string | null) => {
     switch (priority?.toLowerCase()) {
       case 'urgent':
@@ -195,22 +109,63 @@ export default function ProductCard({ product, onEdit, location }: ProductCardPr
 
   return (
     <div
-      ref={(node) => {
-        setNodeRef(node);
-        if (node) cardRef.current = node;
-      }}
-      style={style}
-      className={`product-card group relative touch-manipulation ${
-        isDragging ? 'cursor-grabbing shadow-xl scale-105 rotate-1' : 'cursor-default'
+      ref={cardRef}
+      className={`product-card group relative transition-all duration-200 ${
+        isDragging
+          ? 'shadow-2xl scale-105 opacity-95 border-blue-400'
+          : 'hover:shadow-lg'
       }`}
-      {...attributes}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
     >
-      {/* Product Image Section */}
-      {product.productImage && !imageError && (
-        <div className="mb-3 rounded-lg overflow-hidden bg-gray-100">
+      {/* Enhanced Drag Handle Area */}
+      <div
+        ref={(node) => {
+          setNodeRef(node);
+        }}
+        style={style}
+        className={`drag-handle-area group/drag absolute left-0 top-0 bottom-0 w-8 flex items-center justify-center transition-all duration-200 ease-out ${
+          isDragging
+            ? 'bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30 scale-105'
+            : 'bg-gradient-to-r from-gray-100 to-gray-200 hover:from-blue-50 hover:to-blue-100 hover:shadow-md hover:scale-105'
+        }`}
+        {...attributes}
+        {...listeners}
+        title="Drag to move product"
+      >
+        {/* Dots Pattern for Better UX */}
+        <div className="flex flex-col items-center justify-center space-y-1.5">
+          <div className={`w-1.5 h-1.5 rounded-full transition-colors ${
+            isDragging ? 'bg-white' : 'bg-gray-400 group-hover/drag:bg-blue-500'
+          }`} />
+          <div className={`w-1.5 h-1.5 rounded-full transition-colors ${
+            isDragging ? 'bg-white' : 'bg-gray-400 group-hover/drag:bg-blue-500'
+          }`} />
+          <div className={`w-1.5 h-1.5 rounded-full transition-colors ${
+            isDragging ? 'bg-white' : 'bg-gray-400 group-hover/drag:bg-blue-500'
+          }`} />
+        </div>
+
+        {/* Drag Icon on Hover */}
+        <div className="absolute opacity-0 group-hover/drag:opacity-100 transition-opacity duration-200 pointer-events-none">
+          <svg
+            className="w-6 h-6 text-blue-600"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11"
+            />
+          </svg>
+        </div>
+      </div>
+      {/* Product Content with Padding for Drag Handle */}
+      <div className="pl-10 pr-4">
+        {/* Product Image Section */}
+        {product.productImage && !imageError && (
+          <div className="mb-3 rounded-lg overflow-hidden bg-gray-100">
           <img
             src={product.productImage}
             alt={product.productDetails}
@@ -222,18 +177,8 @@ export default function ProductCard({ product, onEdit, location }: ProductCardPr
       )}
 
       <div className="flex justify-between items-start mb-3">
-        {/* Drag Handle - Clear visual indicator for drag zone */}
-        <div
-          className="drag-handle flex items-center justify-center p-2 rounded hover:bg-gray-100 cursor-grab active:cursor-grabbing transition-all duration-200"
-          title="Drag to move product"
-          {...enhancedListeners}
-        >
-          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-          </svg>
-        </div>
-
-        <div className="flex-1 mx-2">
+        {/* Product Info */}
+        <div className="flex-1 mr-3">
           <h4 className="font-medium text-gray-900 mb-1">{product.productDetails}</h4>
           {product.sku && (
             <div className="text-xs text-gray-500 mb-1">SKU: {product.sku}</div>
@@ -261,59 +206,29 @@ export default function ProductCard({ product, onEdit, location }: ProductCardPr
             </div>
           )}
         </div>
-        <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {onEdit && (
-            <button
-              onClick={(e) => {
-                handleButtonInteraction(e);
-                onEdit();
-              }}
-              onMouseDown={handleButtonInteraction}
-              className="crud-button text-gray-400 hover:text-blue-500 p-2 sm:p-2 rounded hover:bg-blue-50 transition-all duration-200 transform hover:scale-110 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
-              title="Edit product"
-              type="button"
-            >
-              <svg className="w-4 h-4 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-            </button>
-          )}
+
+        {/* Enhanced Action Buttons */}
+        <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-all duration-300 delay-100">
           <button
-            onClick={(e) => {
-              handleButtonInteraction(e);
-              setShowTransferHistory(true);
-            }}
-            onMouseDown={handleButtonInteraction}
-            className="crud-button text-gray-400 hover:text-green-500 p-2 sm:p-2 rounded hover:bg-green-50 transition-all duration-200 transform hover:scale-110 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
-            title="View transfer history"
+            onClick={() => onView?.()}
+            className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-2.5 rounded-lg transition-all duration-200 transform hover:scale-110 active:scale-95 min-w-[44px] min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm hover:shadow-md"
+            title="View product details"
             type="button"
           >
-            <svg className="w-4 h-4 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
           </button>
           <button
-            onClick={(e) => {
-              handleButtonInteraction(e);
-              handleDelete();
-            }}
-            onMouseDown={handleButtonInteraction}
-            disabled={isDeleting}
-            className={`crud-button text-gray-400 hover:text-red-500 p-2 sm:p-2 rounded hover:bg-red-50 transition-all duration-200 transform hover:scale-110 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 ${
-              isDeleting ? 'opacity-50 cursor-not-allowed animate-pulse-subtle' : ''
-            }`}
-            title={isDeleting ? "Deleting..." : "Delete product"}
+            onClick={() => setShowTransferHistory(true)}
+            className="text-gray-400 hover:text-green-600 hover:bg-green-50 p-2.5 rounded-lg transition-all duration-200 transform hover:scale-110 active:scale-95 min-w-[44px] min-h-[44px] focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 shadow-sm hover:shadow-md"
+            title="View transfer history"
             type="button"
           >
-            {isDeleting ? (
-              <svg className="w-4 h-4 sm:w-4 sm:h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            )}
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
           </button>
         </div>
       </div>
@@ -388,17 +303,17 @@ export default function ProductCard({ product, onEdit, location }: ProductCardPr
             e.stopPropagation();
             setIsExpanded(!isExpanded);
           }}
-          className="text-xs text-gray-500 hover:text-gray-700 mt-2 flex items-center"
+          className="text-xs text-gray-500 hover:text-blue-600 hover:bg-blue-50 mt-3 flex items-center px-3 py-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 group/show-more"
         >
           <svg
-            className={`w-3 h-3 mr-1 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+            className={`w-4 h-4 mr-2 transform transition-all duration-200 ${isExpanded ? 'rotate-180 text-blue-600' : 'text-gray-400 group-hover/show-more:text-blue-600'}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
-          {isExpanded ? 'Show less' : 'Show more'}
+          <span className="font-medium">{isExpanded ? 'Show less' : 'Show more details'}</span>
         </button>
       )}
 
@@ -514,66 +429,7 @@ export default function ProductCard({ product, onEdit, location }: ProductCardPr
           )}
         </div>
       )}
-
-      {/* Mobile Actions Overlay */}
-      {showMobileActions && (
-        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10 animate-fade-in">
-          <div className="bg-white rounded-lg p-4 shadow-xl m-4 animate-scale-in">
-            <h3 className="font-semibold text-gray-900 mb-3 text-center">Product Actions</h3>
-            <div className="flex flex-col space-y-2">
-              {onEdit && (
-                <button
-                  onClick={handleMobileEdit}
-                  className="flex items-center justify-center p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors min-h-[48px]"
-                >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  Edit Product
-                </button>
-              )}
-              <button
-                onClick={handleMobileHistory}
-                className="flex items-center justify-center p-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors min-h-[48px]"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                View History
-              </button>
-              <button
-                onClick={handleMobileDelete}
-                disabled={isDeleting}
-                className={`flex items-center justify-center p-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors min-h-[48px] ${
-                  isDeleting ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {isDeleting ? (
-                  <>
-                    <svg className="w-5 h-5 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Deleting...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Delete Product
-                  </>
-                )}
-              </button>
-              <button
-                onClick={() => setShowMobileActions(false)}
-                className="flex items-center justify-center p-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors min-h-[48px]"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Transfer History Modal */}
       <TransferHistoryViewer
