@@ -6,11 +6,11 @@ interface KanbanColumnProps {
   id: string;
   title: string;
   products: Product[];
-  onProductEdit?: (product: Product) => void;
+  onProductView?: (product: Product) => void;
   onProductMove?: (productId: string, newColumn: string) => void;
 }
 
-export default function KanbanColumn({ id, title, products, onProductEdit }: KanbanColumnProps) {
+export default function KanbanColumn({ id, title, products, onProductView }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: id,
   });
@@ -42,7 +42,7 @@ export default function KanbanColumn({ id, title, products, onProductEdit }: Kan
           <ProductCard
             key={product.id}
             product={product}
-            onEdit={() => onProductEdit?.(product)}
+            onView={() => onProductView?.(product)}
           />
         ))}
 
