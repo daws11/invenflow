@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, timestamp, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { kanbans, products } from './index';
+import { kanbans, products, locations } from './index';
 
 export const transferLogs = pgTable(
   'transfer_logs',
@@ -17,6 +17,8 @@ export const transferLogs = pgTable(
       .references(() => kanbans.id, { onDelete: 'cascade' }),
     fromColumn: text('from_column').notNull(),
     toColumn: text('to_column').notNull(),
+    fromLocationId: uuid('from_location_id').references(() => locations.id, { onDelete: 'set null' }),
+    toLocationId: uuid('to_location_id').references(() => locations.id, { onDelete: 'set null' }),
     transferType: text('transfer_type').notNull(), // 'automatic' | 'manual'
     notes: text('notes'),
     transferredBy: text('transferred_by'), // user identifier
@@ -31,20 +33,6 @@ export const transferLogs = pgTable(
   })
 );
 
-export const transferLogsRelations = relations(transferLogs, ({ one }) => ({
-  product: one(products, {
-    fields: [transferLogs.productId],
-    references: [products.id],
-  }),
-  fromKanban: one(kanbans, {
-    fields: [transferLogs.fromKanbanId],
-    references: [kanbans.id],
-  }),
-  toKanban: one(kanbans, {
-    fields: [transferLogs.toKanbanId],
-    references: [kanbans.id],
-  }),
-}));
 
 export type TransferLog = typeof transferLogs.$inferSelect;
 export type NewTransferLog = typeof transferLogs.$inferInsert;

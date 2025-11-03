@@ -1,5 +1,14 @@
 import axios from 'axios';
-import { Kanban, Product, CreateKanban, CreateProduct, UpdateProduct } from '@invenflow/shared';
+import {
+  Kanban,
+  Product,
+  CreateKanban,
+  CreateProduct,
+  UpdateProduct,
+  Location,
+  CreateLocation,
+  UpdateLocation
+} from '@invenflow/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -62,6 +71,60 @@ export const productApi = {
 
   delete: async (id: string): Promise<void> => {
     await api.delete(`/api/products/${id}`);
+  },
+
+  getByLocation: async (locationId: string): Promise<{
+    location: Location;
+    products: Product[];
+    count: number;
+  }> => {
+    const response = await api.get(`/api/products/by-location/${locationId}`);
+    return response.data;
+  },
+};
+
+// Location API calls
+export const locationApi = {
+  getAll: async (params?: { search?: string; area?: string }): Promise<{
+    locations: Location[];
+    groupedByArea: Record<string, Location[]>;
+    areas: string[];
+  }> => {
+    const response = await api.get('/api/locations', { params });
+    return response.data;
+  },
+
+  getById: async (id: string): Promise<Location> => {
+    const response = await api.get(`/api/locations/${id}`);
+    return response.data;
+  },
+
+  create: async (data: CreateLocation): Promise<Location> => {
+    const response = await api.post('/api/locations', data);
+    return response.data;
+  },
+
+  update: async (id: string, data: UpdateLocation): Promise<Location> => {
+    const response = await api.put(`/api/locations/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/api/locations/${id}`);
+  },
+
+  getProducts: async (id: string): Promise<{
+    location: Location;
+    products: Product[];
+    count: number;
+  }> => {
+    const response = await api.get(`/api/locations/${id}/products`);
+    return response.data;
+  },
+
+  getAreas: async (): Promise<string[]> => {
+    const response = await api.get('/api/locations/areas/list');
+    return response.data;
   },
 };
 

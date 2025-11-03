@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { transferLogs, products, kanbans } from '../db/schema';
+import { transferLogs, products, kanbans, locations } from '../db/schema';
 import { eq, desc, and, isNotNull, gte, lte } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 
@@ -49,8 +49,24 @@ router.get('/', async (req, res, next) => {
       whereConditions.push(lte(transferLogs.createdAt, new Date(endDate as string)));
     }
 
+    // Note: Drizzle doesn't support table aliasing well in joins
+    // We'll do a simpler approach and join locations twice with different aliases
     const logs = await db
-      .select()
+      .select({
+        // Transfer log fields
+        id: transferLogs.id,
+        productId: transferLogs.productId,
+        fromKanbanId: transferLogs.fromKanbanId,
+        toKanbanId: transferLogs.toKanbanId,
+        fromColumn: transferLogs.fromColumn,
+        toColumn: transferLogs.toColumn,
+        fromLocationId: transferLogs.fromLocationId,
+        toLocationId: transferLogs.toLocationId,
+        transferType: transferLogs.transferType,
+        notes: transferLogs.notes,
+        transferredBy: transferLogs.transferredBy,
+        createdAt: transferLogs.createdAt,
+      })
       .from(transferLogs)
       .where(
         whereConditions.length > 0 ? and(...whereConditions) : undefined
@@ -58,6 +74,46 @@ router.get('/', async (req, res, next) => {
       .orderBy(desc(transferLogs.createdAt))
       .limit(limitNum)
       .offset(offsetNum);
+
+    // Enrich with related data
+    const enrichedLogs = await Promise.all(
+      logs.map(async (log) => {
+        const [product] = await db
+          .select()
+          .from(products)
+          .where(eq(products.id, log.productId))
+          .limit(1);
+
+        const [fromKanban] = await db
+          .select()
+          .from(kanbans)
+          .where(eq(kanbans.id, log.fromKanbanId))
+          .limit(1);
+
+        const [toKanban] = await db
+          .select()
+          .from(kanbans)
+          .where(eq(kanbans.id, log.toKanbanId))
+          .limit(1);
+
+        const [fromLocation] = log.fromLocationId
+          ? await db.select().from(locations).where(eq(locations.id, log.fromLocationId!)).limit(1)
+          : [null];
+
+        const [toLocation] = log.toLocationId
+          ? await db.select().from(locations).where(eq(locations.id, log.toLocationId!)).limit(1)
+          : [null];
+
+        return {
+          ...log,
+          product: product || null,
+          fromKanban: fromKanban || null,
+          toKanban: toKanban || null,
+          fromLocation: fromLocation || null,
+          toLocation: toLocation || null,
+        };
+      })
+    );
 
     res.json(logs);
   } catch (error) {

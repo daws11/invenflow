@@ -1,3 +1,5 @@
+import { useState, useRef, useEffect } from 'react';
+import { Product, Location } from '@invenflow/shared';
 import { useState, useRef } from 'react';
 import { Product } from '@invenflow/shared';
 import { useDraggable } from '@dnd-kit/core';
@@ -7,6 +9,11 @@ import TransferHistoryViewer from './TransferHistoryViewer';
 
 interface ProductCardProps {
   product: Product;
+  onEdit?: () => void;
+  location?: Location | null;
+}
+
+export default function ProductCard({ product, onEdit, location }: ProductCardProps) {
   onView?: () => void;
 }
 
@@ -179,13 +186,23 @@ export default function ProductCard({ product, onView }: ProductCardProps) {
           {product.supplier && (
             <div className="text-xs text-gray-600 mb-1">Supplier: {product.supplier}</div>
           )}
-          {product.location && (
-            <div className="flex items-center text-sm text-gray-600 mb-1">
-              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {(location || product.location) && (
+            <div className="flex items-center text-sm mb-2">
+              <svg className="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-              {product.location}
+              {location ? (
+                <div className="flex items-center space-x-2">
+                  <span className="font-medium text-gray-900">{location.name}</span>
+                  <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                    {location.code}
+                  </span>
+                  <span className="text-gray-500">• {location.area}</span>
+                </div>
+              ) : (
+                <span className="text-gray-600">{product.location}</span>
+              )}
             </div>
           )}
         </div>
@@ -318,10 +335,22 @@ export default function ProductCard({ product, onView }: ProductCardProps) {
             </div>
           )}
 
-          {product.location && (
+          {(location || product.location) && (
             <div>
               <span className="font-medium text-gray-700">Location:</span>
-              <span className="ml-2 text-gray-600">{product.location}</span>
+              {location ? (
+                <div className="ml-2">
+                  <div className="text-gray-900 font-medium">{location.name}</div>
+                  <div className="text-sm text-gray-600">
+                    {location.code} • {location.area}
+                  </div>
+                  {location.description && (
+                    <div className="text-xs text-gray-500 mt-1">{location.description}</div>
+                  )}
+                </div>
+              ) : (
+                <span className="ml-2 text-gray-600">{product.location}</span>
+              )}
             </div>
           )}
 
