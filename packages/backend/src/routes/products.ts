@@ -1,10 +1,14 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { products, kanbans, transferLogs, locations } from '../db/schema';
-import { eq, and, isNull } from 'drizzle-orm';
+import { products, kanbans, transferLogs, locations, productValidations } from '../db/schema';
+import { eq, and, isNull, desc } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
 
 // Get product by ID
 router.get('/:id', async (req, res, next) => {
@@ -194,7 +198,7 @@ router.put('/:id', async (req, res, next) => {
 router.put('/:id/move', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { columnStatus } = req.body;
+    const { columnStatus, skipValidation } = req.body;
 
     if (!columnStatus) {
       throw createError('Column status is required', 400);
@@ -221,6 +225,39 @@ router.put('/:id/move', async (req, res, next) => {
 
     if (!currentProduct) {
       throw createError('Product not found', 404);
+    }
+
+    // Check if validation is required for receive kanbans
+    if (currentProduct.kanbanType === 'receive' && !skipValidation) {
+      const statusesRequiringValidation = ['Received', 'Stored'];
+
+      if (statusesRequiringValidation.includes(columnStatus)) {
+        // Check if validation already exists for this status
+        const [existingValidation] = await db
+          .select()
+          .from(productValidations)
+          .where(
+            and(
+              eq(productValidations.productId, id),
+              eq(productValidations.columnStatus, columnStatus)
+            )
+          )
+          .limit(1);
+
+        if (!existingValidation) {
+          throw createError(
+            `Validasi diperlukan untuk memindahkan item ke kolom ${columnStatus}. Silakan buat validasi terlebih dahulu melalui form validasi produk.`,
+            422,
+            {
+              requiresValidation: true,
+              columnStatus,
+              productId: id,
+              action: 'create_validation',
+              message: `Product validation is required before moving items to ${columnStatus} status. Please create a validation record first.`
+            }
+          );
+        }
+      }
     }
 
     let updateData: any = {
@@ -270,22 +307,6 @@ router.put('/:id/move', async (req, res, next) => {
       .set(updateData)
       .where(eq(products.id, id))
       .returning();
-
-    // Log location change if happened
-    if (locationId !== undefined && locationId !== currentProduct.locationId) {
-      await db.insert(transferLogs).values({
-        productId: id,
-        fromKanbanId: currentProduct.kanbanId,
-        toKanbanId: currentProduct.kanbanId, // Same kanban, just location change
-        fromColumn: currentProduct.columnStatus,
-        toColumn: currentProduct.columnStatus, // Same column, just location change
-        fromLocationId: currentProduct.locationId,
-        toLocationId: locationId,
-        transferType: 'manual',
-        notes: `Location changed from ${currentProduct.locationId || 'unspecified'} to ${locationId || 'unspecified'}`,
-        transferredBy: 'user', // TODO: Get actual user from auth
-      });
-    }
 
     res.json(updatedProduct);
   } catch (error) {

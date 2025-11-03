@@ -3,6 +3,7 @@ import { db } from '../db';
 import { locations, products } from '../db/schema';
 import { eq, like, desc, asc, and, or, ilike } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
+import { authenticateToken } from '../middleware/auth';
 import {
   LocationSchema,
   CreateLocationSchema,
@@ -10,6 +11,9 @@ import {
 } from '@invenflow/shared';
 
 const router = Router();
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
 
 // Get all locations (with optional search and area filter)
 router.get('/', async (req, res, next) => {

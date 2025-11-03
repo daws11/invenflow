@@ -15,6 +15,20 @@
       "when": 1762160154914,
       "tag": "0001_swift_the_phantom",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1762185781626,
+      "tag": "0002_chilly_miek",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1762186136789,
+      "tag": "0003_broken_night_nurse",
+      "breakpoints": true
     }
   ]
 }

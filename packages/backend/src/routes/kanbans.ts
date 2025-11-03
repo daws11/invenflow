@@ -4,8 +4,12 @@ import { db } from '../db';
 import { kanbans, products } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
 
 // Get all kanbans
 router.get('/', async (req, res, next) => {

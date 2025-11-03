@@ -17,7 +17,7 @@ interface KanbanState {
 
   createProduct: (data: CreateProduct) => Promise<Product>;
   updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
-  moveProduct: (id: string, columnStatus: string) => Promise<void>;
+  moveProduct: (id: string, columnStatus: string, skipValidation?: boolean) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
 
   refreshCurrentKanban: () => Promise<void>;
@@ -158,10 +158,10 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     }
   },
 
-  moveProduct: async (id: string, columnStatus: string) => {
+  moveProduct: async (id: string, columnStatus: string, skipValidation = false) => {
     set({ loading: true, error: null });
     try {
-      const updatedProduct = await productApi.move(id, columnStatus);
+      const updatedProduct = await productApi.move(id, columnStatus, skipValidation);
       const { currentKanban } = get();
 
       // If product moved to a different kanban (auto-transfer), we need to refresh
@@ -193,10 +193,9 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
         set({ loading: false });
       }
     } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : 'Failed to move product',
-        loading: false
-      });
+      // Re-throw error to let component handle validation requirements
+      set({ loading: false });
+      throw error;
     }
   },
 

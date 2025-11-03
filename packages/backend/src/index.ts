@@ -8,6 +8,10 @@ import { locationsRouter } from './routes/locations';
 import { productsRouter } from './routes/products';
 import { publicRouter } from './routes/public';
 import { transferLogsRouter } from './routes/transfer-logs';
+import { uploadRouter } from './routes/upload';
+import { validationsRouter } from './routes/validations';
+import { authRouter } from './routes/auth';
+import { usersRouter } from './routes/users';
 
 const app = express();
 
@@ -18,10 +22,18 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api', healthRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/users', usersRouter);
+
+// Protected routes (require authentication)
 app.use('/api/kanbans', kanbansRouter);
 app.use('/api/locations', locationsRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/transfer-logs', transferLogsRouter);
+app.use('/api/upload', uploadRouter);
+app.use('/api/validations', validationsRouter);
+
+// Public routes (no authentication required)
 app.use('/api/public', publicRouter);
 
 // Health check endpoint

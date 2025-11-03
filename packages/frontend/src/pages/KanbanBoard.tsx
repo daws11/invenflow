@@ -14,11 +14,12 @@ import {
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useKanbanStore } from '../store/kanbanStore';
-import { ORDER_COLUMNS, RECEIVE_COLUMNS, Product } from '@invenflow/shared';
+import { ORDER_COLUMNS, RECEIVE_COLUMNS, Product, ValidationStatus } from '@invenflow/shared';
 import KanbanColumn from '../components/KanbanColumn';
 import ProductForm from '../components/ProductForm';
 import LocationFilter from '../components/LocationFilter';
 import ProductSidebar from '../components/ProductSidebar';
+import ValidationModal from '../components/ValidationModal';
 
 export default function KanbanBoard() {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +30,14 @@ export default function KanbanBoard() {
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Validation modal state
+  const [showValidationModal, setShowValidationModal] = useState(false);
+  const [pendingProductMove, setPendingProductMove] = useState<{
+    productId: string;
+    targetColumn: string;
+  } | null>(null);
+  const [isValidationLoading, setIsValidationLoading] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -63,8 +72,68 @@ export default function KanbanBoard() {
   const handleMoveProduct = async (productId: string, newColumn: string) => {
     try {
       await moveProduct(productId, newColumn);
+    } catch (error: any) {
+      // Check if error requires validation from response details
+      const requiresValidation = error?.response?.data?.error?.details?.requiresValidation;
+      const columnStatus = error?.response?.data?.error?.details?.columnStatus;
+      const errorProductId = error?.response?.data?.error?.details?.productId;
+
+      if (requiresValidation && errorProductId === productId && columnStatus === newColumn) {
+        setPendingProductMove({
+          productId,
+          targetColumn: newColumn,
+        });
+        setShowValidationModal(true);
+      } else {
+        alert('Failed to move product: ' + (error?.response?.data?.error?.message || error?.message));
+      }
+    }
+  };
+
+  const handleValidationSubmit = async (validationData: any) => {
+    setIsValidationLoading(true);
+
+    try {
+      // Submit validation first
+      const validationResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/validations/validate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        body: JSON.stringify(validationData),
+      });
+
+      if (!validationResponse.ok) {
+        const errorData = await validationResponse.json();
+        const errorMessage = errorData.error?.message || errorData.error || 'Validation failed';
+        throw new Error(errorMessage);
+      }
+
+      // After successful validation, proceed with product move
+      if (pendingProductMove) {
+        await moveProduct(
+          pendingProductMove.productId,
+          pendingProductMove.targetColumn,
+          true // skip validation check
+        );
+      }
+
+      // Close modal and reset state
+      setShowValidationModal(false);
+      setPendingProductMove(null);
     } catch (error) {
-      alert('Failed to move product');
+      console.error('Validation error:', error);
+      alert(error instanceof Error ? error.message : 'Validation failed');
+    } finally {
+      setIsValidationLoading(false);
+    }
+  };
+
+  const handleCloseValidationModal = () => {
+    if (!isValidationLoading) {
+      setShowValidationModal(false);
+      setPendingProductMove(null);
     }
   };
 
@@ -265,6 +334,18 @@ export default function KanbanBoard() {
           onClose={handleCloseSidebar}
           onUpdate={handleProductUpdate}
         />
+
+        {/* Validation Modal */}
+        {showValidationModal && pendingProductMove && (
+          <ValidationModal
+            isOpen={showValidationModal}
+            onClose={handleCloseValidationModal}
+            productId={pendingProductMove.productId}
+            columnStatus={pendingProductMove.targetColumn as ValidationStatus}
+            onSubmit={handleValidationSubmit}
+            isLoading={isValidationLoading}
+          />
+        )}
       </div>
 
       <DragOverlay>

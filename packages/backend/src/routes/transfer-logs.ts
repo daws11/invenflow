@@ -3,8 +3,12 @@ import { db } from '../db';
 import { transferLogs, products, kanbans, locations } from '../db/schema';
 import { eq, desc, and, isNotNull, gte, lte } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
 
 // Get transfer logs with optional filtering
 router.get('/', async (req, res, next) => {
