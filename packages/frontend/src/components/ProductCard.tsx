@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Product } from '@invenflow/shared';
 import { useDraggable } from '@dnd-kit/core';
 import { useKanbanStore } from '../store/kanbanStore';
+import { useToast } from '../store/toastStore';
+import TransferHistoryViewer from './TransferHistoryViewer';
 
 interface ProductCardProps {
   product: Product;
@@ -10,7 +12,17 @@ interface ProductCardProps {
 
 export default function ProductCard({ product, onEdit }: ProductCardProps) {
   const { deleteProduct } = useKanbanStore();
+  const { success, error } = useToast();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [showTransferHistory, setShowTransferHistory] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [dragStartTime, setDragStartTime] = useState(0);
+  const [isLongPress, setIsLongPress] = useState(false);
+  const [touchStartPos, setTouchStartPos] = useState({ x: 0, y: 0 });
+  const [showMobileActions, setShowMobileActions] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
 
   const {
     attributes,
@@ -28,13 +40,106 @@ export default function ProductCard({ product, onEdit }: ProductCardProps) {
   } : undefined;
 
   const handleDelete = async () => {
-    if (confirm('Are you sure you want to delete this product?')) {
+    if (confirm(`Are you sure you want to delete "${product.productDetails}"? This action cannot be undone.`)) {
+      setIsDeleting(true);
       try {
         await deleteProduct(product.id);
-      } catch (error) {
-        alert('Failed to delete product');
+        success(`Product "${product.productDetails}" deleted successfully`);
+      } catch (err) {
+        error(`Failed to delete product: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      } finally {
+        setIsDeleting(false);
       }
     }
+  };
+
+  // Prevent drag initiation on CRUD buttons
+  const handleButtonInteraction = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Temporarily disable drag during button interactions
+    if (cardRef.current) {
+      cardRef.current.style.pointerEvents = 'none';
+      setTimeout(() => {
+        if (cardRef.current) {
+          cardRef.current.style.pointerEvents = '';
+        }
+      }, 100);
+    }
+  };
+
+  // Enhanced drag listeners with delay to prevent accidental drags
+  const enhancedListeners = {
+    ...listeners,
+    onMouseDown: (e: React.MouseEvent) => {
+      setDragStartTime(Date.now());
+      listeners?.onMouseDown?.(e);
+    },
+    onClick: (e: React.MouseEvent) => {
+      const dragDuration = Date.now() - dragStartTime;
+      // Prevent click if it was part of a drag operation
+      if (dragDuration > 200) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+  };
+
+  // Mobile touch handlers for long press
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartPos({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+    setIsLongPress(false);
+
+    longPressTimer.current = setTimeout(() => {
+      setIsLongPress(true);
+      setShowMobileActions(true);
+    }, 500); // 500ms for long press
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const currentPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    const distance = Math.sqrt(
+      Math.pow(currentPos.x - touchStartPos.x, 2) +
+      Math.pow(currentPos.y - touchStartPos.y, 2)
+    );
+
+    // Cancel long press if moved too much
+    if (distance > 10) {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+
+    // Hide mobile actions after a delay
+    setTimeout(() => {
+      if (!isLongPress) {
+        setShowMobileActions(false);
+      }
+    }, 2000);
+  };
+
+  // Mobile CRUD button handlers
+  const handleMobileEdit = () => {
+    setShowMobileActions(false);
+    onEdit?.();
+  };
+
+  const handleMobileDelete = () => {
+    setShowMobileActions(false);
+    handleDelete();
+  };
+
+  const handleMobileHistory = () => {
+    setShowMobileActions(false);
+    setShowTransferHistory(true);
   };
 
   const getPriorityColor = (priority: string | null) => {
@@ -52,19 +157,89 @@ export default function ProductCard({ product, onEdit }: ProductCardProps) {
     }
   };
 
+  const getCategoryColor = (category: string | null) => {
+    const colors: { [key: string]: string } = {
+      'electronics': 'bg-purple-100 text-purple-800 border-purple-200',
+      'furniture': 'bg-amber-100 text-amber-800 border-amber-200',
+      'office supplies': 'bg-blue-100 text-blue-800 border-blue-200',
+      'raw materials': 'bg-stone-100 text-stone-800 border-stone-200',
+      'tools & equipment': 'bg-indigo-100 text-indigo-800 border-indigo-200',
+      'packaging': 'bg-cyan-100 text-cyan-800 border-cyan-200',
+      'safety equipment': 'bg-red-100 text-red-800 border-red-200',
+      'cleaning supplies': 'bg-green-100 text-green-800 border-green-200',
+      'software': 'bg-violet-100 text-violet-800 border-violet-200',
+      'services': 'bg-pink-100 text-pink-800 border-pink-200',
+      'other': 'bg-gray-100 text-gray-800 border-gray-200',
+    };
+    return colors[category?.toLowerCase() || ''] || 'bg-gray-100 text-gray-800 border-gray-200';
+  };
+
+  const hasAdditionalInfo = () => {
+    return !!(
+      product.productLink ||
+      product.location ||
+      product.priority ||
+      product.productImage ||
+      product.category ||
+      product.supplier ||
+      product.sku ||
+      product.dimensions ||
+      product.weight ||
+      product.unitPrice ||
+      product.notes ||
+      (product.tags && product.tags.length > 0) ||
+      product.stockLevel !== null
+    );
+  };
+
   return (
     <div
-      ref={setNodeRef}
+      ref={(node) => {
+        setNodeRef(node);
+        if (node) cardRef.current = node;
+      }}
       style={style}
-      className={`product-card group ${
-        isDragging ? 'cursor-grabbing shadow-xl scale-105 rotate-1' : 'cursor-grab'
+      className={`product-card group relative touch-manipulation ${
+        isDragging ? 'cursor-grabbing shadow-xl scale-105 rotate-1' : 'cursor-default'
       }`}
-      {...listeners}
       {...attributes}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
+      {/* Product Image Section */}
+      {product.productImage && !imageError && (
+        <div className="mb-3 rounded-lg overflow-hidden bg-gray-100">
+          <img
+            src={product.productImage}
+            alt={product.productDetails}
+            className="w-full h-32 object-cover"
+            onError={() => setImageError(true)}
+            loading="lazy"
+          />
+        </div>
+      )}
+
       <div className="flex justify-between items-start mb-3">
-        <div className="flex-1">
+        {/* Drag Handle - Clear visual indicator for drag zone */}
+        <div
+          className="drag-handle flex items-center justify-center p-2 rounded hover:bg-gray-100 cursor-grab active:cursor-grabbing transition-all duration-200"
+          title="Drag to move product"
+          {...enhancedListeners}
+        >
+          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+          </svg>
+        </div>
+
+        <div className="flex-1 mx-2">
           <h4 className="font-medium text-gray-900 mb-1">{product.productDetails}</h4>
+          {product.sku && (
+            <div className="text-xs text-gray-500 mb-1">SKU: {product.sku}</div>
+          )}
+          {product.supplier && (
+            <div className="text-xs text-gray-600 mb-1">Supplier: {product.supplier}</div>
+          )}
           {product.location && (
             <div className="flex items-center text-sm text-gray-600 mb-1">
               <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -79,33 +254,66 @@ export default function ProductCard({ product, onEdit }: ProductCardProps) {
           {onEdit && (
             <button
               onClick={(e) => {
-                e.stopPropagation();
+                handleButtonInteraction(e);
                 onEdit();
               }}
-              className="text-gray-400 hover:text-blue-500 p-1"
+              onMouseDown={handleButtonInteraction}
+              className="crud-button text-gray-400 hover:text-blue-500 p-2 sm:p-2 rounded hover:bg-blue-50 transition-all duration-200 transform hover:scale-110 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
               title="Edit product"
+              type="button"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
             </button>
           )}
           <button
             onClick={(e) => {
-              e.stopPropagation();
+              handleButtonInteraction(e);
+              setShowTransferHistory(true);
+            }}
+            onMouseDown={handleButtonInteraction}
+            className="crud-button text-gray-400 hover:text-green-500 p-2 sm:p-2 rounded hover:bg-green-50 transition-all duration-200 transform hover:scale-110 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
+            title="View transfer history"
+            type="button"
+          >
+            <svg className="w-4 h-4 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+          <button
+            onClick={(e) => {
+              handleButtonInteraction(e);
               handleDelete();
             }}
-            className="text-gray-400 hover:text-red-500 p-1"
-            title="Delete product"
+            onMouseDown={handleButtonInteraction}
+            disabled={isDeleting}
+            className={`crud-button text-gray-400 hover:text-red-500 p-2 sm:p-2 rounded hover:bg-red-50 transition-all duration-200 transform hover:scale-110 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 ${
+              isDeleting ? 'opacity-50 cursor-not-allowed animate-pulse-subtle' : ''
+            }`}
+            title={isDeleting ? "Deleting..." : "Delete product"}
+            type="button"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
+            {isDeleting ? (
+              <svg className="w-4 h-4 sm:w-4 sm:h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            )}
           </button>
         </div>
       </div>
 
+      {/* Tags and Categories */}
       <div className="flex flex-wrap gap-2 mb-3">
+        {product.category && (
+          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getCategoryColor(product.category)}`}>
+            {product.category}
+          </span>
+        )}
         {product.priority && (
           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(product.priority)}`}>
             {product.priority}
@@ -116,7 +324,29 @@ export default function ProductCard({ product, onEdit }: ProductCardProps) {
             Stock: {product.stockLevel}
           </span>
         )}
+        {product.unitPrice !== null && (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+            ${product.unitPrice.toFixed(2)}
+          </span>
+        )}
       </div>
+
+      {/* Product Tags */}
+      {product.tags && product.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-3">
+          {product.tags.slice(0, 3).map((tag, index) => (
+            <span
+              key={index}
+              className="inline-flex items-center px-2 py-1 rounded text-xs bg-gray-50 text-gray-600 border border-gray-200"
+            >
+              #{tag}
+            </span>
+          ))}
+          {product.tags.length > 3 && (
+            <span className="text-xs text-gray-500">+{product.tags.length - 3} more</span>
+          )}
+        </div>
+      )}
 
       {product.productLink && (
         <div className="mb-3">
@@ -124,10 +354,13 @@ export default function ProductCard({ product, onEdit }: ProductCardProps) {
             href={product.productLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-blue-600 hover:text-blue-800 truncate block"
+            className="text-sm text-blue-600 hover:text-blue-800 truncate block flex items-center"
             onClick={(e) => e.stopPropagation()}
             onDragStart={(e) => e.preventDefault()}
           >
+            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
             {product.productLink}
           </a>
         </div>
@@ -137,29 +370,37 @@ export default function ProductCard({ product, onEdit }: ProductCardProps) {
         Created: {new Date(product.createdAt).toLocaleDateString()}
       </div>
 
-      {/* Additional details (expandable) */}
-      {(product.productLink || product.location || product.priority) && (
+      {/* Expandable Details Section */}
+      {hasAdditionalInfo() && (
         <button
           onClick={(e) => {
             e.stopPropagation();
             setIsExpanded(!isExpanded);
           }}
-          className="text-xs text-gray-500 hover:text-gray-700 mt-2"
+          className="text-xs text-gray-500 hover:text-gray-700 mt-2 flex items-center"
         >
+          <svg
+            className={`w-3 h-3 mr-1 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
           {isExpanded ? 'Show less' : 'Show more'}
         </button>
       )}
 
       {isExpanded && (
-        <div className="mt-3 pt-3 border-t border-gray-200 text-sm">
+        <div className="mt-3 pt-3 border-t border-gray-200 text-sm space-y-2">
           {product.productLink && (
-            <div className="mb-2">
-              <span className="font-medium">Link:</span>{' '}
+            <div>
+              <span className="font-medium text-gray-700">Product Link:</span>
               <a
                 href={product.productLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 break-all"
+                className="text-blue-600 hover:text-blue-800 break-all ml-2 block"
                 onClick={(e) => e.stopPropagation()}
                 onDragStart={(e) => e.preventDefault()}
               >
@@ -167,26 +408,156 @@ export default function ProductCard({ product, onEdit }: ProductCardProps) {
               </a>
             </div>
           )}
+
           {product.location && (
-            <div className="mb-2">
-              <span className="font-medium">Location:</span> {product.location}
+            <div>
+              <span className="font-medium text-gray-700">Location:</span>
+              <span className="ml-2 text-gray-600">{product.location}</span>
             </div>
           )}
+
+          {product.sku && (
+            <div>
+              <span className="font-medium text-gray-700">SKU:</span>
+              <span className="ml-2 text-gray-600">{product.sku}</span>
+            </div>
+          )}
+
+          {product.supplier && (
+            <div>
+              <span className="font-medium text-gray-700">Supplier:</span>
+              <span className="ml-2 text-gray-600">{product.supplier}</span>
+            </div>
+          )}
+
+          {product.dimensions && (
+            <div>
+              <span className="font-medium text-gray-700">Dimensions:</span>
+              <span className="ml-2 text-gray-600">{product.dimensions}</span>
+            </div>
+          )}
+
+          {product.weight !== null && (
+            <div>
+              <span className="font-medium text-gray-700">Weight:</span>
+              <span className="ml-2 text-gray-600">{product.weight} kg</span>
+            </div>
+          )}
+
+          {product.unitPrice !== null && (
+            <div>
+              <span className="font-medium text-gray-700">Unit Price:</span>
+              <span className="ml-2 text-gray-600">${product.unitPrice.toFixed(2)}</span>
+            </div>
+          )}
+
           {product.priority && (
-            <div className="mb-2">
-              <span className="font-medium">Priority:</span>{' '}
-              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(product.priority)}`}>
+            <div>
+              <span className="font-medium text-gray-700">Priority:</span>
+              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ml-2 ${getPriorityColor(product.priority)}`}>
                 {product.priority}
               </span>
             </div>
           )}
+
           {product.stockLevel !== null && (
-            <div className="mb-2">
-              <span className="font-medium">Stock Level:</span> {product.stockLevel}
+            <div>
+              <span className="font-medium text-gray-700">Stock Level:</span>
+              <span className="ml-2 text-gray-600">{product.stockLevel} units</span>
+            </div>
+          )}
+
+          {product.tags && product.tags.length > 0 && (
+            <div>
+              <span className="font-medium text-gray-700">Tags:</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {product.tags.map((tag, index) => (
+                  <span
+                    key={index}
+                    className="inline-flex items-center px-2 py-1 rounded text-xs bg-gray-50 text-gray-600 border border-gray-200"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {product.notes && (
+            <div>
+              <span className="font-medium text-gray-700">Notes:</span>
+              <p className="mt-1 text-gray-600 text-sm bg-gray-50 p-2 rounded">{product.notes}</p>
             </div>
           )}
         </div>
       )}
+
+      {/* Mobile Actions Overlay */}
+      {showMobileActions && (
+        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10 animate-fade-in">
+          <div className="bg-white rounded-lg p-4 shadow-xl m-4 animate-scale-in">
+            <h3 className="font-semibold text-gray-900 mb-3 text-center">Product Actions</h3>
+            <div className="flex flex-col space-y-2">
+              {onEdit && (
+                <button
+                  onClick={handleMobileEdit}
+                  className="flex items-center justify-center p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors min-h-[48px]"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Edit Product
+                </button>
+              )}
+              <button
+                onClick={handleMobileHistory}
+                className="flex items-center justify-center p-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors min-h-[48px]"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                View History
+              </button>
+              <button
+                onClick={handleMobileDelete}
+                disabled={isDeleting}
+                className={`flex items-center justify-center p-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors min-h-[48px] ${
+                  isDeleting ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                {isDeleting ? (
+                  <>
+                    <svg className="w-5 h-5 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Product
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setShowMobileActions(false)}
+                className="flex items-center justify-center p-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors min-h-[48px]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer History Modal */}
+      <TransferHistoryViewer
+        productId={product.id}
+        isOpen={showTransferHistory}
+        onClose={() => setShowTransferHistory(false)}
+      />
     </div>
   );
 }

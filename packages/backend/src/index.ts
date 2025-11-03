@@ -6,6 +6,7 @@ import { healthRouter } from './routes/health';
 import { kanbansRouter } from './routes/kanbans';
 import { productsRouter } from './routes/products';
 import { publicRouter } from './routes/public';
+import { transferLogsRouter } from './routes/transfer-logs';
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api', healthRouter);
 app.use('/api/kanbans', kanbansRouter);
 app.use('/api/products', productsRouter);
+app.use('/api/transfer-logs', transferLogsRouter);
 app.use('/api/public', publicRouter);
 
 // Health check endpoint

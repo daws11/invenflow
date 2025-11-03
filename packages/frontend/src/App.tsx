@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 import KanbanList from './pages/KanbanList'
 import KanbanBoard from './pages/KanbanBoard'
 import PublicForm from './pages/PublicForm'
+import ToastContainer from './components/ToastContainer'
 
 function App() {
   return (
@@ -22,6 +23,9 @@ function App() {
           <Route path="/form/:token" element={<PublicForm />} />
         </Routes>
       </main>
+
+      {/* Toast Container */}
+      <ToastContainer />
     </div>
   )
 }

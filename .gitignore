@@ -97,3 +97,6 @@ Thumbs.db
 # Database
 *.sqlite
 *.db
+
+#claude
+.claude/

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { products, kanbans } from '../db/schema';
+import { products, kanbans, transferLogs } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 
@@ -37,6 +37,16 @@ router.post('/', async (req, res, next) => {
       productLink,
       location,
       priority,
+      // Enhanced fields
+      productImage,
+      category,
+      tags,
+      supplier,
+      sku,
+      dimensions,
+      weight,
+      unitPrice,
+      notes,
     } = req.body;
 
     if (!kanbanId || !columnStatus || !productDetails) {
@@ -51,6 +61,16 @@ router.post('/', async (req, res, next) => {
       location: location || null,
       priority: priority || null,
       stockLevel: null,
+      // Enhanced fields
+      productImage: productImage || null,
+      category: category || null,
+      tags: tags && Array.isArray(tags) ? tags : null,
+      supplier: supplier || null,
+      sku: sku || null,
+      dimensions: dimensions || null,
+      weight: weight ? parseFloat(weight) : null,
+      unitPrice: unitPrice ? parseFloat(unitPrice) : null,
+      notes: notes || null,
     };
 
     const [createdProduct] = await db
@@ -74,6 +94,16 @@ router.put('/:id', async (req, res, next) => {
       location,
       priority,
       stockLevel,
+      // Enhanced fields
+      productImage,
+      category,
+      tags,
+      supplier,
+      sku,
+      dimensions,
+      weight,
+      unitPrice,
+      notes,
     } = req.body;
 
     const updateData: any = {
@@ -85,6 +115,16 @@ router.put('/:id', async (req, res, next) => {
     if (location !== undefined) updateData.location = location;
     if (priority !== undefined) updateData.priority = priority;
     if (stockLevel !== undefined) updateData.stockLevel = stockLevel;
+    // Enhanced fields
+    if (productImage !== undefined) updateData.productImage = productImage;
+    if (category !== undefined) updateData.category = category;
+    if (tags !== undefined) updateData.tags = tags && Array.isArray(tags) ? tags : null;
+    if (supplier !== undefined) updateData.supplier = supplier;
+    if (sku !== undefined) updateData.sku = sku;
+    if (dimensions !== undefined) updateData.dimensions = dimensions;
+    if (weight !== undefined) updateData.weight = weight ? parseFloat(weight) : null;
+    if (unitPrice !== undefined) updateData.unitPrice = unitPrice ? parseFloat(unitPrice) : null;
+    if (notes !== undefined) updateData.notes = notes;
 
     const [updatedProduct] = await db
       .update(products)
@@ -151,6 +191,18 @@ router.put('/:id/move', async (req, res, next) => {
       columnStatus === 'Purchased' &&
       currentProduct.linkedKanbanId
     ) {
+      // Create transfer log
+      await db.insert(transferLogs).values({
+        productId: id,
+        fromKanbanId: currentProduct.kanbanId,
+        toKanbanId: currentProduct.linkedKanbanId,
+        fromColumn: currentProduct.columnStatus,
+        toColumn: 'Purchased',
+        transferType: 'automatic',
+        notes: 'Automatic transfer when product moved to Purchased column',
+        transferredBy: 'system',
+      });
+
       // Move product to linked receive kanban
       const [transferredProduct] = await db
         .update(products)
