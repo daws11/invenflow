@@ -4,6 +4,7 @@ import { corsMiddleware } from './middleware/cors';
 import { errorHandler } from './middleware/errorHandler';
 import { healthRouter } from './routes/health';
 import { kanbansRouter } from './routes/kanbans';
+import { locationsRouter } from './routes/locations';
 import { productsRouter } from './routes/products';
 import { publicRouter } from './routes/public';
 import { transferLogsRouter } from './routes/transfer-logs';
@@ -18,6 +19,7 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/api', healthRouter);
 app.use('/api/kanbans', kanbansRouter);
+app.use('/api/locations', locationsRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/transfer-logs', transferLogsRouter);
 app.use('/api/public', publicRouter);

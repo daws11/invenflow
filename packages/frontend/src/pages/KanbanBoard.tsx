@@ -17,6 +17,7 @@ import { useKanbanStore } from '../store/kanbanStore';
 import { ORDER_COLUMNS, RECEIVE_COLUMNS, Product } from '@invenflow/shared';
 import KanbanColumn from '../components/KanbanColumn';
 import ProductForm from '../components/ProductForm';
+import LocationFilter from '../components/LocationFilter';
 
 export default function KanbanBoard() {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +25,7 @@ export default function KanbanBoard() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -45,7 +47,10 @@ export default function KanbanBoard() {
 
   const getProductsByColumn = (column: string) => {
     if (!currentKanban) return [];
-    return currentKanban.products.filter(product => product.columnStatus === column);
+    return currentKanban.products.filter(product =>
+      product.columnStatus === column &&
+      (!selectedLocationId || product.locationId === selectedLocationId)
+    );
   };
 
   const handleMoveProduct = async (productId: string, newColumn: string) => {
@@ -178,6 +183,26 @@ export default function KanbanBoard() {
               Add Product
             </button>
           </div>
+        </div>
+
+        {/* Location Filter */}
+        <div className="mb-6">
+          <LocationFilter
+            selectedLocationId={selectedLocationId}
+            onLocationChange={setSelectedLocationId}
+            className="max-w-xs"
+          />
+          {selectedLocationId && (
+            <div className="mt-2 flex items-center text-sm text-gray-600">
+              <span>Filtering by location</span>
+              <button
+                onClick={() => setSelectedLocationId(null)}
+                className="ml-2 text-blue-600 hover:text-blue-800"
+              >
+                Clear filter
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex space-x-6 overflow-x-auto pb-6">

@@ -1,6 +1,7 @@
 import { pgTable, uuid, text, integer, timestamp, index, decimal, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { kanbans } from './kanbans';
+import { locations } from './locations';
 
 export const products = pgTable(
   'products',
@@ -13,6 +14,7 @@ export const products = pgTable(
     productDetails: text('product_details').notNull(),
     productLink: text('product_link'),
     location: text('location'),
+    locationId: uuid('location_id').references(() => locations.id, { onDelete: 'set null' }),
     priority: text('priority'),
     stockLevel: integer('stock_level'), // nullable, only used when in 'Stored' status
     // Enhanced fields
@@ -37,12 +39,6 @@ export const products = pgTable(
   })
 );
 
-export const productsRelations = relations(products, ({ one }) => ({
-  kanban: one(kanbans, {
-    fields: [products.kanbanId],
-    references: [kanbans.id],
-  }),
-}));
 
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { products, kanbans, transferLogs } from '../db/schema';
-import { eq, and } from 'drizzle-orm';
+import { products, kanbans, transferLogs, locations } from '../db/schema';
+import { eq, and, isNull } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 
 const router = Router();
@@ -12,8 +12,12 @@ router.get('/:id', async (req, res, next) => {
     const { id } = req.params;
 
     const [product] = await db
-      .select()
+      .select({
+        ...products,
+        location: locations,
+      })
       .from(products)
+      .leftJoin(locations, eq(products.locationId, locations.id))
       .where(eq(products.id, id))
       .limit(1);
 
@@ -36,6 +40,7 @@ router.post('/', async (req, res, next) => {
       productDetails,
       productLink,
       location,
+      locationId,
       priority,
       // Enhanced fields
       productImage,
@@ -53,12 +58,26 @@ router.post('/', async (req, res, next) => {
       throw createError('Missing required fields', 400);
     }
 
+    // Validate locationId if provided
+    if (locationId) {
+      const [locationExists] = await db
+        .select()
+        .from(locations)
+        .where(eq(locations.id, locationId))
+        .limit(1);
+
+      if (!locationExists) {
+        throw createError('Invalid locationId', 400);
+      }
+    }
+
     const newProduct = {
       kanbanId,
       columnStatus,
       productDetails,
       productLink: productLink || null,
       location: location || null,
+      locationId: locationId || null,
       priority: priority || null,
       stockLevel: null,
       // Enhanced fields
@@ -92,6 +111,7 @@ router.put('/:id', async (req, res, next) => {
       productDetails,
       productLink,
       location,
+      locationId,
       priority,
       stockLevel,
       // Enhanced fields
@@ -106,6 +126,17 @@ router.put('/:id', async (req, res, next) => {
       notes,
     } = req.body;
 
+    // Get current product to check location changes
+    const [currentProduct] = await db
+      .select()
+      .from(products)
+      .where(eq(products.id, id))
+      .limit(1);
+
+    if (!currentProduct) {
+      throw createError('Product not found', 404);
+    }
+
     const updateData: any = {
       updatedAt: new Date(),
     };
@@ -115,6 +146,23 @@ router.put('/:id', async (req, res, next) => {
     if (location !== undefined) updateData.location = location;
     if (priority !== undefined) updateData.priority = priority;
     if (stockLevel !== undefined) updateData.stockLevel = stockLevel;
+
+    // Handle locationId changes
+    if (locationId !== undefined) {
+      if (locationId && locationId !== currentProduct.locationId) {
+        // Validate the new locationId
+        const [locationExists] = await db
+          .select()
+          .from(locations)
+          .where(eq(locations.id, locationId))
+          .limit(1);
+
+        if (!locationExists) {
+          throw createError('Invalid locationId', 400);
+        }
+      }
+      updateData.locationId = locationId;
+    }
     // Enhanced fields
     if (productImage !== undefined) updateData.productImage = productImage;
     if (category !== undefined) updateData.category = category;
@@ -223,6 +271,22 @@ router.put('/:id/move', async (req, res, next) => {
       .where(eq(products.id, id))
       .returning();
 
+    // Log location change if happened
+    if (locationId !== undefined && locationId !== currentProduct.locationId) {
+      await db.insert(transferLogs).values({
+        productId: id,
+        fromKanbanId: currentProduct.kanbanId,
+        toKanbanId: currentProduct.kanbanId, // Same kanban, just location change
+        fromColumn: currentProduct.columnStatus,
+        toColumn: currentProduct.columnStatus, // Same column, just location change
+        fromLocationId: currentProduct.locationId,
+        toLocationId: locationId,
+        transferType: 'manual',
+        notes: `Location changed from ${currentProduct.locationId || 'unspecified'} to ${locationId || 'unspecified'}`,
+        transferredBy: 'user', // TODO: Get actual user from auth
+      });
+    }
+
     res.json(updatedProduct);
   } catch (error) {
     next(error);
@@ -244,6 +308,45 @@ router.delete('/:id', async (req, res, next) => {
     }
 
     res.json({ message: 'Product deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get products by location
+router.get('/by-location/:locationId', async (req, res, next) => {
+  try {
+    const { locationId } = req.params;
+
+    // Verify location exists
+    const [location] = await db
+      .select()
+      .from(locations)
+      .where(eq(locations.id, locationId))
+      .limit(1);
+
+    if (!location) {
+      throw createError('Location not found', 404);
+    }
+
+    // Get products at this location with kanban info
+    const locationProducts = await db
+      .select({
+        ...products,
+        kanban: kanbans,
+        location: locations,
+      })
+      .from(products)
+      .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
+      .leftJoin(locations, eq(products.locationId, locations.id))
+      .where(eq(products.locationId, locationId))
+      .orderBy(desc(products.updatedAt));
+
+    res.json({
+      location,
+      products: locationProducts,
+      count: locationProducts.length,
+    });
   } catch (error) {
     next(error);
   }

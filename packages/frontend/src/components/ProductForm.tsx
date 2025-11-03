@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Product, CreateProduct, UpdateProduct, DEFAULT_CATEGORIES, DEFAULT_PRIORITIES, COMMON_TAGS } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
+import CompactLocationSelector from './LocationSelector';
 
 interface ProductFormProps {
   kanbanId: string;
@@ -15,6 +16,7 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
     productDetails: product?.productDetails || '',
     productLink: product?.productLink || '',
     location: product?.location || '',
+    locationId: product?.locationId || null,
     priority: product?.priority || '',
     stockLevel: product?.stockLevel?.toString() || '',
     // Enhanced fields
@@ -88,6 +90,7 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
           productDetails: formData.productDetails,
           productLink: formData.productLink || null,
           location: formData.location || null,
+          locationId: formData.locationId,
           priority: formData.priority || null,
           // Enhanced fields
           productImage: formData.productImage || null,
@@ -115,6 +118,7 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
           productDetails: formData.productDetails,
           productLink: formData.productLink || null,
           location: formData.location || null,
+          locationId: formData.locationId,
           priority: formData.priority || null,
           // Enhanced fields
           productImage: formData.productImage || null,
@@ -327,15 +331,12 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Location
                 </label>
-                <input
-                  type="text"
-                  className="w-full border border-gray-300 rounded-md p-3"
-                  placeholder="Storage location"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                <CompactLocationSelector
+                  value={formData.locationId}
+                  onChange={(locationId) => setFormData({ ...formData, locationId })}
+                  placeholder="Select a location..."
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Priority
@@ -370,6 +371,19 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
                   )}
                 </div>
               )}
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Location Notes
+                </label>
+                <input
+                  type="text"
+                  className="w-full border border-gray-300 rounded-md p-3"
+                  placeholder="Additional location details (optional)"
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                />
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
