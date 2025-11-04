@@ -2,11 +2,20 @@ import { z } from 'zod';
 import { ProductSchema } from './product';
 import { KanbanSchema } from './kanban';
 
+// Validation data schema for inventory items
+export const InventoryValidationSchema = z.object({
+  receivedImage: z.string().url().nullable(),
+  storagePhoto: z.string().url().nullable(),
+  validatedAt: z.coerce.date().nullable(),
+});
+
 // Enhanced product type for inventory with additional computed fields
 export const InventoryItemSchema = ProductSchema.extend({
   kanban: KanbanSchema,
   kanbanId: z.string().uuid(),
   daysInInventory: z.number(),
+  validation: InventoryValidationSchema.nullable(),
+  displayImage: z.string().url().nullable(),
 });
 
 // Location schema for inventory

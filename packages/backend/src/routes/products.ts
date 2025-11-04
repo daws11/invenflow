@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { products, kanbans, transferLogs, locations } from '../db/schema';
+import { products, kanbans, transferLogs, locations, productValidations } from '../db/schema';
 import { eq, and, desc, getTableColumns } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import type { NewProduct } from '../db/schema';
@@ -234,7 +234,7 @@ router.put('/:id', async (req, res, next) => {
 router.put('/:id/move', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { columnStatus } = req.body;
+    const { columnStatus, locationId, skipValidation } = req.body;
 
     if (!columnStatus) {
       throw createError('Column status is required', 400);
@@ -264,10 +264,55 @@ router.put('/:id/move', async (req, res, next) => {
       throw createError('Product not found', 404);
     }
 
+    // Check if validation is required for receive kanbans
+    if (!skipValidation && currentProduct.kanbanType === 'receive' &&
+        (columnStatus === 'Received' || columnStatus === 'Stored')) {
+
+      // Check if validation exists for this product and target status
+      const [existingValidation] = await db
+        .select()
+        .from(productValidations)
+        .where(
+          and(
+            eq(productValidations.productId, id),
+            eq(productValidations.columnStatus, columnStatus)
+          )
+        )
+        .limit(1);
+
+      // If no validation exists, throw error to trigger validation modal
+      if (!existingValidation) {
+        const error: any = createError('Validation required', 400);
+        error.details = {
+          requiresValidation: true,
+          productId: id,
+          columnStatus,
+        };
+        throw error;
+      }
+    }
+
     let updateData: any = {
       columnStatus,
       updatedAt: new Date(),
     };
+
+    // Handle locationId if provided
+    if (locationId !== undefined) {
+      if (locationId && locationId !== currentProduct.locationId) {
+        // Validate the new locationId
+        const [locationExists] = await db
+          .select()
+          .from(locations)
+          .where(eq(locations.id, locationId))
+          .limit(1);
+
+        if (!locationExists) {
+          throw createError('Invalid locationId', 400);
+        }
+      }
+      updateData.locationId = locationId ?? null;
+    }
 
     // Handle stock tracking for "Stored" status
     if (columnStatus === 'Stored' && currentProduct.stockLevel === null) {
@@ -313,7 +358,7 @@ router.put('/:id/move', async (req, res, next) => {
       .returning();
 
     // Log location change if happened
-    if (locationIdInput !== undefined && locationIdInput !== currentProduct.locationId) {
+    if (locationId !== undefined && locationId !== currentProduct.locationId) {
       await db.insert(transferLogs).values({
         productId: id,
         fromKanbanId: currentProduct.kanbanId,
@@ -321,9 +366,9 @@ router.put('/:id/move', async (req, res, next) => {
         fromColumn: currentProduct.columnStatus,
         toColumn: currentProduct.columnStatus, // Same column, just location change
         fromLocationId: currentProduct.locationId,
-        toLocationId: locationIdInput ?? null,
+        toLocationId: locationId ?? null,
         transferType: 'manual',
-        notes: `Location changed from ${currentProduct.locationId || 'unspecified'} to ${locationIdInput || 'unspecified'}`,
+        notes: `Location changed from ${currentProduct.locationId || 'unspecified'} to ${locationId || 'unspecified'}`,
         transferredBy: 'user', // TODO: Get actual user from auth
       });
     }

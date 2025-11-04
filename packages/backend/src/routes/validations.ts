@@ -75,11 +75,11 @@ router.post('/validate', async (req, res) => {
       .returning();
 
     // Return response with proper schema
-    const response = ProductValidationResponseSchema.parse({
+    const response = {
       ...newValidation,
       createdAt: newValidation.createdAt.toISOString(),
       updatedAt: newValidation.updatedAt.toISOString(),
-    });
+    };
 
     res.status(201).json({
       success: true,

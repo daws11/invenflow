@@ -100,8 +100,8 @@ export const productApi = {
     return response.data;
   },
 
-  move: async (id: string, columnStatus: string): Promise<Product> => {
-    const response = await api.put(`/api/products/${id}/move`, { columnStatus });
+  move: async (id: string, columnStatus: string, locationId?: string, skipValidation?: boolean): Promise<Product> => {
+    const response = await api.put(`/api/products/${id}/move`, { columnStatus, locationId, skipValidation });
     return response.data;
   },
 

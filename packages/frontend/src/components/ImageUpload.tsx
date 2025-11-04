@@ -58,7 +58,8 @@ export default function ImageUpload({
       }
 
       const data = await response.json();
-      onChange(data.file.url);
+      // Use publicUrl for better accessibility without authentication
+      onChange(data.file.publicUrl || data.file.url);
     } catch (error) {
       console.error('Upload error:', error);
       setUploadError(error instanceof Error ? error.message : 'Gagal upload gambar');

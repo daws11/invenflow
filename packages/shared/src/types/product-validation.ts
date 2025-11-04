@@ -7,9 +7,9 @@ export const ValidationStatusSchema = z.enum(['Received', 'Stored']);
 export const ReceivedValidationSchema = z.object({
   columnStatus: z.literal('Received'),
   recipientName: z.string().min(1, 'Nama penerima harus diisi'),
-  locationId: z.string().uuid('ID lokasi tidak valid').optional(),
+  locationId: z.string().uuid('ID lokasi tidak valid').nullable().optional(),
   receivedImage: z.string().min(1, 'Gambar penerimaan harus diupload'),
-  notes: z.string().optional(),
+  notes: z.string().nullable().optional(),
 });
 
 // Form validation schema for "Stored" status
@@ -18,7 +18,7 @@ export const StoredValidationSchema = z.object({
   recipientName: z.string().min(1, 'Nama penerima harus diisi'),
   locationId: z.string().uuid('ID lokasi tidak valid'),
   storagePhoto: z.string().min(1, 'Gambar storage harus diupload'),
-  notes: z.string().optional(),
+  notes: z.string().nullable().optional(),
 });
 
 // Combined validation schema
@@ -34,10 +34,10 @@ export const ProductValidationResponseSchema = z.object({
   columnStatus: ValidationStatusSchema,
   recipientName: z.string(),
   locationId: z.string().uuid().optional(),
-  receivedImage: z.string().optional(),
-  storagePhoto: z.string().optional(),
+  receivedImage: z.string().nullable().optional(),
+  storagePhoto: z.string().nullable().optional(),
   validatedBy: z.string(),
-  notes: z.string().optional(),
+  notes: z.string().nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

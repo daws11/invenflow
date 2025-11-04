@@ -115,7 +115,8 @@ export default function KanbanBoard() {
         await moveProduct(
           pendingProductMove.productId,
           pendingProductMove.targetColumn,
-          true // skip validation check
+          validationData.locationId, // pass locationId from validation data
+          true // skip validation check since validation is already completed
         );
       }
 

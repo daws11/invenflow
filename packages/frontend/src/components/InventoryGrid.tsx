@@ -115,9 +115,9 @@ export function InventoryGrid({ items, loading, viewMode, onProductClick }: Inve
               >
                 {/* Product Image */}
                 <div className="relative h-48 bg-gray-50">
-                  {item.productImage && !imageErrors.has(item.id) ? (
+                  {item.displayImage && !imageErrors.has(item.id) ? (
                     <img
-                      src={item.productImage}
+                      src={item.displayImage}
                       alt={item.productDetails}
                       className="w-full h-full object-cover"
                       onError={() => handleImageError(item.id)}
@@ -269,9 +269,9 @@ export function InventoryGrid({ items, loading, viewMode, onProductClick }: Inve
                   >
                     {/* Product Image */}
                     <div className="relative h-48 bg-gray-50">
-                      {item.productImage && !imageErrors.has(item.id) ? (
+                      {item.displayImage && !imageErrors.has(item.id) ? (
                         <img
-                          src={item.productImage}
+                          src={item.displayImage}
                           alt={item.productDetails}
                           className="w-full h-full object-cover"
                           onError={() => handleImageError(item.id)}

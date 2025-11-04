@@ -64,10 +64,11 @@ router.post('/', upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: 'Tidak ada file yang diupload' });
     }
 
-    // Generate file URL (relative path for serving)
+    // Generate file URLs (both authenticated and public)
     const dateFolder = new Date().toISOString().split('T')[0];
     const relativePath = `uploads/${dateFolder}/${req.file.filename}`;
-    const fileUrl = `${req.protocol}://${req.get('host')}/${relativePath}`;
+    const publicUrl = `${req.protocol}://${req.get('host')}/${relativePath}`;
+    const authenticatedUrl = `${req.protocol}://${req.get('host')}/api/upload/${req.file.filename}`;
 
     // Validate and create file upload response
     const fileUploadData = FileUploadSchema.parse({
@@ -76,12 +77,16 @@ router.post('/', upload.single('image'), async (req, res) => {
       mimetype: req.file.mimetype,
       size: req.file.size,
       path: req.file.path,
-      url: fileUrl,
+      url: publicUrl, // Use public URL for default
     });
 
     res.json({
       success: true,
-      file: fileUploadData,
+      file: {
+        ...fileUploadData,
+        publicUrl,
+        authenticatedUrl,
+      },
     });
   } catch (error) {
     console.error('Upload error:', error);

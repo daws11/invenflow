@@ -108,8 +108,8 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
     }
   };
 
-  const imageSrc = item.productImage ?? '';
-  const hasImage = Boolean(item.productImage) && !imageError;
+  const imageSrc = item.displayImage ?? item.productImage ?? '';
+  const hasImage = Boolean(item.displayImage || item.productImage) && !imageError;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
