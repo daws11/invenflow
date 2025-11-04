@@ -1,6 +1,8 @@
 import { pgTable, uuid, text, timestamp, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { kanbans, products, locations } from './index';
+import { kanbans } from './kanbans';
+import { products } from './products';
+import { locations } from './locations';
 
 export const transferLogs = pgTable(
   'transfer_logs',
@@ -33,6 +35,29 @@ export const transferLogs = pgTable(
   })
 );
 
+// Relations
+export const transferLogsRelations = relations(transferLogs, ({ one }) => ({
+  product: one(products, {
+    fields: [transferLogs.productId],
+    references: [products.id],
+  }),
+  fromKanban: one(kanbans, {
+    fields: [transferLogs.fromKanbanId],
+    references: [kanbans.id],
+  }),
+  toKanban: one(kanbans, {
+    fields: [transferLogs.toKanbanId],
+    references: [kanbans.id],
+  }),
+  fromLocation: one(locations, {
+    fields: [transferLogs.fromLocationId],
+    references: [locations.id],
+  }),
+  toLocation: one(locations, {
+    fields: [transferLogs.toLocationId],
+    references: [locations.id],
+  }),
+}));
 
 export type TransferLog = typeof transferLogs.$inferSelect;
 export type NewTransferLog = typeof transferLogs.$inferInsert;

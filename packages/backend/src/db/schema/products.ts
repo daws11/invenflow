@@ -39,6 +39,17 @@ export const products = pgTable(
   })
 );
 
+// Relations
+export const productsRelations = relations(products, ({ one, many }) => ({
+  kanban: one(kanbans, {
+    fields: [products.kanbanId],
+    references: [kanbans.id],
+  }),
+  location: one(locations, {
+    fields: [products.locationId],
+    references: [locations.id],
+  }),
+}));
 
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;

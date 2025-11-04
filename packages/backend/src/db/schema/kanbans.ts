@@ -10,8 +10,8 @@ export const kanbans = pgTable(
     type: text('type').notNull(), // 'order' | 'receive'
     linkedKanbanId: uuid('linked_kanban_id'),
     publicFormToken: text('public_form_token').unique(),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    createdAt: timestamp('created_at', { mode: 'string' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { mode: 'string' }).notNull().defaultNow(),
   },
   (table) => ({
     typeIdx: index('kanbans_type_idx').on(table.type),
