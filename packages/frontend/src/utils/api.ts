@@ -10,7 +10,12 @@ import {
   UpdateLocation,
   InventoryFilters,
   InventoryResponse,
-  InventoryStats
+  InventoryStats,
+  User,
+  CreateUser,
+  UpdateUser,
+  Login,
+  AuthResponse
 } from '@invenflow/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -22,6 +27,34 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Add request interceptor to include auth token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor to handle auth errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token expired or invalid
+      localStorage.removeItem('auth_token');
+      // Redirect to login page or trigger logout
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Kanban API calls
 export const kanbanApi = {
@@ -158,6 +191,61 @@ export const inventoryApi = {
 
   getStats: async (): Promise<InventoryStats> => {
     const response = await api.get('/api/inventory/stats');
+    return response.data;
+  },
+};
+
+// User API calls
+export const userApi = {
+  getAll: async (): Promise<User[]> => {
+    const response = await api.get('/api/users');
+    return response.data;
+  },
+
+  getById: async (id: string): Promise<User> => {
+    const response = await api.get(`/api/users/${id}`);
+    return response.data;
+  },
+
+  create: async (data: CreateUser): Promise<User> => {
+    const response = await api.post('/api/users', data);
+    return response.data;
+  },
+
+  update: async (id: string, data: UpdateUser): Promise<User> => {
+    const response = await api.put(`/api/users/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/api/users/${id}`);
+  },
+};
+
+// Auth API calls
+export const authApi = {
+  login: async (data: Login): Promise<AuthResponse> => {
+    const response = await api.post('/api/auth/login', data);
+    return response.data;
+  },
+
+  register: async (data: CreateUser): Promise<AuthResponse> => {
+    const response = await api.post('/api/auth/register', data);
+    return response.data;
+  },
+
+  logout: async (): Promise<{ message: string }> => {
+    const response = await api.post('/api/auth/logout');
+    return response.data;
+  },
+
+  refreshToken: async (): Promise<AuthResponse> => {
+    const response = await api.post('/api/auth/refresh');
+    return response.data;
+  },
+
+  getCurrentUser: async (): Promise<User> => {
+    const response = await api.get('/api/auth/me');
     return response.data;
   },
 };

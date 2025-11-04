@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { createError } from './errorHandler';
+import { env } from '../config/env';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -23,12 +24,7 @@ export const authenticateToken = (
     return next(createError('Access token required', 401));
   }
 
-  const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret) {
-    return next(createError('JWT_SECRET not configured', 500));
-  }
-
-  jwt.verify(token, jwtSecret, (err, decoded) => {
+  jwt.verify(token, env.JWT_SECRET, (err, decoded) => {
     if (err) {
       return next(createError('Invalid or expired token', 403));
     }
@@ -58,12 +54,7 @@ export const optionalAuth = (
     return next(); // Continue without user info
   }
 
-  const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret) {
-    return next(); // Continue without user info if JWT_SECRET not configured
-  }
-
-  jwt.verify(token, jwtSecret, (err, decoded) => {
+  jwt.verify(token, env.JWT_SECRET, (err, decoded) => {
     if (!err) {
       req.user = decoded as {
         id: string;

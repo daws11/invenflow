@@ -6,6 +6,7 @@ import { users } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
+import { env } from '../config/env';
 
 const router = Router();
 
@@ -38,11 +39,6 @@ router.post('/login', async (req, res, next) => {
     }
 
     // Generate JWT token
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      return next(createError('JWT_SECRET not configured', 500));
-    }
-
     const token = jwt.sign(
       {
         id: foundUser.id,
@@ -50,8 +46,8 @@ router.post('/login', async (req, res, next) => {
         name: foundUser.name,
         role: foundUser.role,
       },
-      jwtSecret,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      env.JWT_SECRET,
+      { expiresIn: env.JWT_EXPIRES_IN }
     ) as string;
 
     res.json({
@@ -63,6 +59,64 @@ router.post('/login', async (req, res, next) => {
         name: foundUser.name,
         role: foundUser.role,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Register route
+router.post('/register', async (req, res, next) => {
+  try {
+    const { email, password, name, role } = req.body;
+
+    if (!email || !password || !name) {
+      return next(createError('Email, password, and name are required', 400));
+    }
+
+    // Check if user already exists
+    const existingUser = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    if (existingUser.length > 0) {
+      return next(createError('User already exists', 409));
+    }
+
+    // Hash password
+    const passwordHash = bcrypt.hashSync(password, 10);
+
+    // Create user
+    const newUser = await db
+      .insert(users)
+      .values({
+        email,
+        passwordHash,
+        name,
+        role: role || 'user',
+      })
+      .returning();
+
+    const { passwordHash: _, ...userWithoutPassword } = newUser[0];
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        id: userWithoutPassword.id,
+        email: userWithoutPassword.email,
+        name: userWithoutPassword.name,
+        role: userWithoutPassword.role,
+      },
+      env.JWT_SECRET,
+      { expiresIn: env.JWT_EXPIRES_IN }
+    ) as string;
+
+    res.status(201).json({
+      message: 'User registered successfully',
+      token,
+      user: userWithoutPassword,
     });
   } catch (error) {
     next(error);

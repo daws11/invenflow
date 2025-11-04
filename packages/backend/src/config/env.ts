@@ -4,9 +4,16 @@ import { dirname, join } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const rootDir = join(__dirname, '../../..');
+// Try to find .env in the project root
+const rootDir = join(__dirname, '../../../');
+const envPath = join(rootDir, '.env');
 
-config({ path: join(rootDir, '.env') });
+const result = config({ path: envPath });
+
+// If .env not found in root, try current directory
+if (result.error) {
+  config();
+}
 
 export const env = {
   PORT: parseInt(process.env.PORT || '3001', 10),

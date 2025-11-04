@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { X, Menu, Layout, MapPin, Users, LogOut, Home } from 'lucide-react';
+import { X, Menu, Layout, MapPin, Users, LogOut, Home, Package } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -39,6 +39,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
       name: 'Kanbans',
       path: '/',
       icon: Layout,
+    },
+    {
+      name: 'Inventory',
+      path: '/inventory',
+      icon: Package,
     },
     {
       name: 'Locations',
