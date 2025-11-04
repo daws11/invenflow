@@ -7,27 +7,36 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
 
+  const handleCollapseChange = (collapsed: boolean) => {
+    setSidebarCollapsed(collapsed);
+  };
+
   // Update main content margin based on sidebar state
-  const mainContentMargin = 'lg:pl-64';
+  const mainContentMargin = sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64';
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Sidebar */}
-      <Sidebar isOpen={sidebarOpen} onToggle={toggleSidebar} />
+      <Sidebar
+        isOpen={sidebarOpen}
+        onToggle={toggleSidebar}
+        onCollapseChange={handleCollapseChange}
+      />
 
       {/* Mobile Header with Hamburger Menu */}
-      <header className="lg:hidden bg-white shadow-sm border-b">
+      <header className="lg:hidden bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-sm border-b border-gray-100">
         <div className="px-4 sm:px-6">
           <div className="flex items-center justify-between h-16">
             {/* Hamburger Menu Button */}
             <button
               onClick={toggleSidebar}
-              className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex items-center justify-center w-11 h-11 rounded-xl border border-gray-200 bg-white shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-all"
               aria-label="Open sidebar"
             >
               <svg
@@ -45,7 +54,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             {/* Mobile Logo */}
             <div className="flex items-center">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mr-2">
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center mr-3 shadow-sm">
                 <svg
                   className="w-5 h-5 text-white"
                   fill="none"
@@ -55,14 +64,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   viewBox="0 0 24 24"
                   stroke="currentColor"
                 >
-                  <path d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+                  <path d="M3 6h18M3 12h12M3 18h9"></path>
                 </svg>
               </div>
-              <span className="text-xl font-bold text-gray-900">InvenFlow</span>
+              <div className="flex flex-col">
+                <span className="text-lg font-semibold leading-tight text-gray-900">InvenFlow</span>
+                <span className="text-xs font-medium text-blue-600 uppercase tracking-wide">Control Center</span>
+              </div>
             </div>
 
             {/* Empty div for balance */}
-            <div className="w-10"></div>
+            <div className="flex items-center space-x-3">
+              <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-gray-500 bg-gray-100 rounded-full">
+                {new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+              </span>
+            </div>
           </div>
         </div>
       </header>

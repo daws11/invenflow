@@ -5,7 +5,8 @@ import {
   DragOverlay,
   closestCenter,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragStartEvent,
@@ -40,9 +41,15 @@ export default function KanbanBoard() {
   const [isValidationLoading, setIsValidationLoading] = useState(false);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
-        distance: 8, // 8px movement before drag starts
+        distance: 6, // slight movement before drag starts
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 8,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -233,11 +240,11 @@ export default function KanbanBoard() {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div>
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">{currentKanban.name}</h2>
-            <div className="flex items-center space-x-4">
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-3">
+            <h2 className="text-3xl font-bold text-gray-900">{currentKanban.name}</h2>
+            <div className="flex flex-wrap items-center gap-3">
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                 currentKanban.type === 'order'
                   ? 'bg-blue-100 text-blue-800'
@@ -257,10 +264,11 @@ export default function KanbanBoard() {
               )}
             </div>
           </div>
-          <div className="flex space-x-4">
-            <button className="btn-secondary">Settings</button>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button className="btn-secondary w-full sm:w-auto">Settings</button>
             <button
-              className="btn-primary"
+              className="btn-primary w-full sm:w-auto"
               onClick={() => setShowAddForm(true)}
             >
               Add Product
@@ -269,18 +277,18 @@ export default function KanbanBoard() {
         </div>
 
         {/* Location Filter */}
-        <div className="mb-6">
+        <div className="space-y-3">
           <LocationFilter
             selectedLocationId={selectedLocationId}
             onLocationChange={setSelectedLocationId}
-            className="max-w-xs"
+            className="w-full sm:max-w-xs"
           />
           {selectedLocationId && (
-            <div className="mt-2 flex items-center text-sm text-gray-600">
-              <span>Filtering by location</span>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+              <span className="font-medium text-gray-700">Filtering by location</span>
               <button
                 onClick={() => setSelectedLocationId(null)}
-                className="ml-2 text-blue-600 hover:text-blue-800"
+                className="text-blue-600 hover:text-blue-800"
               >
                 Clear filter
               </button>
@@ -288,7 +296,7 @@ export default function KanbanBoard() {
           )}
         </div>
 
-        <div className="flex space-x-6 overflow-x-auto pb-6">
+        <div className="flex flex-col gap-4 pb-6 lg:flex-row lg:items-start lg:gap-6 lg:overflow-x-auto">
           {getColumns().map((column) => (
             <KanbanColumn
               key={column}

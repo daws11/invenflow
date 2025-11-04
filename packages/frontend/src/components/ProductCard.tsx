@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Product, Location } from '@invenflow/shared';
 import { useDraggable } from '@dnd-kit/core';
 import TransferHistoryViewer from './TransferHistoryViewer';
@@ -13,7 +13,6 @@ export default function ProductCard({ product, onView, location }: ProductCardPr
   const [isExpanded, setIsExpanded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [showTransferHistory, setShowTransferHistory] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
 
   const {
     attributes,
@@ -24,6 +23,36 @@ export default function ProductCard({ product, onView, location }: ProductCardPr
   } = useDraggable({
     id: product.id,
   });
+
+  const interactiveSelector = 'button, a, [data-no-drag]';
+
+  const handleMouseDown: React.MouseEventHandler<HTMLDivElement> = (event) => {
+    if ((event.target as HTMLElement).closest(interactiveSelector)) {
+      return;
+    }
+    listeners.onMouseDown?.(event);
+  };
+
+  const handlePointerDown: React.PointerEventHandler<HTMLDivElement> = (event) => {
+    if ((event.target as HTMLElement).closest(interactiveSelector)) {
+      return;
+    }
+    listeners.onPointerDown?.(event);
+  };
+
+  const handleTouchStart: React.TouchEventHandler<HTMLDivElement> = (event) => {
+    if ((event.target as HTMLElement).closest(interactiveSelector)) {
+      return;
+    }
+    listeners.onTouchStart?.(event);
+  };
+
+  const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (event) => {
+    if ((event.target as HTMLElement).closest(interactiveSelector)) {
+      return;
+    }
+    listeners.onKeyDown?.(event);
+  };
 
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
@@ -81,110 +110,75 @@ export default function ProductCard({ product, onView, location }: ProductCardPr
 
   return (
     <div
-      ref={cardRef}
-      className={`product-card group relative transition-all duration-200 ${
+      ref={setNodeRef}
+      style={style}
+      className={`product-card group relative transition-all duration-200 cursor-grab active:cursor-grabbing ${
         isDragging
           ? 'shadow-2xl scale-105 opacity-95 border-blue-400'
           : 'hover:shadow-lg'
       }`}
+      {...attributes}
+      data-dragging={isDragging ? 'true' : 'false'}
+      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
+      onTouchStart={handleTouchStart}
+      onKeyDown={handleKeyDown}
     >
-      {/* Enhanced Drag Handle Area */}
-      <div
-        ref={(node) => {
-          setNodeRef(node);
-        }}
-        style={style}
-        className={`drag-handle-area group/drag absolute left-0 top-0 bottom-0 w-8 flex items-center justify-center transition-all duration-200 ease-out ${
-          isDragging
-            ? 'bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30 scale-105'
-            : 'bg-gradient-to-r from-gray-100 to-gray-200 hover:from-blue-50 hover:to-blue-100 hover:shadow-md hover:scale-105'
-        }`}
-        {...attributes}
-        {...listeners}
-        title="Drag to move product"
-      >
-        {/* Dots Pattern for Better UX */}
-        <div className="flex flex-col items-center justify-center space-y-1.5">
-          <div className={`w-1.5 h-1.5 rounded-full transition-colors ${
-            isDragging ? 'bg-white' : 'bg-gray-400 group-hover/drag:bg-blue-500'
-          }`} />
-          <div className={`w-1.5 h-1.5 rounded-full transition-colors ${
-            isDragging ? 'bg-white' : 'bg-gray-400 group-hover/drag:bg-blue-500'
-          }`} />
-          <div className={`w-1.5 h-1.5 rounded-full transition-colors ${
-            isDragging ? 'bg-white' : 'bg-gray-400 group-hover/drag:bg-blue-500'
-          }`} />
-        </div>
-
-        {/* Drag Icon on Hover */}
-        <div className="absolute opacity-0 group-hover/drag:opacity-100 transition-opacity duration-200 pointer-events-none">
-          <svg
-            className="w-6 h-6 text-blue-600"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11"
-            />
-          </svg>
-        </div>
-      </div>
-      {/* Product Content with Padding for Drag Handle */}
-      <div className="pl-10 pr-4">
+      {/* Product Content */}
+      <div className="space-y-3">
         {/* Product Image Section */}
         {product.productImage && !imageError && (
-          <div className="mb-3 rounded-lg overflow-hidden bg-gray-100">
-          <img
-            src={product.productImage}
-            alt={product.productDetails}
-            className="w-full h-32 object-cover"
-            onError={() => setImageError(true)}
-            loading="lazy"
-          />
-        </div>
-      )}
+          <div className="hidden sm:block rounded-lg overflow-hidden bg-gray-100">
+            <img
+              src={product.productImage}
+              alt={product.productDetails}
+              className="w-full h-32 object-cover"
+              onError={() => setImageError(true)}
+              loading="lazy"
+            />
+          </div>
+        )}
 
-      <div className="flex justify-between items-start mb-3">
-        {/* Product Info */}
-        <div className="flex-1 mr-3">
-          <h4 className="font-medium text-gray-900 mb-1">{product.productDetails}</h4>
-          {product.sku && (
-            <div className="text-xs text-gray-500 mb-1">SKU: {product.sku}</div>
-          )}
-          {product.supplier && (
-            <div className="text-xs text-gray-600 mb-1">Supplier: {product.supplier}</div>
-          )}
-          {(location || product.location) && (
-            <div className="flex items-center text-sm mb-2">
-              <svg className="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              {location ? (
-                <div className="flex items-center space-x-2">
-                  <span className="font-medium text-gray-900">{location.name}</span>
-                  <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium">
-                    {location.code}
-                  </span>
-                  <span className="text-gray-500">• {location.area}</span>
-                </div>
-              ) : (
-                <span className="text-gray-600">{product.location}</span>
-              )}
-            </div>
-          )}
-        </div>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+          {/* Product Info */}
+          <div className="flex-1 sm:mr-3 space-y-1.5">
+            <h4 className="font-medium text-gray-900">{product.productDetails}</h4>
+            {(location || product.location) && (
+              <div className="flex items-start sm:items-center text-sm">
+                <svg className="w-4 h-4 mr-2 mt-0.5 sm:mt-0 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                {location ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
+                    <span className="font-medium text-gray-900">{location.name}</span>
+                    <span className="hidden sm:inline-flex bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                      {location.code}
+                    </span>
+                    {location.area && (
+                      <span className="hidden sm:inline text-gray-500">• {location.area}</span>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-gray-600">{product.location}</span>
+                )}
+              </div>
+            )}
+            {product.sku && (
+              <div className="hidden sm:block text-xs text-gray-500">SKU: {product.sku}</div>
+            )}
+            {product.supplier && (
+              <div className="hidden sm:block text-xs text-gray-600">Supplier: {product.supplier}</div>
+            )}
+          </div>
 
-        {/* Enhanced Action Buttons */}
-        <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-all duration-300 delay-100">
-          <button
-            onClick={() => onView?.()}
-            className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-2.5 rounded-lg transition-all duration-200 transform hover:scale-110 active:scale-95 min-w-[44px] min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm hover:shadow-md"
-            title="View product details"
+          {/* Enhanced Action Buttons */}
+          <div className="flex space-x-2 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300 delay-100">
+            <button
+              onClick={() => onView?.()}
+              data-no-drag
+              className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-2.5 rounded-lg transition-all duration-200 transform hover:scale-110 active:scale-95 min-w-[44px] min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm hover:shadow-md"
+              title="View product details"
             type="button"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -194,6 +188,7 @@ export default function ProductCard({ product, onView, location }: ProductCardPr
           </button>
           <button
             onClick={() => setShowTransferHistory(true)}
+            data-no-drag
             className="text-gray-400 hover:text-green-600 hover:bg-green-50 p-2.5 rounded-lg transition-all duration-200 transform hover:scale-110 active:scale-95 min-w-[44px] min-h-[44px] focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 shadow-sm hover:shadow-md"
             title="View transfer history"
             type="button"
@@ -206,7 +201,7 @@ export default function ProductCard({ product, onView, location }: ProductCardPr
       </div>
 
       {/* Tags and Categories */}
-      <div className="flex flex-wrap gap-2 mb-3">
+      <div className="hidden sm:flex flex-wrap gap-2">
         {product.category && (
           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getCategoryColor(product.category)}`}>
             {product.category}
@@ -231,7 +226,7 @@ export default function ProductCard({ product, onView, location }: ProductCardPr
 
       {/* Product Tags */}
       {product.tags && product.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-3">
+        <div className="hidden sm:flex flex-wrap gap-1">
           {product.tags.slice(0, 3).map((tag, index) => (
             <span
               key={index}
@@ -247,13 +242,14 @@ export default function ProductCard({ product, onView, location }: ProductCardPr
       )}
 
       {product.productLink && (
-        <div className="mb-3">
+        <div className="hidden sm:block">
           <a
             href={product.productLink}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-blue-600 hover:text-blue-800 truncate block flex items-center"
             onClick={(e) => e.stopPropagation()}
+            data-no-drag
             onDragStart={(e) => e.preventDefault()}
           >
             <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -264,7 +260,7 @@ export default function ProductCard({ product, onView, location }: ProductCardPr
         </div>
       )}
 
-      <div className="text-xs text-gray-500">
+      <div className="hidden sm:block text-xs text-gray-500">
         Created: {new Date(product.createdAt).toLocaleDateString()}
       </div>
 
@@ -275,7 +271,8 @@ export default function ProductCard({ product, onView, location }: ProductCardPr
             e.stopPropagation();
             setIsExpanded(!isExpanded);
           }}
-          className="text-xs text-gray-500 hover:text-blue-600 hover:bg-blue-50 mt-3 flex items-center px-3 py-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 group/show-more"
+          data-no-drag
+          className="hidden sm:inline-flex text-xs text-gray-500 hover:text-blue-600 hover:bg-blue-50 mt-3 items-center px-3 py-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 group/show-more"
         >
           <svg
             className={`w-4 h-4 mr-2 transform transition-all duration-200 ${isExpanded ? 'rotate-180 text-blue-600' : 'text-gray-400 group-hover/show-more:text-blue-600'}`}
@@ -290,7 +287,7 @@ export default function ProductCard({ product, onView, location }: ProductCardPr
       )}
 
       {isExpanded && (
-        <div className="mt-3 pt-3 border-t border-gray-200 text-sm space-y-2">
+        <div className="hidden sm:block mt-3 pt-3 border-t border-gray-200 text-sm space-y-2">
           {product.productLink && (
             <div>
               <span className="font-medium text-gray-700">Product Link:</span>
@@ -300,6 +297,7 @@ export default function ProductCard({ product, onView, location }: ProductCardPr
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:text-blue-800 break-all ml-2 block"
                 onClick={(e) => e.stopPropagation()}
+                data-no-drag
                 onDragStart={(e) => e.preventDefault()}
               >
                 {product.productLink}

@@ -10,7 +10,7 @@
 
 @layer components {
   .kanban-column {
-    @apply bg-gray-100 rounded-lg p-4 min-h-[400px] w-80;
+    @apply bg-gray-100 rounded-lg p-4 min-h-[400px] w-full lg:w-72 xl:w-80 flex-shrink-0;
   }
 
   .kanban-column-header {
@@ -19,7 +19,7 @@
 
   .product-card {
     @apply bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-3 hover:shadow-md transition-all cursor-grab;
-    touch-action: none;
+    touch-action: auto;
   }
 
   .product-card:active {
@@ -114,17 +114,12 @@
 
   /* Enhanced Mobile optimizations */
   @media (max-width: 640px) {
+    .kanban-column {
+      @apply w-full mx-auto;
+    }
+
     .product-card {
       @apply p-3 mb-3 mx-1;
-    }
-
-    /* Larger drag handle for mobile */
-    .drag-handle-area {
-      @apply w-12;
-    }
-
-    .product-card .pl-10 {
-      @apply pl-14;
     }
 
     /* Prevent zoom on tap for iOS */
@@ -143,15 +138,6 @@
       min-width: 44px;
     }
 
-    /* Mobile drag handle improvements */
-    .drag-handle-area .w-1\.5 {
-      @apply w-2 h-2;
-    }
-
-    .drag-handle-area .space-y-1\.5 {
-      @apply space-y-2;
-    }
-
     /* Better spacing on mobile */
     .product-card .space-x-2 {
       @apply space-x-1;
@@ -167,6 +153,10 @@
   @media (pointer: coarse) {
     .crud-button:active {
       transform: scale(0.95);
+    }
+
+    .product-card {
+      touch-action: pan-y;
     }
   }
 

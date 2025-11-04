@@ -1,25 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { X, Menu, Layout, MapPin, Users, LogOut, Home, Package } from 'lucide-react';
+import { X, Menu, Layout, MapPin, Users, LogOut, Package } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
+  onCollapseChange?: (collapsed: boolean) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange }) => {
   const location = useLocation();
   const { user, logout } = useAuthStore();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const previousPathRef = useRef(location.pathname);
 
   // Auto-collapse based on screen size
   useEffect(() => {
     const checkScreenSize = () => {
       const mobile = window.innerWidth < 768;
+      const collapsed = window.innerWidth < 1024 && !mobile;
       setIsMobile(mobile);
-      setIsCollapsed(window.innerWidth < 1024 && !mobile);
+      setIsCollapsed(collapsed);
     };
 
     checkScreenSize();
@@ -29,10 +32,35 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
 
   // Close sidebar on mobile when route changes
   useEffect(() => {
-    if (isMobile) {
+    const previousPath = previousPathRef.current;
+    previousPathRef.current = location.pathname;
+
+    if (previousPath !== location.pathname && isMobile && isOpen) {
       onToggle();
     }
-  }, [location.pathname, isMobile, onToggle]);
+  }, [location.pathname, isMobile, isOpen, onToggle]);
+
+  // Prevent body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (!isMobile) return;
+
+    const previousOverflow = document.body.style.overflow;
+
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = previousOverflow || '';
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow || '';
+    };
+  }, [isMobile, isOpen]);
+
+  // Notify parent when collapse state changes (desktop layout adjustment)
+  useEffect(() => {
+    onCollapseChange?.(isCollapsed);
+  }, [isCollapsed, onCollapseChange]);
 
   const menuItems = [
     {
@@ -64,10 +92,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
     }
   };
 
+  const mobileWidth = 'w-[min(19rem,calc(100vw-3rem))] sm:w-80';
   const sidebarWidth = isCollapsed ? 'w-16' : 'w-64';
+  const baseWidth = isMobile ? mobileWidth : sidebarWidth;
   const sidebarClasses = `
     fixed inset-y-0 left-0 z-50
-    ${sidebarWidth}
+    ${baseWidth}
     bg-white shadow-lg border-r border-gray-200
     transform transition-all duration-300 ease-in-out
     ${isOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -76,8 +106,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
   `;
 
   const overlayClasses = `
-    fixed inset-0 bg-black bg-opacity-50 z-40
-    transition-opacity duration-300 ease-in-out
+    fixed inset-0 z-40 bg-gray-900/40 backdrop-blur-[1px]
+    transition-opacity duration-200 ease-in-out
     ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
     lg:hidden
   `;
@@ -90,11 +120,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
           className={overlayClasses}
           onClick={onToggle}
           aria-hidden="true"
+          data-testid="sidebar-overlay"
         />
       )}
 
       {/* Sidebar */}
-      <div className={sidebarClasses}>
+      <div
+        className={sidebarClasses}
+        data-state={isOpen ? 'open' : 'closed'}
+        data-viewport={isMobile ? 'mobile' : 'desktop'}
+      >
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
