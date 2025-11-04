@@ -1,24 +1,52 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { products, kanbans, transferLogs, locations, productValidations } from '../db/schema';
-import { eq, and, isNull, desc } from 'drizzle-orm';
+import { products, kanbans, transferLogs, locations } from '../db/schema';
+import { eq, and, desc, getTableColumns } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
-import { authenticateToken } from '../middleware/auth';
+import type { NewProduct } from '../db/schema';
 
 const router = Router();
 
-// Apply authentication middleware to all routes
-router.use(authenticateToken);
+const coerceDecimal = (value: unknown): string | null => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value === 'number') {
+    return Number.isNaN(value) ? null : value.toString();
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return null;
+    }
+    return Number.isNaN(Number(trimmed)) ? null : trimmed;
+  }
+  return null;
+};
+
+const coerceInteger = (value: unknown): number | null => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return Math.trunc(parsed);
+};
 
 // Get product by ID
 router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    const productColumns = getTableColumns(products);
+    const locationColumns = getTableColumns(locations);
+
     const [product] = await db
       .select({
-        ...products,
-        location: locations,
+        ...productColumns,
+        location: locationColumns,
       })
       .from(products)
       .leftJoin(locations, eq(products.locationId, locations.id))
@@ -75,25 +103,26 @@ router.post('/', async (req, res, next) => {
       }
     }
 
-    const newProduct = {
+    const newProduct: NewProduct = {
       kanbanId,
       columnStatus,
       productDetails,
-      productLink: productLink || null,
-      location: location || null,
-      locationId: locationId || null,
-      priority: priority || null,
+      productLink: productLink ?? null,
+      location: location ?? null,
+      locationId: locationId ?? null,
+      priority: priority ?? null,
       stockLevel: null,
-      // Enhanced fields
-      productImage: productImage || null,
-      category: category || null,
-      tags: tags && Array.isArray(tags) ? tags : null,
-      supplier: supplier || null,
-      sku: sku || null,
-      dimensions: dimensions || null,
-      weight: weight ? parseFloat(weight) : null,
-      unitPrice: unitPrice ? parseFloat(unitPrice) : null,
-      notes: notes || null,
+      productImage: productImage ?? null,
+      category: category ?? null,
+      tags: Array.isArray(tags) ? tags.map((tag: unknown) => String(tag)) : null,
+      supplier: supplier ?? null,
+      sku: sku ?? null,
+      dimensions: dimensions ?? null,
+      weight: coerceDecimal(weight),
+      unitPrice: coerceDecimal(unitPrice),
+      notes: notes ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
     const [createdProduct] = await db
@@ -109,16 +138,15 @@ router.post('/', async (req, res, next) => {
 
 // Update product details
 router.put('/:id', async (req, res, next) => {
+  let locationIdInput: string | null | undefined = undefined;
   try {
     const { id } = req.params;
     const {
       productDetails,
       productLink,
       location,
-      locationId,
       priority,
       stockLevel,
-      // Enhanced fields
       productImage,
       category,
       tags,
@@ -129,6 +157,8 @@ router.put('/:id', async (req, res, next) => {
       unitPrice,
       notes,
     } = req.body;
+
+    locationIdInput = req.body?.locationId as string | null | undefined;
 
     // Get current product to check location changes
     const [currentProduct] = await db
@@ -141,7 +171,7 @@ router.put('/:id', async (req, res, next) => {
       throw createError('Product not found', 404);
     }
 
-    const updateData: any = {
+    const updateData: Partial<NewProduct> & { updatedAt: Date } = {
       updatedAt: new Date(),
     };
 
@@ -149,33 +179,39 @@ router.put('/:id', async (req, res, next) => {
     if (productLink !== undefined) updateData.productLink = productLink;
     if (location !== undefined) updateData.location = location;
     if (priority !== undefined) updateData.priority = priority;
-    if (stockLevel !== undefined) updateData.stockLevel = stockLevel;
+    if (stockLevel !== undefined) {
+      updateData.stockLevel = coerceInteger(stockLevel);
+    }
 
     // Handle locationId changes
-    if (locationId !== undefined) {
-      if (locationId && locationId !== currentProduct.locationId) {
+    if (locationIdInput !== undefined) {
+      if (locationIdInput && locationIdInput !== currentProduct.locationId) {
         // Validate the new locationId
         const [locationExists] = await db
           .select()
           .from(locations)
-          .where(eq(locations.id, locationId))
+          .where(eq(locations.id, locationIdInput))
           .limit(1);
 
         if (!locationExists) {
           throw createError('Invalid locationId', 400);
         }
       }
-      updateData.locationId = locationId;
+      updateData.locationId = locationIdInput ?? null;
     }
     // Enhanced fields
     if (productImage !== undefined) updateData.productImage = productImage;
     if (category !== undefined) updateData.category = category;
-    if (tags !== undefined) updateData.tags = tags && Array.isArray(tags) ? tags : null;
+    if (tags !== undefined) {
+      updateData.tags = Array.isArray(tags)
+        ? tags.map((tag: unknown) => String(tag))
+        : null;
+    }
     if (supplier !== undefined) updateData.supplier = supplier;
     if (sku !== undefined) updateData.sku = sku;
     if (dimensions !== undefined) updateData.dimensions = dimensions;
-    if (weight !== undefined) updateData.weight = weight ? parseFloat(weight) : null;
-    if (unitPrice !== undefined) updateData.unitPrice = unitPrice ? parseFloat(unitPrice) : null;
+    if (weight !== undefined) updateData.weight = coerceDecimal(weight);
+    if (unitPrice !== undefined) updateData.unitPrice = coerceDecimal(unitPrice);
     if (notes !== undefined) updateData.notes = notes;
 
     const [updatedProduct] = await db
@@ -198,7 +234,7 @@ router.put('/:id', async (req, res, next) => {
 router.put('/:id/move', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { columnStatus, skipValidation } = req.body;
+    const { columnStatus } = req.body;
 
     if (!columnStatus) {
       throw createError('Column status is required', 400);
@@ -213,6 +249,7 @@ router.put('/:id/move', async (req, res, next) => {
         productDetails: products.productDetails,
         productLink: products.productLink,
         location: products.location,
+        locationId: products.locationId,
         priority: products.priority,
         stockLevel: products.stockLevel,
         kanbanType: kanbans.type,
@@ -225,39 +262,6 @@ router.put('/:id/move', async (req, res, next) => {
 
     if (!currentProduct) {
       throw createError('Product not found', 404);
-    }
-
-    // Check if validation is required for receive kanbans
-    if (currentProduct.kanbanType === 'receive' && !skipValidation) {
-      const statusesRequiringValidation = ['Received', 'Stored'];
-
-      if (statusesRequiringValidation.includes(columnStatus)) {
-        // Check if validation already exists for this status
-        const [existingValidation] = await db
-          .select()
-          .from(productValidations)
-          .where(
-            and(
-              eq(productValidations.productId, id),
-              eq(productValidations.columnStatus, columnStatus)
-            )
-          )
-          .limit(1);
-
-        if (!existingValidation) {
-          throw createError(
-            `Validasi diperlukan untuk memindahkan item ke kolom ${columnStatus}. Silakan buat validasi terlebih dahulu melalui form validasi produk.`,
-            422,
-            {
-              requiresValidation: true,
-              columnStatus,
-              productId: id,
-              action: 'create_validation',
-              message: `Product validation is required before moving items to ${columnStatus} status. Please create a validation record first.`
-            }
-          );
-        }
-      }
     }
 
     let updateData: any = {
@@ -308,6 +312,22 @@ router.put('/:id/move', async (req, res, next) => {
       .where(eq(products.id, id))
       .returning();
 
+    // Log location change if happened
+    if (locationIdInput !== undefined && locationIdInput !== currentProduct.locationId) {
+      await db.insert(transferLogs).values({
+        productId: id,
+        fromKanbanId: currentProduct.kanbanId,
+        toKanbanId: currentProduct.kanbanId, // Same kanban, just location change
+        fromColumn: currentProduct.columnStatus,
+        toColumn: currentProduct.columnStatus, // Same column, just location change
+        fromLocationId: currentProduct.locationId,
+        toLocationId: locationIdInput ?? null,
+        transferType: 'manual',
+        notes: `Location changed from ${currentProduct.locationId || 'unspecified'} to ${locationIdInput || 'unspecified'}`,
+        transferredBy: 'user', // TODO: Get actual user from auth
+      });
+    }
+
     res.json(updatedProduct);
   } catch (error) {
     next(error);
@@ -351,11 +371,19 @@ router.get('/by-location/:locationId', async (req, res, next) => {
     }
 
     // Get products at this location with kanban info
+    const productColumns = getTableColumns(products);
+    const kanbanColumns = {
+      id: kanbans.id,
+      name: kanbans.name,
+      type: kanbans.type,
+    };
+    const locationColumns = getTableColumns(locations);
+
     const locationProducts = await db
       .select({
-        ...products,
-        kanban: kanbans,
-        location: locations,
+        ...productColumns,
+        kanban: kanbanColumns,
+        location: locationColumns,
       })
       .from(products)
       .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))

@@ -8,11 +8,9 @@ import {
   Location,
   CreateLocation,
   UpdateLocation,
-  User,
-  Login,
-  CreateUser,
-  UpdateUser,
-  AuthResponse
+  InventoryFilters,
+  InventoryResponse,
+  InventoryStats
 } from '@invenflow/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -24,28 +22,6 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
-
-// Add JWT token to requests if available
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Handle 401 responses (token expired/invalid)
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Clear token and redirect to login
-      localStorage.removeItem('auth_token');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
 
 // Kanban API calls
 export const kanbanApi = {
@@ -91,8 +67,8 @@ export const productApi = {
     return response.data;
   },
 
-  move: async (id: string, columnStatus: string, skipValidation = false): Promise<Product> => {
-    const response = await api.put(`/api/products/${id}/move`, { columnStatus, skipValidation });
+  move: async (id: string, columnStatus: string): Promise<Product> => {
+    const response = await api.put(`/api/products/${id}/move`, { columnStatus });
     return response.data;
   },
 
@@ -173,48 +149,15 @@ export const publicApi = {
   },
 };
 
-// Authentication API calls
-export const authApi = {
-  login: async (credentials: Login): Promise<AuthResponse> => {
-    const response = await api.post('/api/auth/login', credentials);
+// Inventory API calls
+export const inventoryApi = {
+  getInventory: async (params: InventoryFilters & { page?: number; pageSize?: number }): Promise<InventoryResponse> => {
+    const response = await api.get('/api/inventory', { params });
     return response.data;
   },
 
-  getCurrentUser: async (): Promise<{ user: User }> => {
-    const response = await api.get('/api/auth/me');
-    return response.data;
-  },
-
-  logout: async (): Promise<{ message: string }> => {
-    const response = await api.post('/api/auth/logout');
-    return response.data;
-  },
-};
-
-// User Management API calls
-export const userApi = {
-  getAll: async (): Promise<User[]> => {
-    const response = await api.get('/api/users');
-    return response.data;
-  },
-
-  getById: async (id: string): Promise<User> => {
-    const response = await api.get(`/api/users/${id}`);
-    return response.data;
-  },
-
-  create: async (data: CreateUser): Promise<{ message: string; user: User }> => {
-    const response = await api.post('/api/users', data);
-    return response.data;
-  },
-
-  update: async (id: string, data: UpdateUser): Promise<{ message: string; user: User }> => {
-    const response = await api.put(`/api/users/${id}`, data);
-    return response.data;
-  },
-
-  delete: async (id: string): Promise<{ message: string }> => {
-    const response = await api.delete(`/api/users/${id}`);
+  getStats: async (): Promise<InventoryStats> => {
+    const response = await api.get('/api/inventory/stats');
     return response.data;
   },
 };

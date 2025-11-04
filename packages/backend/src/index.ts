@@ -3,6 +3,7 @@ import { env } from './config/env';
 import { corsMiddleware } from './middleware/cors';
 import { errorHandler } from './middleware/errorHandler';
 import { healthRouter } from './routes/health';
+import { inventoryRouter } from './routes/inventory';
 import { kanbansRouter } from './routes/kanbans';
 import { locationsRouter } from './routes/locations';
 import { productsRouter } from './routes/products';
@@ -24,6 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/inventory', inventoryRouter);
 
 // Protected routes (require authentication)
 app.use('/api/kanbans', kanbansRouter);

@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import { db } from '../db';
+import { sql } from 'drizzle-orm';
 
 const router = Router();
 
 router.get('/health', async (req, res) => {
   try {
-    // Simple health check without database for now
+    // Test database connection
+    await db.execute(sql`select 1`);
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),

@@ -1,14 +1,23 @@
 import { Router } from 'express';
 import { db } from '../db';
 import { transferLogs, products, kanbans, locations } from '../db/schema';
-import { eq, desc, and, isNotNull, gte, lte } from 'drizzle-orm';
+import { eq, desc, and, isNotNull, gte, lte, sql, type SQL } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
-import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
-// Apply authentication middleware to all routes
-router.use(authenticateToken);
+const combineConditions = (conditions: SQL<unknown>[]): SQL<unknown> => {
+  if (conditions.length === 0) {
+    return sql`1 = 1`;
+  }
+  if (conditions.length === 1) {
+    return conditions[0]!;
+  }
+  const combined = and(
+    ...(conditions as [SQL<unknown>, SQL<unknown>, ...SQL<unknown>[]])
+  );
+  return combined ?? sql`1 = 1`;
+};
 
 // Get transfer logs with optional filtering
 router.get('/', async (req, res, next) => {
@@ -27,7 +36,7 @@ router.get('/', async (req, res, next) => {
     const limitNum = parseInt(limit as string) || 50;
     const offsetNum = parseInt(offset as string) || 0;
 
-    let whereConditions = [];
+    const whereConditions: SQL<unknown>[] = [];
 
     if (productId) {
       whereConditions.push(eq(transferLogs.productId, productId as string));
@@ -72,9 +81,7 @@ router.get('/', async (req, res, next) => {
         createdAt: transferLogs.createdAt,
       })
       .from(transferLogs)
-      .where(
-        whereConditions.length > 0 ? and(...whereConditions) : undefined
-      )
+      .where(combineConditions(whereConditions))
       .orderBy(desc(transferLogs.createdAt))
       .limit(limitNum)
       .offset(offsetNum);
@@ -210,7 +217,7 @@ router.get('/stats/overview', async (req, res, next) => {
   try {
     const { startDate, endDate } = req.query;
 
-    let whereConditions = [];
+    const whereConditions: SQL<unknown>[] = [];
 
     if (startDate) {
       whereConditions.push(gte(transferLogs.createdAt, new Date(startDate as string)));
@@ -220,49 +227,54 @@ router.get('/stats/overview', async (req, res, next) => {
       whereConditions.push(lte(transferLogs.createdAt, new Date(endDate as string)));
     }
 
-    const stats = await db
-      .select({
-        totalTransfers: { count: transferLogs.id },
-        automaticTransfers: { count: transferLogs.id },
-        manualTransfers: { count: transferLogs.id },
-      })
-      .from(transferLogs)
-      .where(
-        whereConditions.length > 0 ? and(...whereConditions) : undefined
-      );
+    const whereClause = combineConditions(whereConditions);
 
-    // Get transfers by type
-    const transfersByType = await db
+    const [stats] = await db
       .select({
-        transferType: transferLogs.transferType,
-        count: { count: transferLogs.id },
+        totalTransfers: sql<number>`count(*)`,
+        automaticTransfers: sql<number>`sum(case when ${transferLogs.transferType} = 'automatic' then 1 else 0 end)` ,
+        manualTransfers: sql<number>`sum(case when ${transferLogs.transferType} = 'manual' then 1 else 0 end)` ,
       })
       .from(transferLogs)
-      .where(
-        whereConditions.length > 0 ? and(...whereConditions) : undefined
-      )
-      .groupBy(transferLogs.transferType);
+      .where(whereClause);
 
-    // Get most active kanbans
-    const activeKanbans = await db
-      .select({
-        kanbanId: transferLogs.fromKanbanId,
-        kanbanName: kanbans.name,
-        transferCount: { count: transferLogs.id },
-      })
-      .from(transferLogs)
-      .leftJoin(kanbans, eq(transferLogs.fromKanbanId, kanbans.id))
-      .where(
-        whereConditions.length > 0 ? and(...whereConditions) : undefined
-      )
-      .groupBy(transferLogs.fromKanbanId, kanbans.name)
-      .orderBy(desc({ count: transferLogs.id }))
-      .limit(10);
+    const transfersByTypeResult = await db.execute(
+      sql<{ transferType: string; count: number }>`
+        select ${transferLogs.transferType} as "transferType", count(*)::int as count
+        from ${transferLogs}
+        where ${whereClause}
+        group by ${transferLogs.transferType}
+        order by count desc
+      `
+    );
+
+    const activeKanbansResult = await db.execute(
+      sql<{ kanbanId: string; kanbanName: string | null; transferCount: number }>`
+        select ${transferLogs.fromKanbanId} as "kanbanId",
+               ${kanbans.name} as "kanbanName",
+               count(*)::int as "transferCount"
+        from ${transferLogs}
+        left join ${kanbans} on ${transferLogs.fromKanbanId} = ${kanbans.id}
+        where ${whereClause}
+        group by ${transferLogs.fromKanbanId}, ${kanbans.name}
+        order by "transferCount" desc
+        limit 10
+      `
+    );
 
     res.json({
-      totalTransfers: stats[0]?.totalTransfers || 0,
-      transfersByType,
-      activeKanbans,
+      totalTransfers: Number(stats?.totalTransfers ?? 0),
+      automaticTransfers: Number(stats?.automaticTransfers ?? 0),
+      manualTransfers: Number(stats?.manualTransfers ?? 0),
+      transfersByType: Array.from(transfersByTypeResult) as Array<{
+        transferType: string;
+        count: number;
+      }>,
+      activeKanbans: Array.from(activeKanbansResult) as Array<{
+        kanbanId: string;
+        kanbanName: string | null;
+        transferCount: number;
+      }>,
     });
   } catch (error) {
     next(error);

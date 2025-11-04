@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react';
 import { Product, Location } from '@invenflow/shared';
 import { useDraggable } from '@dnd-kit/core';
-import { useToast } from '../store/toastStore';
 import TransferHistoryViewer from './TransferHistoryViewer';
 
 interface ProductCardProps {
@@ -30,8 +29,6 @@ export default function ProductCard({ product, onView, location }: ProductCardPr
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
     opacity: isDragging ? 0.5 : 1,
   } : undefined;
-
-    
   const getPriorityColor = (priority: string | null) => {
     switch (priority?.toLowerCase()) {
       case 'urgent':

@@ -19,7 +19,7 @@ export default function LocationSelector({
   allowClear = true,
   className = ''
 }: LocationSelectorProps) {
-  const { locations, groupedLocations, areas, loading, fetchLocations } = useLocationStore();
+  const { locations, areas, loading, fetchLocations } = useLocationStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedArea, setSelectedArea] = useState<string>('');
   const [isOpen, setIsOpen] = useState(false);

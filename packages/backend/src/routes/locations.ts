@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import { db } from '../db';
 import { locations, products } from '../db/schema';
-import { eq, like, desc, asc, and, or, ilike } from 'drizzle-orm';
+import { eq, desc, asc, and, or, ilike, SQL, ne, sql } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
-import { authenticateToken } from '../middleware/auth';
 import {
   LocationSchema,
   CreateLocationSchema,
@@ -12,46 +11,68 @@ import {
 
 const router = Router();
 
-// Apply authentication middleware to all routes
-router.use(authenticateToken);
+const SORTABLE_LOCATION_COLUMNS = {
+  name: locations.name,
+  area: locations.area,
+  code: locations.code,
+  createdAt: locations.createdAt,
+  updatedAt: locations.updatedAt,
+} as const;
+
+const combineSqlClauses = (clauses: SQL<unknown>[]): SQL<unknown> => {
+  if (clauses.length === 0) {
+    return sql`1 = 1`;
+  }
+  if (clauses.length === 1) {
+    return clauses[0]!;
+  }
+  const combined = and(
+    ...(clauses as [SQL<unknown>, SQL<unknown>, ...SQL<unknown>[]])
+  );
+  return combined ?? sql`1 = 1`;
+};
 
 // Get all locations (with optional search and area filter)
 router.get('/', async (req, res, next) => {
   try {
     const { search, area, sortBy = 'name', sortOrder = 'asc' } = req.query;
 
-    let query = db.select().from(locations);
+    const searchValue = typeof search === 'string' ? search : undefined;
+    const areaValue = typeof area === 'string' ? area : undefined;
+    const sortByValue = typeof sortBy === 'string' ? sortBy : 'name';
+    const sortOrderValue = sortOrder === 'desc' ? 'desc' : 'asc';
 
-    // Apply filters
-    const conditions = [];
+    const conditions: SQL<unknown>[] = [];
 
-    if (search) {
-      conditions.push(
-        or(
-          ilike(locations.name, `%${search}%`),
-          ilike(locations.code, `%${search}%`),
-          ilike(locations.area, `%${search}%`)
-        )
+    if (searchValue) {
+      const searchCondition = or(
+        ilike(locations.name, `%${searchValue}%`),
+        ilike(locations.code, `%${searchValue}%`),
+        ilike(locations.area, `%${searchValue}%`)
       );
+      if (searchCondition) {
+        conditions.push(searchCondition);
+      }
     }
 
-    if (area) {
-      conditions.push(eq(locations.area, area as string));
+    if (areaValue) {
+      conditions.push(eq(locations.area, areaValue));
     }
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
+    const baseQuery = db.select().from(locations);
+    const whereClause = combineSqlClauses(conditions);
+    const queryWithWhere = baseQuery.where(whereClause);
 
-    // Apply sorting
-    const orderField = locations[sortBy as keyof typeof locations];
-    if (orderField) {
-      query = query.orderBy(
-        sortOrder === 'desc' ? desc(orderField) : asc(orderField)
-      );
-    }
+    const orderField =
+      SORTABLE_LOCATION_COLUMNS[sortByValue as keyof typeof SORTABLE_LOCATION_COLUMNS];
+    const orderedQuery =
+      orderField !== undefined
+        ? queryWithWhere.orderBy(
+            sortOrderValue === 'desc' ? desc(orderField) : asc(orderField)
+          )
+        : queryWithWhere;
 
-    const allLocations = await query;
+    const allLocations = await orderedQuery;
 
     // Group locations by area for frontend convenience
     const groupedLocations = allLocations.reduce((acc, location) => {
@@ -206,11 +227,12 @@ router.put('/:id', async (req, res, next) => {
         const codeConflict = await db
           .select()
           .from(locations)
-          .where(and(
-            eq(locations.code, newCode),
-            // Note: we can't easily exclude current ID without additional imports
-            // In practice, this is rare and the application layer will handle it
-          ))
+          .where(
+            and(
+              eq(locations.code, newCode),
+              ne(locations.id, existingLocation.id)
+            )
+          )
           .limit(1);
 
         if (codeConflict.length > 0) {

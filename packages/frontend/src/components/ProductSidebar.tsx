@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Product, UpdateProduct } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useToast } from '../store/toastStore';
-import TransferHistoryViewer from './TransferHistoryViewer';
 
 interface ProductSidebarProps {
   product: Product | null;

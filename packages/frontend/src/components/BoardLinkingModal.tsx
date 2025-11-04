@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Kanban, KanbanType } from '@invenflow/shared';
+import type { Kanban } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
 
 interface BoardLinkingModalProps {
