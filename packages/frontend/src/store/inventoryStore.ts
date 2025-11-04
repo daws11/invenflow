@@ -32,7 +32,7 @@ interface InventoryState {
 
   // Filters
   filters: InventoryFilters;
-  viewMode: 'unified' | 'by-kanban';
+  viewMode: 'unified' | 'by-kanban' | 'list';
 
   // Selected item for detail view
   selectedItem: InventoryItem | null;
@@ -43,7 +43,7 @@ interface InventoryState {
   fetchStats: () => Promise<void>;
   setFilters: (filters: Partial<InventoryFilters>) => void;
   clearFilters: () => void;
-  setViewMode: (mode: 'unified' | 'by-kanban') => void;
+  setViewMode: (mode: 'unified' | 'by-kanban' | 'list') => void;
   setSelectedItem: (item: InventoryItem | null) => void;
   setShowDetailModal: (show: boolean) => void;
   updateProductStock: (productId: string, stockLevel: number) => Promise<void>;

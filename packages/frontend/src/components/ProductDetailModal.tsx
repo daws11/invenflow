@@ -15,6 +15,8 @@ import {
   PencilIcon,
   CheckIcon,
 } from '@heroicons/react/24/outline';
+import { ValidationImageDisplay } from './ValidationImageDisplay';
+import { ImageGallery } from './ImageGallery';
 
 interface ProductDetailModalProps {
   item: InventoryItem;
@@ -35,6 +37,8 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
 
   const [imageError, setImageError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [galleryInitialIndex, setGalleryInitialIndex] = useState(0);
 
   useEffect(() => {
     fetchLocations();
@@ -108,8 +112,19 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
     }
   };
 
-  const imageSrc = item.displayImage ?? item.productImage ?? '';
-  const hasImage = Boolean(item.displayImage || item.productImage) && !imageError;
+  const hasImage = Boolean((item.displayImage || item.productImage) && !imageError);
+  const hasMultipleImages = Boolean(item.availableImages && item.availableImages.length > 1);
+
+  const handleOpenGallery = (index = 0) => {
+    setGalleryInitialIndex(index);
+    setIsGalleryOpen(true);
+  };
+
+  const handleImageClick = () => {
+    if (hasMultipleImages) {
+      handleOpenGallery();
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -164,11 +179,19 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
                 {/* Product Image */}
                 <div className="relative">
                   <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
-                    {hasImage ? (
+                    {item.availableImages && item.availableImages.length > 0 ? (
+                      <ValidationImageDisplay
+                        availableImages={item.availableImages}
+                        onImageChange={() => {}}
+                        onError={() => setImageError(true)}
+                        showToggle={true}
+                      />
+                    ) : hasImage ? (
                       <img
-                        src={imageSrc}
+                        src={item.displayImage || item.productImage}
                         alt={item.productDetails}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover cursor-zoom-in"
+                        onClick={handleImageClick}
                         onError={() => setImageError(true)}
                       />
                     ) : (
@@ -180,6 +203,17 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
 
                   {/* Status and Priority Badges */}
                   <div className="absolute top-2 right-2 space-y-2">
+                    {hasMultipleImages && (
+                      <button
+                        onClick={() => handleOpenGallery()}
+                        className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 transition-colors"
+                        title="View all images"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                      </button>
+                    )}
                     <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.columnStatus)}`}>
                       {item.columnStatus}
                     </div>
@@ -437,6 +471,16 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
           )}
         </div>
       </div>
+
+      {/* Image Gallery */}
+      {isGalleryOpen && item.availableImages && (
+        <ImageGallery
+          images={item.availableImages}
+          isOpen={isGalleryOpen}
+          onClose={() => setIsGalleryOpen(false)}
+          initialIndex={galleryInitialIndex}
+        />
+      )}
     </div>
   );
 }

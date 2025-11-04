@@ -8,6 +8,7 @@ import {
   CalendarIcon,
   ClockIcon,
 } from '@heroicons/react/24/outline';
+import { ValidationImageDisplay } from './ValidationImageDisplay';
 
 interface InventoryGridProps {
   items: InventoryItem[];
@@ -115,7 +116,12 @@ export function InventoryGrid({ items, loading, viewMode, onProductClick }: Inve
               >
                 {/* Product Image */}
                 <div className="relative h-48 bg-gray-50">
-                  {item.displayImage && !imageErrors.has(item.id) ? (
+                  {item.availableImages && item.availableImages.length > 0 ? (
+                    <ValidationImageDisplay
+                      availableImages={item.availableImages}
+                      onError={() => handleImageError(item.id)}
+                    />
+                  ) : item.displayImage && !imageErrors.has(item.id) ? (
                     <img
                       src={item.displayImage}
                       alt={item.productDetails}
@@ -269,7 +275,12 @@ export function InventoryGrid({ items, loading, viewMode, onProductClick }: Inve
                   >
                     {/* Product Image */}
                     <div className="relative h-48 bg-gray-50">
-                      {item.displayImage && !imageErrors.has(item.id) ? (
+                      {item.availableImages && item.availableImages.length > 0 ? (
+                        <ValidationImageDisplay
+                          availableImages={item.availableImages}
+                          onError={() => handleImageError(item.id)}
+                        />
+                      ) : item.displayImage && !imageErrors.has(item.id) ? (
                         <img
                           src={item.displayImage}
                           alt={item.productDetails}

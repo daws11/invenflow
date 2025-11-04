@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import type { InventoryItem } from '@invenflow/shared';
 import { useInventoryStore } from '../store/inventoryStore';
 import { InventoryGrid } from '../components/InventoryGrid';
+import { InventoryList } from '../components/InventoryList';
 import { InventoryFilters } from '../components/InventoryFilters';
 import { ProductDetailModal } from '../components/ProductDetailModal';
+import { ViewModeDropdown } from '../components/ViewModeDropdown';
 import {
   MagnifyingGlassIcon,
   AdjustmentsHorizontalIcon,
-  TableCellsIcon,
-  Squares2X2Icon,
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
 
@@ -64,11 +64,7 @@ export default function InventoryManager() {
     setPage(newPage);
   };
 
-  const handleViewModeToggle = () => {
-    const newMode = viewMode === 'unified' ? 'by-kanban' : 'unified';
-    setViewMode(newMode);
-  };
-
+  
   if (error) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -114,17 +110,10 @@ export default function InventoryManager() {
             </p>
           </div>
           <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-            <button
-              onClick={handleViewModeToggle}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              {viewMode === 'unified' ? (
-                <TableCellsIcon className="h-4 w-4 mr-2" />
-              ) : (
-                <Squares2X2Icon className="h-4 w-4 mr-2" />
-              )}
-              {viewMode === 'unified' ? 'Group by Kanban' : 'Unified View'}
-            </button>
+            <ViewModeDropdown
+              currentMode={viewMode}
+              onModeChange={setViewMode}
+            />
             <button
               onClick={refreshInventory}
               className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -267,14 +256,22 @@ export default function InventoryManager() {
         </div>
       )}
 
-      {/* Inventory Grid */}
+      {/* Inventory Display */}
       <div className="bg-white shadow rounded-lg">
-        <InventoryGrid
-          items={items}
-          loading={loading}
-          viewMode={viewMode}
-          onProductClick={handleProductClick}
-        />
+        {viewMode === 'list' ? (
+          <InventoryList
+            items={items}
+            loading={loading}
+            onProductClick={handleProductClick}
+          />
+        ) : (
+          <InventoryGrid
+            items={items}
+            loading={loading}
+            viewMode={viewMode}
+            onProductClick={handleProductClick}
+          />
+        )}
       </div>
 
       {/* Pagination */}

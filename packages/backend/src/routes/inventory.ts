@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db';
 import { products, kanbans, productValidations } from '../db/schema';
+import type { ProductValidation } from '@invenflow/shared';
 import {
   eq,
   and,
@@ -157,8 +158,8 @@ router.get('/', async (req, res, next) => {
 
     const productColumns = getTableColumns(products);
 
-    // Subquery to get the latest validation for each product and status
-    const latestValidation = db
+    // Subquery to get all validations for each product, then we'll prioritize in the application logic
+    const productValidationsQuery = db
       .select({
         productId: productValidations.productId,
         columnStatus: productValidations.columnStatus,
@@ -167,7 +168,7 @@ router.get('/', async (req, res, next) => {
         validatedAt: productValidations.createdAt,
       })
       .from(productValidations)
-      .as('latest_validation');
+      .as('product_validations_data');
 
     const inventoryItems = await db
       .select({
@@ -178,22 +179,35 @@ router.get('/', async (req, res, next) => {
           type: kanbans.type,
           linkedKanbanId: kanbans.linkedKanbanId,
         },
-        validation: {
-          receivedImage: latestValidation.receivedImage,
-          storagePhoto: latestValidation.storagePhoto,
-          validatedAt: latestValidation.validatedAt,
-        },
+        validations: sql<ProductValidation[]>`
+          COALESCE(
+            json_agg(
+              CASE
+                WHEN ${productValidationsQuery.receivedImage} IS NOT NULL
+                     OR ${productValidationsQuery.storagePhoto} IS NOT NULL
+                THEN jsonb_build_object(
+                  'columnStatus', ${productValidationsQuery.columnStatus},
+                  'receivedImage', ${productValidationsQuery.receivedImage},
+                  'storagePhoto', ${productValidationsQuery.storagePhoto},
+                  'validatedAt', ${productValidationsQuery.validatedAt}
+                )
+                END
+            ) FILTER (WHERE (
+              ${productValidationsQuery.receivedImage} IS NOT NULL
+              OR ${productValidationsQuery.storagePhoto} IS NOT NULL
+            )),
+            '[]'::json
+          )
+        `.as('validations'),
       })
       .from(products)
       .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
       .leftJoin(
-        latestValidation,
-        and(
-          eq(latestValidation.productId, products.id),
-          eq(latestValidation.columnStatus, products.columnStatus)
-        )
+        productValidationsQuery,
+        eq(productValidationsQuery.productId, products.id)
       )
       .where(filterCondition)
+      .groupBy(products.id, kanbans.id)
       .orderBy(sortDirection(sortColumn))
       .limit(pageSize)
       .offset(offset);
@@ -270,15 +284,66 @@ router.get('/', async (req, res, next) => {
         (now - updatedAt.getTime()) / (1000 * 60 * 60 * 24)
       );
 
-      // Create image priority: validation images > product image
-      const displayImage = item.validation?.receivedImage ||
-                          item.validation?.storagePhoto ||
-                          item.productImage;
+      // Enhanced image priority logic for multiple validation records
+      let displayImage = item.productImage; // Default fallback
+      let availableImages: Array<{
+        url: string;
+        type: 'received' | 'stored';
+        validatedAt: string;
+      }> = [];
+
+      if (item.validations && Array.isArray(item.validations) && item.validations.length > 0) {
+        const validations = item.validations;
+
+        // Build available images array with metadata
+        validations.forEach(validation => {
+          if (validation.receivedImage) {
+            availableImages.push({
+              url: validation.receivedImage,
+              type: 'received',
+              validatedAt: validation.validatedAt || ''
+            });
+          }
+          if (validation.storagePhoto) {
+            availableImages.push({
+              url: validation.storagePhoto,
+              type: 'stored',
+              validatedAt: validation.validatedAt || ''
+            });
+          }
+        });
+
+        // Sort by validation date (newest first)
+        availableImages.sort((a, b) => new Date(b.validatedAt).getTime() - new Date(a.validatedAt).getTime());
+
+        // Find the most appropriate image based on current product status
+        if (item.columnStatus === 'Stored') {
+          // For Stored products: prioritize storagePhoto > receivedImage
+          const storedValidation = validations.find(v => v.columnStatus === 'Stored');
+          if (storedValidation?.storagePhoto) {
+            displayImage = storedValidation.storagePhoto;
+          } else {
+            // Fallback to Received image if no Stored image
+            const receivedValidation = validations.find(v => v.columnStatus === 'Received');
+            if (receivedValidation?.receivedImage) {
+              displayImage = receivedValidation.receivedImage;
+            }
+          }
+        } else if (item.columnStatus === 'Received') {
+          // For Received products: prioritize receivedImage
+          const receivedValidation = validations.find(v => v.columnStatus === 'Received');
+          if (receivedValidation?.receivedImage) {
+            displayImage = receivedValidation.receivedImage;
+          }
+        }
+      }
 
       return {
         ...item,
         daysInInventory,
         displayImage,
+        hasMultipleImages: availableImages.length > 1,
+        availableImages,
       };
     });
 

@@ -9,13 +9,22 @@ export const InventoryValidationSchema = z.object({
   validatedAt: z.coerce.date().nullable(),
 });
 
+// Available image with metadata schema
+export const AvailableImageSchema = z.object({
+  url: z.string().url(),
+  type: z.enum(['received', 'stored']),
+  validatedAt: z.string(),
+});
+
 // Enhanced product type for inventory with additional computed fields
 export const InventoryItemSchema = ProductSchema.extend({
   kanban: KanbanSchema,
   kanbanId: z.string().uuid(),
   daysInInventory: z.number(),
-  validation: InventoryValidationSchema.nullable(),
+  validations: z.array(InventoryValidationSchema).nullable(),
   displayImage: z.string().url().nullable(),
+  hasMultipleImages: z.boolean().optional(),
+  availableImages: z.array(AvailableImageSchema).optional(),
 });
 
 // Location schema for inventory
@@ -83,6 +92,7 @@ export type InventoryFilters = z.infer<typeof InventoryFiltersSchema>;
 export type InventoryResponse = z.infer<typeof InventoryResponseSchema>;
 export type InventoryStats = z.infer<typeof InventoryStatsSchema>;
 export type InventoryLocation = z.infer<typeof InventoryLocationSchema>;
+export type AvailableImage = z.infer<typeof AvailableImageSchema>;
 
 // Stock level ranges for filtering
 export const STOCK_RANGES = [
