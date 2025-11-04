@@ -1,14 +1,36 @@
-import { useEffect } from 'react';
-import { Routes, Route, Link, Navigate } from 'react-router-dom';
-import KanbanList from './pages/KanbanList';
-import KanbanBoard from './pages/KanbanBoard';
-import LocationsPage from './pages/LocationsPage';
-import PublicForm from './pages/PublicForm';
-import LoginForm from './components/LoginForm';
-import UserManagement from './components/UserManagement';
+import { useEffect, Suspense, lazy } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import Skeleton from './components/ui/Skeleton';
 import ProtectedRoute from './components/ProtectedRoute';
 import ToastContainer from './components/ToastContainer';
+import Layout from './components/Layout';
+import ErrorBoundary from './components/ui/ErrorBoundary';
 import { useAuthStore } from './store/authStore';
+
+// Lazy load components for better performance
+const KanbanList = lazy(() => import('./pages/KanbanList'));
+const KanbanBoard = lazy(() => import('./pages/KanbanBoard'));
+const LocationsPage = lazy(() => import('./pages/LocationsPage'));
+const PublicForm = lazy(() => import('./pages/PublicForm'));
+const LoginForm = lazy(() => import('./components/LoginForm'));
+const UserManagement = lazy(() => import('./components/UserManagement'));
+
+// Loading fallback component
+const PageLoader = () => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="max-w-md w-full p-6">
+      <div className="space-y-4">
+        <Skeleton variant="text" height={32} width="60%" />
+        <Skeleton variant="text" height={20} width="40%" />
+        <div className="space-y-3 mt-6">
+          <Skeleton height={60} />
+          <Skeleton height={60} />
+          <Skeleton height={60} />
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
 function App() {
   const { isAuthenticated, user, fetchCurrentUser } = useAuthStore();
@@ -22,89 +44,68 @@ function App() {
   }, [isAuthenticated, fetchCurrentUser]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {isAuthenticated && user ? (
-        <>
-          <header className="bg-white shadow-sm border-b">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex justify-between items-center h-16">
-                <div className="flex items-center space-x-8">
-                  <Link to="/" className="flex items-center">
-                    <h1 className="text-2xl font-bold text-gray-900">InvenFlow</h1>
-                  </Link>
-                  <nav className="hidden md:flex space-x-6">
-                    <Link
-                      to="/"
-                      className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                    >
-                      Kanbans
-                    </Link>
-                    <Link
-                      to="/locations"
-                      className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                    >
-                      Locations
-                    </Link>
-                    <Link
-                      to="/users"
-                      className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                    >
-                      Users
-                    </Link>
-                  </nav>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm text-gray-500 hidden sm:block">
-                    {user.name} ({user.role})
-                  </span>
-                  <button
-                    onClick={() => useAuthStore.getState().logout()}
-                    className="text-gray-700 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                  >
-                    Logout
-                  </button>
-                </div>
-              </div>
-            </div>
-          </header>
+    <ErrorBoundary>
+      <>
+        {isAuthenticated && user ? (
+          <Layout>
+            <ErrorBoundary>
+              <Routes>
+                <Route path="/" element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<PageLoader />}>
+                      <KanbanList />
+                    </Suspense>
+                  </ProtectedRoute>
+                } />
+                <Route path="/kanban/:id" element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<PageLoader />}>
+                      <KanbanBoard />
+                    </Suspense>
+                  </ProtectedRoute>
+                } />
+                <Route path="/locations" element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<PageLoader />}>
+                      <LocationsPage />
+                    </Suspense>
+                  </ProtectedRoute>
+                } />
+                <Route path="/users" element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<PageLoader />}>
+                      <UserManagement />
+                    </Suspense>
+                  </ProtectedRoute>
+                } />
+                <Route path="/login" element={<Navigate to="/" replace />} />
+              </Routes>
+            </ErrorBoundary>
+          </Layout>
+        ) : (
+          <div className="min-h-screen bg-gray-50">
+            <ErrorBoundary>
+              <Routes>
+                <Route path="/login" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <LoginForm />
+                  </Suspense>
+                } />
+                <Route path="/form/:token" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <PublicForm />
+                  </Suspense>
+                } />
+                <Route path="*" element={<Navigate to="/login" replace />} />
+              </Routes>
+            </ErrorBoundary>
+          </div>
+        )}
 
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <Routes>
-              <Route path="/" element={
-                <ProtectedRoute>
-                  <KanbanList />
-                </ProtectedRoute>
-              } />
-              <Route path="/kanban/:id" element={
-                <ProtectedRoute>
-                  <KanbanBoard />
-                </ProtectedRoute>
-              } />
-              <Route path="/locations" element={
-                <ProtectedRoute>
-                  <LocationsPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/users" element={
-                <ProtectedRoute>
-                  <UserManagement />
-                </ProtectedRoute>
-              } />
-              <Route path="/login" element={<Navigate to="/" replace />} />
-            </Routes>
-          </main>
-        </>
-      ) : (
-        <Routes>
-          <Route path="/login" element={<LoginForm />} />
-          <Route path="/form/:token" element={<PublicForm />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      )}
-
-      {/* Toast Container */}
-      <ToastContainer />
-    </div>
+        {/* Toast Container */}
+        <ToastContainer />
+      </>
+    </ErrorBoundary>
   );
 }
 

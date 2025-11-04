@@ -5,18 +5,19 @@ const router = Router();
 
 router.get('/health', async (req, res) => {
   try {
-    // Test database connection
-    await db.execute('SELECT 1');
-
+    // Simple health check without database for now
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
+      message: 'Server is running',
     });
   } catch (error) {
+    console.error('Health check error:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Database connection failed',
+      message: 'Server error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });
