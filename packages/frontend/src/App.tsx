@@ -47,68 +47,87 @@ function App() {
   return (
     <ErrorBoundary>
       <>
-        {isAuthenticated && user ? (
-          <Layout>
-            <ErrorBoundary>
-              <Routes>
-                <Route path="/" element={
-                  <ProtectedRoute>
-                    <Suspense fallback={<PageLoader />}>
-                      <KanbanList />
-                    </Suspense>
-                  </ProtectedRoute>
-                } />
-                <Route path="/kanban/:id" element={
-                  <ProtectedRoute>
-                    <Suspense fallback={<PageLoader />}>
-                      <KanbanBoard />
-                    </Suspense>
-                  </ProtectedRoute>
-                } />
-                <Route path="/locations" element={
-                  <ProtectedRoute>
-                    <Suspense fallback={<PageLoader />}>
-                      <LocationsPage />
-                    </Suspense>
-                  </ProtectedRoute>
-                } />
-                <Route path="/inventory" element={
-                  <ProtectedRoute>
-                    <Suspense fallback={<PageLoader />}>
-                      <InventoryManager />
-                    </Suspense>
-                  </ProtectedRoute>
-                } />
-                <Route path="/users" element={
-                  <ProtectedRoute>
-                    <Suspense fallback={<PageLoader />}>
-                      <UserManagement />
-                    </Suspense>
-                  </ProtectedRoute>
-                } />
-                <Route path="/login" element={<Navigate to="/" replace />} />
-              </Routes>
-            </ErrorBoundary>
-          </Layout>
-        ) : (
-          <div className="min-h-screen bg-gray-50">
-            <ErrorBoundary>
-              <Routes>
-                <Route path="/login" element={
+        <ErrorBoundary>
+          <Routes>
+            {/* Public form route - accessible to everyone, no Layout */}
+            <Route path="/form/:token" element={
+              <div className="min-h-screen bg-gray-50">
+                <Suspense fallback={<PageLoader />}>
+                  <PublicForm />
+                </Suspense>
+              </div>
+            } />
+            
+            {/* Login route - redirect to home if already authenticated */}
+            <Route path="/login" element={
+              isAuthenticated && user ? (
+                <Navigate to="/" replace />
+              ) : (
+                <div className="min-h-screen bg-gray-50">
                   <Suspense fallback={<PageLoader />}>
                     <LoginForm />
                   </Suspense>
-                } />
-                <Route path="/form/:token" element={
+                </div>
+              )
+            } />
+
+            {/* Protected routes - require authentication, use Layout */}
+            <Route path="/" element={
+              <Layout>
+                <ProtectedRoute>
                   <Suspense fallback={<PageLoader />}>
-                    <PublicForm />
+                    <KanbanList />
                   </Suspense>
-                } />
-                <Route path="*" element={<Navigate to="/login" replace />} />
-              </Routes>
-            </ErrorBoundary>
-          </div>
-        )}
+                </ProtectedRoute>
+              </Layout>
+            } />
+            <Route path="/kanban/:id" element={
+              <Layout>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <KanbanBoard />
+                  </Suspense>
+                </ProtectedRoute>
+              </Layout>
+            } />
+            <Route path="/locations" element={
+              <Layout>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <LocationsPage />
+                  </Suspense>
+                </ProtectedRoute>
+              </Layout>
+            } />
+            <Route path="/inventory" element={
+              <Layout>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <InventoryManager />
+                  </Suspense>
+                </ProtectedRoute>
+              </Layout>
+            } />
+            <Route path="/users" element={
+              <Layout>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <UserManagement />
+                  </Suspense>
+                </ProtectedRoute>
+              </Layout>
+            } />
+
+            {/* Fallback routes */}
+            <Route path="*" element={
+              isAuthenticated && user ? (
+                <Navigate to="/" replace />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            } />
+          </Routes>
+        </ErrorBoundary>
 
         {/* Toast Container */}
         <ToastContainer />

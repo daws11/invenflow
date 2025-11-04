@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../db';
 import { productValidations } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { authenticateToken } from '../middleware/auth';
 import {
@@ -167,8 +167,10 @@ router.get('/product/:productId/status/:status', async (req, res) => {
     const [validation] = await db
       .select()
       .from(productValidations)
-      .where(eq(productValidations.productId, productId))
-      .where(eq(productValidations.columnStatus, status))
+      .where(and(
+        eq(productValidations.productId, productId),
+        eq(productValidations.columnStatus, status)
+      ))
       .limit(1);
 
     if (!validation) {

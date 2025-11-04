@@ -188,7 +188,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
                       />
                     ) : hasImage ? (
                       <img
-                        src={item.displayImage || item.productImage}
+                        src={item.displayImage || item.productImage || undefined}
                         alt={item.productDetails}
                         className="w-full h-full object-cover cursor-zoom-in"
                         onClick={handleImageClick}

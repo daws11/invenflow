@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, index, foreignKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, index, foreignKey, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { products } from './products';
 
@@ -8,8 +8,10 @@ export const kanbans = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull(),
     type: text('type').notNull(), // 'order' | 'receive'
+    description: text('description'),
     linkedKanbanId: uuid('linked_kanban_id'),
     publicFormToken: text('public_form_token').unique(),
+    thresholdRules: jsonb('threshold_rules').default('[]'),
     createdAt: timestamp('created_at', { mode: 'string' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { mode: 'string' }).notNull().defaultNow(),
   },

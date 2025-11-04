@@ -70,7 +70,7 @@ pnpm dev
 
 ### **Scenario 2: Test Public Form**
 1. Find the "Office Supplies" Order kanban in the list
-2. Copy the Public Form URL shown
+2. Open settings and click the Copy URL button
 3. Paste it in a new browser tab or incognito window
 4. Fill out the form:
    - Product Details: "Ergonomic Office Chair"

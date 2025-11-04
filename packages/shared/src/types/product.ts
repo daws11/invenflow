@@ -21,6 +21,7 @@ export const ProductSchema = z.object({
   weight: z.number().positive().nullable(),
   unitPrice: z.number().positive().nullable(),
   notes: z.string().max(1000).nullable(),
+  columnEnteredAt: z.date(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -43,6 +44,7 @@ export const CreateProductSchema = z.object({
   weight: z.number().positive().nullable(),
   unitPrice: z.number().positive().nullable(),
   notes: z.string().max(1000).nullable(),
+  columnEnteredAt: z.date().optional(),
 });
 
 export const UpdateProductSchema = z.object({

@@ -1,18 +1,43 @@
-import { useState } from 'react';
-import { Product, Location } from '@invenflow/shared';
+import { useState, useEffect, useMemo } from 'react';
+import { Product, Location, Kanban } from '@invenflow/shared';
 import { useDraggable } from '@dnd-kit/core';
 import TransferHistoryViewer from './TransferHistoryViewer';
+import { getAppliedThreshold, calculateTimeInColumn, formatTimeDuration, formatThresholdRule } from '../utils/thresholdCalculator';
 
 interface ProductCardProps {
   product: Product;
   onView?: () => void;
   location?: Location | null;
+  kanban?: Kanban | null;
 }
 
-export default function ProductCard({ product, onView, location }: ProductCardProps) {
+export default function ProductCard({ product, onView, location, kanban }: ProductCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [showTransferHistory, setShowTransferHistory] = useState(false);
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  // Update current time every 30 seconds for threshold recalculation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Calculate applied threshold rule
+  const appliedThreshold = useMemo(() => {
+    if (!kanban?.thresholdRules || !product.columnEnteredAt) return null;
+    return getAppliedThreshold(product, kanban.thresholdRules);
+  }, [product, kanban?.thresholdRules, currentTime]);
+
+  // Format time in column for tooltip
+  const timeInColumn = useMemo(() => {
+    if (!product.columnEnteredAt) return '';
+    const timeMs = calculateTimeInColumn(product.columnEnteredAt);
+    return formatTimeDuration(timeMs);
+  }, [product.columnEnteredAt, currentTime]);
 
   const {
     attributes,
@@ -30,34 +55,44 @@ export default function ProductCard({ product, onView, location }: ProductCardPr
     if ((event.target as HTMLElement).closest(interactiveSelector)) {
       return;
     }
-    listeners.onMouseDown?.(event);
+    listeners?.onMouseDown?.(event);
   };
 
   const handlePointerDown: React.PointerEventHandler<HTMLDivElement> = (event) => {
     if ((event.target as HTMLElement).closest(interactiveSelector)) {
       return;
     }
-    listeners.onPointerDown?.(event);
+    listeners?.onPointerDown?.(event);
   };
 
   const handleTouchStart: React.TouchEventHandler<HTMLDivElement> = (event) => {
     if ((event.target as HTMLElement).closest(interactiveSelector)) {
       return;
     }
-    listeners.onTouchStart?.(event);
+    listeners?.onTouchStart?.(event);
   };
 
   const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (event) => {
     if ((event.target as HTMLElement).closest(interactiveSelector)) {
       return;
     }
-    listeners.onKeyDown?.(event);
+    listeners?.onKeyDown?.(event);
   };
+
+  // Apply threshold styling
+  const thresholdStyle = appliedThreshold ? {
+    borderLeft: `4px solid ${appliedThreshold.color}`,
+    borderTop: `1px solid ${appliedThreshold.color}`,
+    borderRight: `1px solid ${appliedThreshold.color}`,
+    borderBottom: `1px solid ${appliedThreshold.color}`,
+    backgroundColor: `${appliedThreshold.color}10`, // 10% opacity
+  } : {};
 
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
     opacity: isDragging ? 0.5 : 1,
-  } : undefined;
+    ...thresholdStyle,
+  } : thresholdStyle;
   const getPriorityColor = (priority: string | null) => {
     switch (priority?.toLowerCase()) {
       case 'urgent':
@@ -123,7 +158,17 @@ export default function ProductCard({ product, onView, location }: ProductCardPr
       onPointerDown={handlePointerDown}
       onTouchStart={handleTouchStart}
       onKeyDown={handleKeyDown}
+      title={appliedThreshold ? `In column for ${timeInColumn} - ${formatThresholdRule(appliedThreshold)}` : undefined}
     >
+      {/* Threshold indicator badge */}
+      {appliedThreshold && (
+        <div 
+          className="absolute top-2 right-2 w-3 h-3 rounded-full shadow-lg z-10 animate-pulse"
+          style={{ backgroundColor: appliedThreshold.color }}
+          title={`${formatThresholdRule(appliedThreshold)} - In column for ${timeInColumn}`}
+        />
+      )}
+
       {/* Product Content */}
       <div className="space-y-3">
         {/* Product Image Section */}

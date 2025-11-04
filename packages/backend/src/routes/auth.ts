@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { db } from '../db';
 import { users } from '../db/schema';
@@ -47,8 +47,8 @@ router.post('/login', async (req, res, next) => {
         role: foundUser.role,
       },
       env.JWT_SECRET,
-      { expiresIn: env.JWT_EXPIRES_IN }
-    ) as string;
+      { expiresIn: env.JWT_EXPIRES_IN } as jwt.SignOptions
+    );
 
     res.json({
       message: 'Login successful',
@@ -110,8 +110,8 @@ router.post('/register', async (req, res, next) => {
         role: userWithoutPassword.role,
       },
       env.JWT_SECRET,
-      { expiresIn: env.JWT_EXPIRES_IN }
-    ) as string;
+      { expiresIn: env.JWT_EXPIRES_IN } as SignOptions
+    );
 
     res.status(201).json({
       message: 'User registered successfully',

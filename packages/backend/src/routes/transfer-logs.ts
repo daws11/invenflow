@@ -1,10 +1,14 @@
 import { Router } from 'express';
 import { db } from '../db';
 import { transferLogs, products, kanbans, locations } from '../db/schema';
-import { eq, desc, and, isNotNull, gte, lte, sql, type SQL } from 'drizzle-orm';
+import { eq, desc, and, gte, lte, sql, inArray, type SQL } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
 
 const combineConditions = (conditions: SQL<unknown>[]): SQL<unknown> => {
   if (conditions.length === 0) {
@@ -17,6 +21,71 @@ const combineConditions = (conditions: SQL<unknown>[]): SQL<unknown> => {
     ...(conditions as [SQL<unknown>, SQL<unknown>, ...SQL<unknown>[]])
   );
   return combined ?? sql`1 = 1`;
+};
+
+type TransferLogRecord = typeof transferLogs.$inferSelect;
+type ProductRecord = typeof products.$inferSelect;
+type KanbanRecord = typeof kanbans.$inferSelect;
+type LocationRecord = typeof locations.$inferSelect;
+
+type EnrichedTransferLog = TransferLogRecord & {
+  product: ProductRecord | null;
+  fromKanban: KanbanRecord | null;
+  toKanban: KanbanRecord | null;
+  fromLocation: LocationRecord | null;
+  toLocation: LocationRecord | null;
+};
+
+const enrichTransferLogs = async (logs: TransferLogRecord[]): Promise<EnrichedTransferLog[]> => {
+  if (logs.length === 0) {
+    return [];
+  }
+
+  const productIds = Array.from(new Set(logs.map((log) => log.productId)));
+  const kanbanIds = Array.from(
+    new Set(
+      logs
+        .flatMap((log) => [log.fromKanbanId, log.toKanbanId])
+    )
+  );
+  const locationIds = Array.from(
+    new Set(
+      logs
+        .flatMap((log) => [log.fromLocationId, log.toLocationId])
+        .filter((id): id is string => Boolean(id))
+    )
+  );
+
+  const productPromise = productIds.length
+    ? db.select().from(products).where(inArray(products.id, productIds))
+    : Promise.resolve<ProductRecord[]>([]);
+
+  const kanbanPromise = kanbanIds.length
+    ? db.select().from(kanbans).where(inArray(kanbans.id, kanbanIds))
+    : Promise.resolve<KanbanRecord[]>([]);
+
+  const locationPromise = locationIds.length
+    ? db.select().from(locations).where(inArray(locations.id, locationIds))
+    : Promise.resolve<LocationRecord[]>([]);
+
+  const [productRows, kanbanRows, locationRows] = await Promise.all([
+    productPromise,
+    kanbanPromise,
+    locationPromise,
+  ]);
+
+  const productMap = new Map(productRows.map((row) => [row.id, row]));
+  const kanbanMap = new Map(kanbanRows.map((row) => [row.id, row]));
+  const locationMap = new Map(locationRows.map((row) => [row.id, row]));
+
+  return logs.map((log) => ({
+    ...log,
+    product: productMap.get(log.productId) ?? null,
+    fromKanban: kanbanMap.get(log.fromKanbanId) ?? null,
+    toKanban: kanbanMap.get(log.toKanbanId) ?? null,
+    fromLocation: log.fromLocationId ? locationMap.get(log.fromLocationId) ?? null : null,
+    toLocation: log.toLocationId ? locationMap.get(log.toLocationId) ?? null : null,
+  }));
 };
 
 // Get transfer logs with optional filtering
@@ -87,46 +156,9 @@ router.get('/', async (req, res, next) => {
       .offset(offsetNum);
 
     // Enrich with related data
-    const enrichedLogs = await Promise.all(
-      logs.map(async (log) => {
-        const [product] = await db
-          .select()
-          .from(products)
-          .where(eq(products.id, log.productId))
-          .limit(1);
+    const enrichedLogs = await enrichTransferLogs(logs);
 
-        const [fromKanban] = await db
-          .select()
-          .from(kanbans)
-          .where(eq(kanbans.id, log.fromKanbanId))
-          .limit(1);
-
-        const [toKanban] = await db
-          .select()
-          .from(kanbans)
-          .where(eq(kanbans.id, log.toKanbanId))
-          .limit(1);
-
-        const [fromLocation] = log.fromLocationId
-          ? await db.select().from(locations).where(eq(locations.id, log.fromLocationId!)).limit(1)
-          : [null];
-
-        const [toLocation] = log.toLocationId
-          ? await db.select().from(locations).where(eq(locations.id, log.toLocationId!)).limit(1)
-          : [null];
-
-        return {
-          ...log,
-          product: product || null,
-          fromKanban: fromKanban || null,
-          toKanban: toKanban || null,
-          fromLocation: fromLocation || null,
-          toLocation: toLocation || null,
-        };
-      })
-    );
-
-    res.json(logs);
+    res.json(enrichedLogs);
   } catch (error) {
     next(error);
   }
@@ -136,14 +168,22 @@ router.get('/', async (req, res, next) => {
 router.get('/product/:productId', async (req, res, next) => {
   try {
     const { productId } = req.params;
+    const { limit = '50', offset = '0' } = req.query;
+
+    const limitNum = parseInt(limit as string) || 50;
+    const offsetNum = parseInt(offset as string) || 0;
 
     const logs = await db
       .select()
       .from(transferLogs)
       .where(eq(transferLogs.productId, productId))
-      .orderBy(desc(transferLogs.createdAt));
+      .orderBy(desc(transferLogs.createdAt))
+      .limit(limitNum)
+      .offset(offsetNum);
 
-    res.json(logs);
+    const enrichedLogs = await enrichTransferLogs(logs);
+
+    res.json(enrichedLogs);
   } catch (error) {
     next(error);
   }
@@ -166,7 +206,9 @@ router.get('/kanban/:kanbanId', async (req, res, next) => {
       .limit(limitNum)
       .offset(offsetNum);
 
-    res.json(logs);
+    const enrichedLogs = await enrichTransferLogs(logs);
+
+    res.json(enrichedLogs);
   } catch (error) {
     next(error);
   }

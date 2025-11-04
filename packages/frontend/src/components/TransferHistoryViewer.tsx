@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { TransferLog } from '@invenflow/shared';
+import { isAxiosError } from 'axios';
+import { transferLogApi, type TransferLogWithRelations } from '../utils/api';
 
 interface TransferHistoryViewerProps {
   productId?: string;
@@ -8,32 +9,13 @@ interface TransferHistoryViewerProps {
   onClose: () => void;
 }
 
-interface TransferLogWithDetails extends TransferLog {
-  product?: {
-    id: string;
-    productDetails: string;
-    sku?: string;
-    category?: string;
-  };
-  fromKanban?: {
-    id: string;
-    name: string;
-    type: string;
-  };
-  toKanban?: {
-    id: string;
-    name: string;
-    type: string;
-  };
-}
-
 export default function TransferHistoryViewer({
   productId,
   kanbanId,
   isOpen,
   onClose
 }: TransferHistoryViewerProps) {
-  const [logs, setLogs] = useState<TransferLogWithDetails[]>([]);
+  const [logs, setLogs] = useState<TransferLogWithRelations[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -44,21 +26,17 @@ export default function TransferHistoryViewer({
     setError(null);
 
     try {
-      let url = '/api/transfer-logs?limit=20';
+      const pagination = { limit: 20, offset: (pageNum - 1) * 20 };
+
+      let data: TransferLogWithRelations[] = [];
+
       if (productId) {
-        url = `/api/transfer-logs/product/${productId}?limit=20`;
+        data = await transferLogApi.getByProduct(productId, pagination);
       } else if (kanbanId) {
-        url = `/api/transfer-logs/kanban/${kanbanId}?limit=20`;
+        data = await transferLogApi.getByKanban(kanbanId, pagination);
+      } else {
+        data = await transferLogApi.getAll(pagination);
       }
-
-      url += `&offset=${(pageNum - 1) * 20}`;
-
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error('Failed to fetch transfer logs');
-      }
-
-      const data = await response.json();
 
       if (append) {
         setLogs(prev => [...prev, ...data]);
@@ -69,7 +47,12 @@ export default function TransferHistoryViewer({
       setHasMore(data.length === 20);
       setPage(pageNum);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch transfer logs');
+      if (isAxiosError(err)) {
+        const message = (err.response?.data as { message?: string } | undefined)?.message ?? err.message;
+        setError(message || 'Failed to fetch transfer logs');
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to fetch transfer logs');
+      }
     } finally {
       setLoading(false);
     }

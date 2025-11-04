@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Kanban } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
+import { useToast } from '../store/toastStore';
 
 interface BoardLinkingModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface BoardLinkingModalProps {
 
 export default function BoardLinkingModal({ isOpen, onClose, currentKanban }: BoardLinkingModalProps) {
   const { kanbans, updateKanban } = useKanbanStore();
+  const toast = useToast();
   const [selectedKanbanId, setSelectedKanbanId] = useState<string>('');
   const [isLinking, setIsLinking] = useState(false);
 
@@ -33,10 +35,11 @@ export default function BoardLinkingModal({ isOpen, onClose, currentKanban }: Bo
     try {
       await updateKanban(currentKanban.id, { linkedKanbanId: selectedKanbanId });
       await updateKanban(selectedKanbanId, { linkedKanbanId: currentKanban.id });
+      toast.success('Boards linked successfully');
       onClose();
     } catch (error) {
       console.error('Failed to link kanbans:', error);
-      alert('Failed to link kanbans. Please try again.');
+      toast.error('Failed to link kanbans. Please try again.');
     } finally {
       setIsLinking(false);
     }
@@ -49,10 +52,11 @@ export default function BoardLinkingModal({ isOpen, onClose, currentKanban }: Bo
     try {
       await updateKanban(currentKanban.id, { linkedKanbanId: null });
       await updateKanban(currentKanban.linkedKanbanId, { linkedKanbanId: null });
+      toast.success('Boards unlinked successfully');
       onClose();
     } catch (error) {
       console.error('Failed to unlink kanbans:', error);
-      alert('Failed to unlink kanbans. Please try again.');
+      toast.error('Failed to unlink kanbans. Please try again.');
     } finally {
       setIsLinking(false);
     }

@@ -15,7 +15,8 @@ import {
   CreateUser,
   UpdateUser,
   Login,
-  AuthResponse
+  AuthResponse,
+  TransferLog
 } from '@invenflow/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -160,6 +161,48 @@ export const locationApi = {
 
   getAreas: async (): Promise<string[]> => {
     const response = await api.get('/api/locations/areas/list');
+    return response.data;
+  },
+};
+
+export interface TransferLogWithRelations extends Omit<TransferLog, 'createdAt'> {
+  createdAt: string;
+  product: Product | null;
+  fromKanban: Kanban | null;
+  toKanban: Kanban | null;
+  fromLocation: Location | null;
+  toLocation: Location | null;
+}
+
+// Transfer log API calls
+export const transferLogApi = {
+  getAll: async (params?: {
+    productId?: string;
+    fromKanbanId?: string;
+    toKanbanId?: string;
+    transferType?: string;
+    limit?: number;
+    offset?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<TransferLogWithRelations[]> => {
+    const response = await api.get('/api/transfer-logs', { params });
+    return response.data;
+  },
+
+  getByProduct: async (
+    productId: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<TransferLogWithRelations[]> => {
+    const response = await api.get(`/api/transfer-logs/product/${productId}`, { params });
+    return response.data;
+  },
+
+  getByKanban: async (
+    kanbanId: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<TransferLogWithRelations[]> => {
+    const response = await api.get(`/api/transfer-logs/kanban/${kanbanId}`, { params });
     return response.data;
   },
 };

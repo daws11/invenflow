@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Upload, User, MapPin, Camera } from 'lucide-react';
+import { X, User, MapPin, Camera } from 'lucide-react';
 import { ValidationStatus, ProductValidation } from '@invenflow/shared';
 import { useLocationStore } from '../store/locationStore';
 import ImageUpload from './ImageUpload';

@@ -78,7 +78,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   totalPages: 0,
   totalItems: 0,
   filters: defaultFilters,
-  viewMode: 'unified',
+  viewMode: 'list',
   selectedItem: null,
   showDetailModal: false,
 
@@ -87,9 +87,11 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
 
     try {
       const { filters, currentPage, pageSize, viewMode } = get();
+      // Convert 'list' viewMode to 'unified' for API compatibility
+      const apiViewMode = viewMode === 'list' ? 'unified' : viewMode;
       const mergedParams = {
         ...filters,
-        viewMode,
+        viewMode: apiViewMode,
         page: currentPage,
         pageSize,
         ...params,

@@ -83,6 +83,10 @@
     animation: pulse-subtle 1.5s ease-in-out infinite;
   }
 
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+  }
+
   /* Drag handle styles */
   .drag-handle {
     @apply select-none;

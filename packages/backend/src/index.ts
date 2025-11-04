@@ -1,16 +1,6 @@
-import { config } from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { existsSync } from "fs";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const rootDir = join(__dirname, "../..");
-
-// Load environment variables based on NODE_ENV
-const envFile = process.env.NODE_ENV === 'production' ? '.env.staging' : '.env';
-config({ path: join(rootDir, envFile) });
-
 import express from "express";
 import { env } from "./config/env";
 import { corsMiddleware } from "./middleware/cors";
@@ -26,6 +16,10 @@ import { uploadRouter } from "./routes/upload";
 import { validationsRouter } from "./routes/validations";
 import { authRouter } from "./routes/auth";
 import { usersRouter } from "./routes/users";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const rootDir = join(__dirname, "../..");
 
 const app = express();
 

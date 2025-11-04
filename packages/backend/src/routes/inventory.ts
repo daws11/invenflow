@@ -17,8 +17,12 @@ import {
   getTableColumns,
 } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
 
 const isString = (value: unknown): value is string => typeof value === 'string';
 
@@ -297,18 +301,18 @@ router.get('/', async (req, res, next) => {
 
         // Build available images array with metadata
         validations.forEach(validation => {
-          if (validation.receivedImage) {
+          if (validation.columnStatus === 'Received' && validation.receivedImage) {
             availableImages.push({
               url: validation.receivedImage,
               type: 'received',
-              validatedAt: validation.validatedAt || ''
+              validatedAt: (validation as any).validatedAt || ''
             });
           }
-          if (validation.storagePhoto) {
+          if (validation.columnStatus === 'Stored' && validation.storagePhoto) {
             availableImages.push({
               url: validation.storagePhoto,
               type: 'stored',
-              validatedAt: validation.validatedAt || ''
+              validatedAt: (validation as any).validatedAt || ''
             });
           }
         });

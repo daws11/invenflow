@@ -8,8 +8,12 @@ import {
   CreateLocationSchema,
   UpdateLocationSchema
 } from '@invenflow/shared';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
 
 const SORTABLE_LOCATION_COLUMNS = {
   name: locations.name,

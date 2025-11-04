@@ -20,7 +20,7 @@ interface ToastStore {
   pausedToasts: Set<string>;
 
   // Queue management
-  addToast: (toast: Omit<Toast, 'id'>) => void;
+  addToast: (toast: Omit<Toast, 'id'>) => string;
   removeToast: (id: string) => void;
   clearToasts: () => void;
   pauseToast: (id: string) => void;

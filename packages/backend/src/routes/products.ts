@@ -4,8 +4,12 @@ import { products, kanbans, transferLogs, locations, productValidations } from '
 import { eq, and, desc, getTableColumns } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import type { NewProduct } from '../db/schema';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
 
 const coerceDecimal = (value: unknown): string | null => {
   if (value === undefined || value === null) {
@@ -121,6 +125,7 @@ router.post('/', async (req, res, next) => {
       weight: coerceDecimal(weight),
       unitPrice: coerceDecimal(unitPrice),
       notes: notes ?? null,
+      columnEnteredAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -297,6 +302,11 @@ router.put('/:id/move', async (req, res, next) => {
       updatedAt: new Date(),
     };
 
+    // Reset columnEnteredAt if column status is changing
+    if (currentProduct.columnStatus !== columnStatus) {
+      updateData.columnEnteredAt = new Date();
+    }
+
     // Handle locationId if provided
     if (locationId !== undefined) {
       if (locationId && locationId !== currentProduct.locationId) {
@@ -343,6 +353,7 @@ router.put('/:id/move', async (req, res, next) => {
         .set({
           kanbanId: currentProduct.linkedKanbanId,
           columnStatus: 'Purchased',
+          columnEnteredAt: new Date(), // Reset timer for new kanban
           updatedAt: new Date(),
         })
         .where(eq(products.id, id))

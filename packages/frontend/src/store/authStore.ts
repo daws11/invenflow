@@ -20,7 +20,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       token: null,
       loading: false,
@@ -79,10 +79,10 @@ export const useAuthStore = create<AuthState>()(
 
           set({ loading: true, error: null });
 
-          const response = await authApi.getCurrentUser();
+          const user = await authApi.getCurrentUser();
 
           set({
-            user: response.user,
+            user: user,
             token: token,
             isAuthenticated: true,
             loading: false,

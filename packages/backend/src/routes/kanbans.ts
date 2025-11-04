@@ -31,8 +31,10 @@ router.get('/:id', async (req, res, next) => {
         id: kanbans.id,
         name: kanbans.name,
         type: kanbans.type,
+        description: kanbans.description,
         linkedKanbanId: kanbans.linkedKanbanId,
         publicFormToken: kanbans.publicFormToken,
+        thresholdRules: kanbans.thresholdRules,
         createdAt: kanbans.createdAt,
         updatedAt: kanbans.updatedAt,
       })
@@ -62,18 +64,24 @@ router.get('/:id', async (req, res, next) => {
 // Create kanban
 router.post('/', async (req, res, next) => {
   try {
-    const { name, type } = req.body;
+    const { name, type, description, thresholdRules } = req.body;
 
     if (!name || !type || !['order', 'receive'].includes(type)) {
       throw createError('Invalid kanban data', 400);
     }
 
-    const newKanban = {
+    const newKanban: any = {
       name,
       type,
+      description: typeof description === 'string' && description.trim().length > 0 ? description.trim() : null,
       linkedKanbanId: null,
       publicFormToken: type === 'order' ? nanoid(10) : null,
     };
+
+    // Add thresholdRules if provided
+    if (thresholdRules !== undefined) {
+      newKanban.thresholdRules = thresholdRules;
+    }
 
     const [createdKanban] = await db
       .insert(kanbans)
@@ -90,11 +98,17 @@ router.post('/', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, linkedKanbanId } = req.body;
+    const { name, linkedKanbanId, description, thresholdRules } = req.body;
 
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
     if (linkedKanbanId !== undefined) updateData.linkedKanbanId = linkedKanbanId;
+    if (description !== undefined) {
+      updateData.description = typeof description === 'string' && description.trim().length > 0 ? description.trim() : null;
+    }
+    if (thresholdRules !== undefined) {
+      updateData.thresholdRules = thresholdRules;
+    }
     updateData.updatedAt = new Date();
 
     const [updatedKanban] = await db

@@ -14,22 +14,27 @@ import {
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useKanbanStore } from '../store/kanbanStore';
-import { ORDER_COLUMNS, RECEIVE_COLUMNS, Product, ValidationStatus } from '@invenflow/shared';
+import { ORDER_COLUMNS, RECEIVE_COLUMNS, Product, ValidationStatus, Kanban } from '@invenflow/shared';
 import KanbanColumn from '../components/KanbanColumn';
 import ProductForm from '../components/ProductForm';
 import LocationFilter from '../components/LocationFilter';
 import ProductSidebar from '../components/ProductSidebar';
 import ValidationModal from '../components/ValidationModal';
+import { KanbanSettingsModal } from '../components/KanbanSettingsModal';
+import { ThresholdLegend } from '../components/ThresholdLegend';
+import { useToast } from '../store/toastStore';
 
 export default function KanbanBoard() {
   const { id } = useParams<{ id: string }>();
-  const { currentKanban, loading, error, fetchKanbanById, moveProduct } = useKanbanStore();
+  const { currentKanban, loading, error, fetchKanbanById, moveProduct, updateKanban, deleteKanban } = useKanbanStore();
+  const toast = useToast();
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // Validation modal state
   const [showValidationModal, setShowValidationModal] = useState(false);
@@ -85,7 +90,7 @@ export default function KanbanBoard() {
         });
         setShowValidationModal(true);
       } else {
-        alert('Failed to move product: ' + (error?.response?.data?.error?.message || error?.message));
+        toast.error('Failed to move product: ' + (error?.response?.data?.error?.message || error?.message));
       }
     }
   };
@@ -125,7 +130,7 @@ export default function KanbanBoard() {
       setPendingProductMove(null);
     } catch (error) {
       console.error('Validation error:', error);
-      alert(error instanceof Error ? error.message : 'Validation failed');
+      toast.error(error instanceof Error ? error.message : 'Validation failed');
     } finally {
       setIsValidationLoading(false);
     }
@@ -146,6 +151,41 @@ export default function KanbanBoard() {
   const handleCloseSidebar = () => {
     setIsSidebarOpen(false);
     setSelectedProduct(null);
+  };
+
+  const handleUpdateKanban = async (kanbanId: string, name: string, description?: string | null) => {
+    try {
+      const payload: Partial<Kanban> = { name };
+      if (description !== undefined) {
+        payload.description = description;
+      }
+      await updateKanban(kanbanId, payload);
+      toast.success('Kanban updated successfully');
+      setIsSettingsModalOpen(false);
+    } catch (error) {
+      toast.error('Failed to update kanban. Please try again.');
+      throw error;
+    }
+  };
+
+  const handleDeleteKanban = async (kanbanId: string) => {
+    try {
+      await deleteKanban(kanbanId);
+      toast.success('Kanban deleted successfully');
+      // Redirect to kanban list after deletion
+      window.location.href = '/kanbans';
+    } catch (error) {
+      toast.error('Failed to delete kanban. Please try again.');
+      throw error;
+    }
+  };
+
+  const getProductCount = () => {
+    return currentKanban?.products?.length || 0;
+  };
+
+  const getKanbanDescription = () => {
+    return currentKanban?.description?.trim() || 'No description';
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -256,9 +296,17 @@ export default function KanbanBoard() {
                 </span>
               )}
             </div>
+            <p className="text-gray-600 mt-3 max-w-2xl">{getKanbanDescription()}</p>
           </div>
           <div className="flex space-x-4">
-            <button className="btn-secondary">Settings</button>
+            {currentKanban && (
+              <button
+                className="btn-secondary"
+                onClick={() => setIsSettingsModalOpen(true)}
+              >
+                Settings
+              </button>
+            )}
             <button
               className="btn-primary"
               onClick={() => setShowAddForm(true)}
@@ -288,6 +336,13 @@ export default function KanbanBoard() {
           )}
         </div>
 
+        {/* Threshold Legend */}
+        {currentKanban?.thresholdRules && currentKanban.thresholdRules.length > 0 && (
+          <div className="mb-6">
+            <ThresholdLegend thresholdRules={currentKanban.thresholdRules} />
+          </div>
+        )}
+
         <div className="flex space-x-6 overflow-x-auto pb-6">
           {getColumns().map((column) => (
             <KanbanColumn
@@ -296,6 +351,7 @@ export default function KanbanBoard() {
               title={column}
               products={getProductsByColumn(column)}
               onProductView={handleViewProduct}
+              kanban={currentKanban}
             />
           ))}
         </div>
@@ -335,6 +391,18 @@ export default function KanbanBoard() {
             columnStatus={pendingProductMove.targetColumn as ValidationStatus}
             onSubmit={handleValidationSubmit}
             isLoading={isValidationLoading}
+          />
+        )}
+
+        {/* Settings Modal */}
+        {currentKanban && (
+          <KanbanSettingsModal
+            isOpen={isSettingsModalOpen}
+            onClose={() => setIsSettingsModalOpen(false)}
+            kanban={currentKanban}
+            onUpdate={handleUpdateKanban}
+            onDelete={handleDeleteKanban}
+            productCount={getProductCount()}
           />
         )}
       </div>

@@ -27,6 +27,7 @@ export const products = pgTable(
     weight: decimal('weight', { precision: 10, scale: 2 }),
     unitPrice: decimal('unit_price', { precision: 12, scale: 2 }),
     notes: text('notes'),
+    columnEnteredAt: timestamp('column_entered_at').notNull().defaultNow(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

@@ -1,4 +1,5 @@
-// dotenv config moved to index.ts to ensure it loads before other modules
+// Load dotenv configuration first
+import './dotenv';
 
 export const env = {
   PORT: parseInt(process.env.PORT || "3001", 10),

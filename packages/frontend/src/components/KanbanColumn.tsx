@@ -1,4 +1,4 @@
-import { Product } from '@invenflow/shared';
+import { Product, Kanban } from '@invenflow/shared';
 import { useDroppable } from '@dnd-kit/core';
 import ProductCard from './ProductCard';
 
@@ -8,9 +8,10 @@ interface KanbanColumnProps {
   products: Product[];
   onProductView?: (product: Product) => void;
   onProductMove?: (productId: string, newColumn: string) => void;
+  kanban?: Kanban | null;
 }
 
-export default function KanbanColumn({ id, title, products, onProductView }: KanbanColumnProps) {
+export default function KanbanColumn({ id, title, products, onProductView, kanban }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: id,
   });
@@ -43,6 +44,7 @@ export default function KanbanColumn({ id, title, products, onProductView }: Kan
             key={product.id}
             product={product}
             onView={() => onProductView?.(product)}
+            kanban={kanban}
           />
         ))}
 
