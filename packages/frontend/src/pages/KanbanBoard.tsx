@@ -73,18 +73,9 @@ export default function KanbanBoard() {
     setIsSidebarOpen(true);
   };
 
-  const handleEditProduct = (product: Product) => {
-    setEditingProduct(product);
-  };
-
   const handleCloseSidebar = () => {
     setIsSidebarOpen(false);
     setSelectedProduct(null);
-  };
-
-  const handleProductUpdate = (productId: string, updatedData: any) => {
-    // This will be handled by the ProductSidebar and store
-    // The sidebar will close automatically on successful update
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -263,7 +254,6 @@ export default function KanbanBoard() {
           product={selectedProduct}
           isOpen={isSidebarOpen}
           onClose={handleCloseSidebar}
-          onUpdate={handleProductUpdate}
         />
       </div>
 

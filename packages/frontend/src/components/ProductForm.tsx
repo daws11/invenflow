@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Product, CreateProduct, UpdateProduct, DEFAULT_CATEGORIES, DEFAULT_PRIORITIES, COMMON_TAGS } from '@invenflow/shared';
+import { useState } from 'react';
+import { Product, CreateProduct, UpdateProduct, DEFAULT_CATEGORIES, DEFAULT_PRIORITIES } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
 import CompactLocationSelector from './LocationSelector';
 

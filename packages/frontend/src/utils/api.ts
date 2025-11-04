@@ -7,7 +7,10 @@ import {
   UpdateProduct,
   Location,
   CreateLocation,
-  UpdateLocation
+  UpdateLocation,
+  InventoryFilters,
+  InventoryResponse,
+  InventoryStats
 } from '@invenflow/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -142,6 +145,19 @@ export const publicApi = {
     priority?: string;
   }): Promise<{ message: string; product: Product }> => {
     const response = await api.post(`/api/public/form/${token}`, data);
+    return response.data;
+  },
+};
+
+// Inventory API calls
+export const inventoryApi = {
+  getInventory: async (params: InventoryFilters & { page?: number; pageSize?: number }): Promise<InventoryResponse> => {
+    const response = await api.get('/api/inventory', { params });
+    return response.data;
+  },
+
+  getStats: async (): Promise<InventoryStats> => {
+    const response = await api.get('/api/inventory/stats');
     return response.data;
   },
 };

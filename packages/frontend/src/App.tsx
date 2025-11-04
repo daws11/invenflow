@@ -1,6 +1,7 @@
 import { Routes, Route, Link } from 'react-router-dom'
 import KanbanList from './pages/KanbanList'
 import KanbanBoard from './pages/KanbanBoard'
+import InventoryManager from './pages/InventoryManager'
 import LocationsPage from './pages/LocationsPage'
 import PublicForm from './pages/PublicForm'
 import ToastContainer from './components/ToastContainer'
@@ -23,6 +24,12 @@ function App() {
                   Kanbans
                 </Link>
                 <Link
+                  to="/inventory"
+                  className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                >
+                  Inventory
+                </Link>
+                <Link
                   to="/locations"
                   className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
                 >
@@ -41,6 +48,7 @@ function App() {
         <Routes>
           <Route path="/" element={<KanbanList />} />
           <Route path="/kanban/:id" element={<KanbanBoard />} />
+          <Route path="/inventory" element={<InventoryManager />} />
           <Route path="/locations" element={<LocationsPage />} />
           <Route path="/form/:token" element={<PublicForm />} />
         </Routes>

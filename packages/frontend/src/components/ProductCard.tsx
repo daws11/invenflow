@@ -1,29 +1,18 @@
-import { useState, useRef, useEffect } from 'react';
-import { Product, Location } from '@invenflow/shared';
 import { useState, useRef } from 'react';
-import { Product } from '@invenflow/shared';
+import { Product, Location } from '@invenflow/shared';
 import { useDraggable } from '@dnd-kit/core';
-import { useKanbanStore } from '../store/kanbanStore';
-import { useToast } from '../store/toastStore';
 import TransferHistoryViewer from './TransferHistoryViewer';
 
 interface ProductCardProps {
   product: Product;
-  onEdit?: () => void;
+  onView?: () => void;
   location?: Location | null;
 }
 
-export default function ProductCard({ product, onEdit, location }: ProductCardProps) {
-  onView?: () => void;
-}
-
-export default function ProductCard({ product, onView }: ProductCardProps) {
-  const { deleteProduct } = useKanbanStore();
-  const { success, error } = useToast();
+export default function ProductCard({ product, onView, location }: ProductCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [showTransferHistory, setShowTransferHistory] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -40,23 +29,6 @@ export default function ProductCard({ product, onView }: ProductCardProps) {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
     opacity: isDragging ? 0.5 : 1,
   } : undefined;
-
-  const handleDelete = async () => {
-    if (confirm(`Are you sure you want to delete "${product.productDetails}"? This action cannot be undone.`)) {
-      setIsDeleting(true);
-      try {
-        await deleteProduct(product.id);
-        success(`Product "${product.productDetails}" deleted successfully`);
-      } catch (err) {
-        error(`Failed to delete product: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      } finally {
-        setIsDeleting(false);
-      }
-    }
-  };
-
-  
-  
   const getPriorityColor = (priority: string | null) => {
     switch (priority?.toLowerCase()) {
       case 'urgent':

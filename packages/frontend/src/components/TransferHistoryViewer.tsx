@@ -98,8 +98,9 @@ export default function TransferHistoryViewer({
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
+  const formatDate = (input: string | Date) => {
+    const date = input instanceof Date ? input : new Date(input);
+    return date.toLocaleString();
   };
 
   if (!isOpen) return null;

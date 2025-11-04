@@ -3,6 +3,7 @@ import { env } from './config/env';
 import { corsMiddleware } from './middleware/cors';
 import { errorHandler } from './middleware/errorHandler';
 import { healthRouter } from './routes/health';
+import { inventoryRouter } from './routes/inventory';
 import { kanbansRouter } from './routes/kanbans';
 import { locationsRouter } from './routes/locations';
 import { productsRouter } from './routes/products';
@@ -18,6 +19,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api', healthRouter);
+app.use('/api/inventory', inventoryRouter);
 app.use('/api/kanbans', kanbansRouter);
 app.use('/api/locations', locationsRouter);
 app.use('/api/products', productsRouter);

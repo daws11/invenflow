@@ -327,7 +327,7 @@ export default function LocationsPage() {
                     Description
                   </label>
                   <textarea
-                    value={formData.description}
+                    value={formData.description ?? ''}
                     onChange={(e) => handleFormChange('description', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     rows={3}
@@ -406,7 +406,7 @@ export default function LocationsPage() {
                     Description
                   </label>
                   <textarea
-                    value={formData.description}
+                    value={formData.description ?? ''}
                     onChange={(e) => handleFormChange('description', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     rows={3}

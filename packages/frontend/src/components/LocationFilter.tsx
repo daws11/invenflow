@@ -19,20 +19,13 @@ export default function LocationFilter({
   showAllOption = true,
   allOptionLabel = 'All Locations'
 }: LocationFilterProps) {
-  const { locations, groupedLocations, areas, loading, fetchLocations } = useLocationStore();
+  const { locations, groupedLocations, loading, fetchLocations } = useLocationStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     fetchLocations();
   }, [fetchLocations]);
-
-  // Filter locations based on search
-  const filteredLocations = locations.filter(location =>
-    location.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    location.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    location.area.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const selectedLocation = locations.find(loc => loc.id === selectedLocationId);
 
