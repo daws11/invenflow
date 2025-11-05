@@ -126,10 +126,22 @@ if (process.env.NODE_ENV === 'production') {
 app.use(errorHandler);
 
 // Start server
-app.listen(env.PORT, () => {
+app.listen(env.PORT, '0.0.0.0', () => {
   console.log(`🚀 InvenFlow server running on port ${env.PORT}`);
   console.log(`📊 Health check: http://localhost:${env.PORT}/api/health`);
   console.log(`🌍 Environment: ${env.NODE_ENV}`);
+  console.log(`🌐 Server listening on: 0.0.0.0:${env.PORT} (accessible from all network interfaces)`);
+
+  // Show CORS configuration
+  if (process.env.CORS_ORIGIN) {
+    console.log(`🔒 CORS allowed origins: ${process.env.CORS_ORIGIN}`);
+  }
+  if (process.env.STAGING_DOMAIN) {
+    console.log(`🏢 Staging domain: ${process.env.STAGING_DOMAIN}`);
+  }
+  if (process.env.FRONTEND_URL) {
+    console.log(`🎨 Frontend URL: ${process.env.FRONTEND_URL}`);
+  }
 
   if (process.env.NODE_ENV === 'production') {
     console.log(`🌐 Full application: http://localhost:${env.PORT}/`);
