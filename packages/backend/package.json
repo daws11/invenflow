@@ -5,7 +5,9 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsc && npm run fix-imports",
+    "build:tsc": "tsc",
+    "fix-imports": "node scripts/fix-imports.js",
     "start": "node dist/index.js",
     "lint": "eslint src --ext .ts",
     "db:generate": "drizzle-kit generate:pg",
