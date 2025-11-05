@@ -31,8 +31,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Mobile Header with Hamburger Menu */}
       <header className="lg:hidden bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-sm border-b border-gray-100">
-        <div className="px-4 sm:px-6">
-          <div className="flex items-center justify-between h-16">
+        <div className="px-3 sm:px-4">
+          <div className="flex items-center justify-between h-14">
             {/* Hamburger Menu Button */}
             <button
               onClick={toggleSidebar}
@@ -85,7 +85,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Main Content */}
       <main className={`${mainContentMargin} transition-all duration-300`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="w-full px-3 sm:px-4 lg:px-6 py-3 md:py-4">
           {children}
         </div>
       </main>

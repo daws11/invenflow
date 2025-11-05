@@ -376,6 +376,7 @@ router.get('/stats', async (req, res, next) => {
     const [rawTotalStats] = await db
       .select({
         total: sql<number>`count(*)`,
+        purchased: sql<number>`sum(case when ${products.columnStatus} = 'Purchased' then 1 else 0 end)`,
         received: sql<number>`sum(case when ${products.columnStatus} = 'Received' then 1 else 0 end)`,
         stored: sql<number>`sum(case when ${products.columnStatus} = 'Stored' then 1 else 0 end)`,
         lowStock: sql<number>`sum(case when ${products.stockLevel} is not null and ${products.stockLevel} <= 10 then 1 else 0 end)`,
@@ -386,6 +387,7 @@ router.get('/stats', async (req, res, next) => {
 
     const totalsRow = rawTotalStats ?? {
       total: 0,
+      purchased: 0,
       received: 0,
       stored: 0,
       lowStock: 0,
@@ -444,6 +446,7 @@ router.get('/stats', async (req, res, next) => {
     res.json({
       totalStats: {
         total: Number(totalsRow.total ?? 0),
+        purchased: Number(totalsRow.purchased ?? 0),
         received: Number(totalsRow.received ?? 0),
         stored: Number(totalsRow.stored ?? 0),
         lowStock: Number(totalsRow.lowStock ?? 0),

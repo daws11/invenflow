@@ -13,7 +13,7 @@ interface ImageUploadProps {
 export default function ImageUpload({
   value,
   onChange,
-  placeholder = 'Klik atau drag untuk upload gambar',
+  placeholder = 'Click or drag to upload image',
   disabled = false,
   accept = 'image/*',
   maxSize = 5
@@ -26,13 +26,13 @@ export default function ImageUpload({
   const handleFileSelect = async (file: File) => {
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      setUploadError('Hanya file gambar yang diizinkan');
+      setUploadError('Only image files are allowed');
       return;
     }
 
     // Validate file size
     if (file.size > maxSize * 1024 * 1024) {
-      setUploadError(`Ukuran file maksimal ${maxSize}MB`);
+      setUploadError(`File size must be less than ${maxSize}MB`);
       return;
     }
 
@@ -62,7 +62,7 @@ export default function ImageUpload({
       onChange(data.file.publicUrl || data.file.url);
     } catch (error) {
       console.error('Upload error:', error);
-      setUploadError(error instanceof Error ? error.message : 'Gagal upload gambar');
+      setUploadError(error instanceof Error ? error.message : 'Failed to upload image');
     } finally {
       setIsUploading(false);
     }
@@ -148,7 +148,7 @@ export default function ImageUpload({
 
             <div>
               <p className="text-sm text-gray-600">
-                {isUploading ? 'Mengupload...' : placeholder}
+                {isUploading ? 'Uploading...' : placeholder}
               </p>
               <p className="text-xs text-gray-500 mt-1">
                 JPG, PNG, WebP (max {maxSize}MB)
@@ -161,7 +161,7 @@ export default function ImageUpload({
             <div className="absolute inset-0 bg-blue-500 bg-opacity-10 rounded-lg flex items-center justify-center">
               <div className="bg-white p-4 rounded-lg shadow-lg">
                 <Upload className="w-6 h-6 text-blue-600" />
-                <p className="text-sm text-blue-600 font-medium">Drop gambar di sini</p>
+                <p className="text-sm text-blue-600 font-medium">Drop image here</p>
               </div>
             </div>
           )}
@@ -190,13 +190,13 @@ export default function ImageUpload({
 
           {/* Image info */}
           <div className="mt-2 flex items-center justify-between">
-            <p className="text-xs text-gray-500">Gambar terupload</p>
+            <p className="text-xs text-gray-500">Image uploaded</p>
             <button
               onClick={() => fileInputRef.current?.click()}
               className="text-xs text-blue-600 hover:text-blue-700"
               disabled={disabled}
             >
-              Ganti gambar
+              Change image
             </button>
           </div>
         </div>

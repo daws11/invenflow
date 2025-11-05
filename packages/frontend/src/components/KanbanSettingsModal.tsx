@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { Kanban, ThresholdRule } from '@invenflow/shared';
-import BoardLinkingModal from './BoardLinkingModal';
-import { EditKanbanModal } from './EditKanbanModal';
 import { DeleteKanbanModal } from './DeleteKanbanModal';
 import { ThresholdSettingsSection } from './ThresholdSettingsSection';
 import { useToast } from '../store/toastStore';
+import { useKanbanStore } from '../store/kanbanStore';
 import api from '../utils/api';
 import {
   PencilIcon,
@@ -12,9 +11,11 @@ import {
   TrashIcon,
   DocumentDuplicateIcon,
   EyeIcon,
-  XMarkIcon,
   ClockIcon,
+  InformationCircleIcon,
 } from '@heroicons/react/24/outline';
+import { Slider } from './Slider';
+import { SliderTabs, SliderTab } from './SliderTabs';
 
 interface KanbanSettingsModalProps {
   isOpen: boolean;
@@ -25,6 +26,8 @@ interface KanbanSettingsModalProps {
   productCount?: number;
 }
 
+type TabType = 'overview' | 'edit' | 'linking' | 'threshold';
+
 export function KanbanSettingsModal({
   isOpen,
   onClose,
@@ -34,12 +37,34 @@ export function KanbanSettingsModal({
   productCount = 0,
 }: KanbanSettingsModalProps) {
   const toast = useToast();
-  const [showEditModal, setShowEditModal] = useState(false);
+  const { kanbans, updateKanban } = useKanbanStore();
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showLinkingModal, setShowLinkingModal] = useState(false);
-  const [showThresholdSettings, setShowThresholdSettings] = useState(false);
+  
+  // Edit form state
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+
+  // Linking state
+  const [selectedKanbanId, setSelectedKanbanId] = useState<string>('');
+  const [isLinking, setIsLinking] = useState(false);
+
+  // Threshold state
   const [thresholdRules, setThresholdRules] = useState<ThresholdRule[]>(kanban?.thresholdRules || []);
   const [isSavingThreshold, setIsSavingThreshold] = useState(false);
+
+  // Initialize edit form when kanban changes
+  useState(() => {
+    if (kanban) {
+      setEditName(kanban.name);
+      setEditDescription(kanban.description ?? '');
+      setThresholdRules(kanban.thresholdRules || []);
+    }
+  });
+
+  if (!isOpen || !kanban) return null;
 
   const handleCopyUrl = () => {
     if (!kanban?.publicFormToken) return;
@@ -54,17 +79,99 @@ export function KanbanSettingsModal({
     window.open(url, '_blank');
   };
 
+  // Edit functionality
+  const validateEditForm = (): boolean => {
+    if (!editName.trim()) {
+      setEditError('Kanban name is required');
+      return false;
+    }
+    if (editName.trim().length < 3) {
+      setEditError('Kanban name must be at least 3 characters');
+      return false;
+    }
+    if (editName.trim().length > 255) {
+      setEditError('Kanban name must be less than 255 characters');
+      return false;
+    }
+    setEditError(null);
+    return true;
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateEditForm()) return;
+
+    setIsSubmittingEdit(true);
+    try {
+      const normalizedDescription = editDescription.trim();
+      await onUpdate(
+        kanban.id,
+        editName.trim(),
+        normalizedDescription.length > 0 ? normalizedDescription : null
+      );
+      toast.success('Kanban updated successfully!');
+      setActiveTab('overview');
+    } catch (error) {
+      console.error('Failed to update kanban:', error);
+      toast.error('Failed to update kanban');
+    } finally {
+      setIsSubmittingEdit(false);
+    }
+  };
+
+  // Linking functionality
+  const availableKanbans = kanbans.filter(k => {
+    if (k.id === kanban.id) return false;
+    if (k.type === kanban.type) return false;
+    if (k.linkedKanbanId) return false;
+    return true;
+  });
+
+  const linkedKanban = kanban.linkedKanbanId
+    ? kanbans.find(k => k.id === kanban.linkedKanbanId)
+    : null;
+
+  const handleLink = async () => {
+    if (!selectedKanbanId) return;
+
+    setIsLinking(true);
+    try {
+      await updateKanban(kanban.id, { linkedKanbanId: selectedKanbanId });
+      await updateKanban(selectedKanbanId, { linkedKanbanId: kanban.id });
+      toast.success('Boards linked successfully');
+      setActiveTab('overview');
+    } catch (error) {
+      console.error('Failed to link kanbans:', error);
+      toast.error('Failed to link kanbans');
+    } finally {
+      setIsLinking(false);
+    }
+  };
+
+  const handleUnlink = async () => {
+    if (!kanban.linkedKanbanId) return;
+
+    setIsLinking(true);
+    try {
+      await updateKanban(kanban.id, { linkedKanbanId: null });
+      await updateKanban(kanban.linkedKanbanId, { linkedKanbanId: null });
+      toast.success('Boards unlinked successfully');
+    } catch (error) {
+      console.error('Failed to unlink kanbans:', error);
+      toast.error('Failed to unlink kanbans');
+    } finally {
+      setIsLinking(false);
+    }
+  };
+
+  // Threshold functionality
   const handleSaveThresholdRules = async () => {
-    if (!kanban) return;
-    
     setIsSavingThreshold(true);
     try {
       await api.put(`/api/kanbans/${kanban.id}`, {
         thresholdRules: thresholdRules,
       });
       toast.success('Threshold rules saved successfully!');
-      setShowThresholdSettings(false);
-      // Refresh the page or update the kanban data
       window.location.reload();
     } catch (error) {
       console.error('Failed to save threshold rules:', error);
@@ -74,191 +181,380 @@ export function KanbanSettingsModal({
     }
   };
 
-  const handleClose = () => {
-    setShowEditModal(false);
-    setShowDeleteModal(false);
-    setShowLinkingModal(false);
-    setShowThresholdSettings(false);
-    onClose();
-  };
+  // Tab Contents
+  const overviewContent = (
+    <div className="space-y-6">
+      {/* Kanban Info */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="font-medium text-gray-900">{kanban.name}</h4>
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            kanban.type === 'order'
+              ? 'bg-blue-100 text-blue-800'
+              : 'bg-green-100 text-green-800'
+          }`}>
+            {kanban.type === 'order' ? 'Order' : 'Receive'}
+          </span>
+        </div>
+        <p className="text-sm text-gray-600 mb-2">
+          {kanban.description?.trim() || 'No description'}
+        </p>
+        {productCount > 0 && (
+          <p className="text-sm text-gray-600">
+            {productCount} product(s) in this board
+          </p>
+        )}
+      </div>
 
-  if (!isOpen || !kanban) return null;
-
-  return (
-    <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg max-w-lg w-full p-6 shadow-xl transform transition-all animate-scale-in">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-semibold text-gray-900">Kanban Settings</h3>
-            <button
-              type="button"
-              onClick={handleClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <XMarkIcon className="w-6 h-6" />
-            </button>
+      {/* Quick Actions */}
+      <div className="space-y-3">
+        <h5 className="text-sm font-medium text-gray-700">Quick Actions</h5>
+        
+        <button
+          onClick={() => setActiveTab('edit')}
+          className="w-full flex items-center px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors border border-gray-200"
+        >
+          <PencilIcon className="w-5 h-5 text-gray-400 mr-3" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-gray-900">Edit Details</p>
+            <p className="text-xs text-gray-500">Change name and description</p>
           </div>
+        </button>
 
-          {/* Kanban Info */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-medium text-gray-900">{kanban.name}</h4>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                kanban.type === 'order'
-                  ? 'bg-blue-100 text-blue-800'
-                  : 'bg-green-100 text-green-800'
-              }`}>
-                {kanban.type === 'order' ? 'Order' : 'Receive'}
-              </span>
-            </div>
-            <p className="text-sm text-gray-600 mb-2">
-              {kanban.description?.trim() || 'No description'}
+        <button
+          onClick={() => setActiveTab('linking')}
+          className="w-full flex items-center px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors border border-gray-200"
+        >
+          <LinkIcon className="w-5 h-5 text-gray-400 mr-3" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-gray-900">
+              {kanban.linkedKanbanId ? 'Manage Board Link' : 'Link Board'}
             </p>
-            {productCount > 0 && (
-              <p className="text-sm text-gray-600">
-                {productCount} product(s) in this board
-              </p>
-            )}
+            <p className="text-xs text-gray-500">
+              {kanban.linkedKanbanId
+                ? 'View or modify board linking'
+                : 'Connect this board to another'}
+            </p>
           </div>
+        </button>
 
-          {/* Settings Options */}
-          <div className="space-y-2">
-            {/* Edit Name */}
-            <button
-              onClick={() => setShowEditModal(true)}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
-            >
-              <PencilIcon className="w-5 h-5 text-gray-400 mr-3" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">Edit Name</p>
-                <p className="text-xs text-gray-500">Change the kanban board name</p>
-              </div>
-            </button>
-
-            {/* Link/Unlink Board */}
-            <button
-              onClick={() => setShowLinkingModal(true)}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
-            >
-              <LinkIcon className="w-5 h-5 text-gray-400 mr-3" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">
-                  {kanban.linkedKanbanId ? 'Manage Link' : 'Link Board'}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {kanban.linkedKanbanId
-                    ? 'Manage board linking settings'
-                    : 'Link this board to another kanban'}
-                </p>
-              </div>
-            </button>
-
-            {/* Threshold Settings */}
-            <button
-              onClick={() => setShowThresholdSettings(!showThresholdSettings)}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
-            >
-              <ClockIcon className="w-5 h-5 text-gray-400 mr-3" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">Threshold Settings</p>
-                <p className="text-xs text-gray-500">
-                  Configure color alerts based on time in column
-                </p>
-              </div>
-            </button>
-
-            {/* Threshold Settings Section (Expandable) */}
-            {showThresholdSettings && (
-              <div className="px-4 py-4 bg-gray-50 rounded-lg border border-gray-200">
-                <ThresholdSettingsSection
-                  thresholdRules={thresholdRules}
-                  onChange={setThresholdRules}
-                  kanbanType={kanban.type as 'order' | 'receive'}
-                  products={[]}
-                />
-                
-                <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-gray-200">
-                  <button
-                    onClick={() => {
-                      setThresholdRules(kanban?.thresholdRules || []);
-                      setShowThresholdSettings(false);
-                    }}
-                    className="px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSaveThresholdRules}
-                    disabled={isSavingThreshold}
-                    className="px-3 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSavingThreshold ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Public Form actions (only for order kanbans) */}
-            {kanban.type === 'order' && kanban.publicFormToken && (
-              <>
-                <div className="border-t border-gray-200 my-2"></div>
-                <div className="px-4 py-2">
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={handleCopyUrl}
-                      className="flex-1 flex items-center justify-center px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                    >
-                      <DocumentDuplicateIcon className="w-4 h-4 mr-2" />
-                      Copy URL
-                    </button>
-                    <button
-                      onClick={handleViewUrl}
-                      className="flex-1 flex items-center justify-center px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                    >
-                      <EyeIcon className="w-4 h-4 mr-2" />
-                      View Form
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Delete Kanban */}
-            <div className="border-t border-gray-200 my-2"></div>
-            <button
-              onClick={() => setShowDeleteModal(true)}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-red-50 rounded-lg transition-colors text-red-600"
-            >
-              <TrashIcon className="w-5 h-5 text-red-600 mr-3" />
-              <div className="flex-1">
-                <p className="text-sm font-medium">Delete Kanban</p>
-                <p className="text-xs text-red-500">Permanently delete this board</p>
-              </div>
-            </button>
+        <button
+          onClick={() => setActiveTab('threshold')}
+          className="w-full flex items-center px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors border border-gray-200"
+        >
+          <ClockIcon className="w-5 h-5 text-gray-400 mr-3" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-gray-900">Threshold Settings</p>
+            <p className="text-xs text-gray-500">Configure time-based alerts</p>
           </div>
+        </button>
+      </div>
 
-          {/* Actions */}
-          <div className="flex justify-end mt-6">
-            <button
-              onClick={handleClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Close
-            </button>
+      {/* Public Form (Order kanbans only) */}
+      {kanban.type === 'order' && kanban.publicFormToken && (
+        <>
+          <div className="border-t border-gray-200 my-4"></div>
+          <div className="space-y-3">
+            <h5 className="text-sm font-medium text-gray-700">Public Form</h5>
+            <div className="flex space-x-2">
+              <button
+                onClick={handleCopyUrl}
+                className="flex-1 flex items-center justify-center px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                <DocumentDuplicateIcon className="w-4 h-4 mr-2" />
+                Copy URL
+              </button>
+              <button
+                onClick={handleViewUrl}
+                className="flex-1 flex items-center justify-center px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                <EyeIcon className="w-4 h-4 mr-2" />
+                View Form
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Delete Button */}
+      <div className="border-t border-gray-200 my-4"></div>
+      <button
+        onClick={() => setShowDeleteModal(true)}
+        className="w-full flex items-center px-4 py-3 text-left hover:bg-red-50 rounded-lg transition-colors border border-red-200 text-red-600"
+      >
+        <TrashIcon className="w-5 h-5 text-red-600 mr-3" />
+        <div className="flex-1">
+          <p className="text-sm font-medium">Delete Kanban</p>
+          <p className="text-xs text-red-500">Permanently remove this board</p>
+        </div>
+      </button>
+    </div>
+  );
+
+  const editContent = (
+    <form onSubmit={handleEditSubmit} className="space-y-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+        <p className="text-sm text-blue-800">
+          Update the name and description of this kanban board.
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Kanban Name <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          required
+          value={editName}
+          onChange={(e) => {
+            setEditName(e.target.value);
+            if (editError) setEditError(null);
+          }}
+          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            editError ? 'border-red-300' : 'border-gray-300'
+          }`}
+          disabled={isSubmittingEdit}
+        />
+        {editError && (
+          <p className="mt-1 text-sm text-red-600">{editError}</p>
+        )}
+        <p className="mt-1 text-xs text-gray-500">
+          Minimum 3 characters, maximum 255 characters
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Description
+        </label>
+        <textarea
+          value={editDescription}
+          onChange={(e) => setEditDescription(e.target.value)}
+          rows={3}
+          maxLength={1000}
+          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent border-gray-300"
+          placeholder="Optional short description"
+          disabled={isSubmittingEdit}
+        />
+      </div>
+
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <div className="flex items-center">
+          <div className={`flex-shrink-0 w-3 h-3 rounded-full mr-3 ${
+            kanban.type === 'order' ? 'bg-blue-500' : 'bg-green-500'
+          }`}></div>
+          <div>
+            <p className="text-sm font-medium text-gray-900">
+              {kanban.type === 'order' ? 'Order Kanban' : 'Receive Kanban'}
+            </p>
+            <p className="text-xs text-gray-600">Type cannot be changed</p>
           </div>
         </div>
       </div>
 
-      {/* Sub-modals */}
-      {showEditModal && (
-        <EditKanbanModal
-          isOpen={showEditModal}
-          onClose={() => setShowEditModal(false)}
-          kanban={kanban}
-          onUpdate={onUpdate}
-        />
-      )}
+      <div className="flex gap-3 pt-4">
+        <button
+          type="button"
+          onClick={() => {
+            setEditName(kanban.name);
+            setEditDescription(kanban.description ?? '');
+            setActiveTab('overview');
+          }}
+          disabled={isSubmittingEdit}
+          className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={isSubmittingEdit}
+          className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+        >
+          {isSubmittingEdit ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
+    </form>
+  );
 
+  const linkingContent = (
+    <div className="space-y-6">
+      {/* Current Board Info */}
+      <div>
+        <h4 className="text-sm font-medium text-gray-700 mb-2">Current Board</h4>
+        <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-gray-900">{kanban.name}</p>
+              <p className="text-sm text-gray-600">
+                {kanban.type === 'order' ? 'Order Board' : 'Receive Board'}
+              </p>
+            </div>
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              kanban.type === 'order' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+            }`}>
+              {kanban.type === 'order' ? 'Order' : 'Receive'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Linked Board or Selection */}
+      {linkedKanban ? (
+        <div>
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Linked Board</h4>
+          <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="font-medium text-gray-900">{linkedKanban.name}</p>
+                <p className="text-sm text-gray-600">
+                  {linkedKanban.type === 'order' ? 'Order Board' : 'Receive Board'}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-green-700">
+              ✓ Products automatically transfer when moved to "Purchased" column
+            </p>
+          </div>
+          
+          <button
+            type="button"
+            onClick={handleUnlink}
+            disabled={isLinking}
+            className="w-full mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+          >
+            {isLinking ? 'Unlinking...' : 'Unlink Boards'}
+          </button>
+        </div>
+      ) : (
+        <div>
+          <h4 className="text-sm font-medium text-gray-700 mb-2">
+            Available {kanban.type === 'order' ? 'Receive' : 'Order'} Boards
+          </h4>
+
+          {availableKanbans.length === 0 ? (
+            <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg text-center">
+              <p className="text-gray-600 text-sm">
+                No {kanban.type === 'order' ? 'Receive' : 'Order'} boards available for linking.
+              </p>
+              <p className="text-gray-500 text-xs mt-1">
+                Create a {kanban.type === 'order' ? 'Receive' : 'Order'} board first.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2 mb-4">
+                {availableKanbans.map(k => (
+                  <label
+                    key={k.id}
+                    className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="kanban-selection"
+                      value={k.id}
+                      checked={selectedKanbanId === k.id}
+                      onChange={(e) => setSelectedKanbanId(e.target.value)}
+                      className="mr-3"
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{k.name}</p>
+                      <p className="text-sm text-gray-600">
+                        {k.type === 'order' ? 'Order Board' : 'Receive Board'}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              
+              <button
+                type="button"
+                onClick={handleLink}
+                disabled={isLinking || !selectedKanbanId}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {isLinking ? 'Linking...' : 'Link Boards'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  const thresholdContent = (
+    <div className="space-y-4">
+      <ThresholdSettingsSection
+        thresholdRules={thresholdRules}
+        onChange={setThresholdRules}
+        kanbanType={kanban.type as 'order' | 'receive'}
+        products={[]}
+      />
+      
+      <div className="flex gap-3 pt-4 border-t border-gray-200">
+        <button
+          onClick={() => {
+            setThresholdRules(kanban?.thresholdRules || []);
+            setActiveTab('overview');
+          }}
+          className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSaveThresholdRules}
+          disabled={isSavingThreshold}
+          className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+        >
+          {isSavingThreshold ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+  );
+
+  const tabs: SliderTab[] = [
+    {
+      id: 'overview',
+      label: 'Overview',
+      content: overviewContent,
+      icon: <InformationCircleIcon className="h-4 w-4" />,
+    },
+    {
+      id: 'edit',
+      label: 'Edit',
+      content: editContent,
+      icon: <PencilIcon className="h-4 w-4" />,
+    },
+    {
+      id: 'linking',
+      label: 'Linking',
+      content: linkingContent,
+      icon: <LinkIcon className="h-4 w-4" />,
+    },
+    {
+      id: 'threshold',
+      label: 'Threshold',
+      content: thresholdContent,
+      icon: <ClockIcon className="h-4 w-4" />,
+    },
+  ];
+
+  return (
+    <>
+      <Slider
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Kanban Settings"
+        size="large"
+      >
+        <SliderTabs
+          tabs={tabs}
+          activeTab={activeTab}
+          onTabChange={(tabId) => setActiveTab(tabId as TabType)}
+        />
+      </Slider>
+
+      {/* Delete Modal (stays as modal) */}
       {showDeleteModal && (
         <DeleteKanbanModal
           isOpen={showDeleteModal}
@@ -268,15 +564,6 @@ export function KanbanSettingsModal({
           productCount={productCount}
         />
       )}
-
-      {showLinkingModal && (
-        <BoardLinkingModal
-          isOpen={showLinkingModal}
-          onClose={() => setShowLinkingModal(false)}
-          currentKanban={kanban}
-        />
-      )}
     </>
   );
 }
-

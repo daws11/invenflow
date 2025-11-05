@@ -4,23 +4,19 @@ module.exports = {
       name: 'invenflow-staging',
       script: './packages/backend/dist/index.js',
       cwd: './',
-      instances: 'max',
-      exec_mode: 'cluster',
+      instances: 1, // Start with 1 instance for staging, can increase if needed
+      exec_mode: 'fork', // Use fork mode for staging (cluster mode requires proper session handling)
+      // Note: env_file is supported in PM2 5.0+, but we also load via dotenv in backend
+      env_file: './.env.staging', // PM2 will load this file automatically (PM2 5.0+)
       env: {
         NODE_ENV: 'production',
         PORT: 3001,
-        DATABASE_URL: 'postgresql://yanuar@localhost:5432/invenflow_staging',
-        JWT_SECRET: 'your-staging-secret-change-in-production',
-        JWT_EXPIRES_IN: '24h',
-        VITE_API_URL: 'http://localhost:3001'
       },
       env_staging: {
         NODE_ENV: 'production',
-        PORT: 3001,
-        DATABASE_URL: 'postgresql://yanuar@localhost:5432/invenflow_staging',
-        JWT_SECRET: 'staging-secret-key-change-in-production',
-        JWT_EXPIRES_IN: '24h',
-        VITE_API_URL: 'http://localhost:3001'
+        ENV_FILE: '.env.staging', // Explicitly tell backend to use staging env file
+        // Additional env vars can be added here if needed
+        // Most values come from .env.staging file via env_file or backend dotenv loader
       },
       // Error and output logging
       error_file: './logs/invenflow-staging-error.log',

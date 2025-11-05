@@ -104,13 +104,13 @@ export default function LocationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="w-full px-3 sm:px-4 lg:px-6 py-3">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Location Management</h1>
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900">Location Management</h1>
               <p className="text-gray-600 mt-1">Manage warehouse locations and areas</p>
             </div>
             <div className="flex items-center space-x-3">
@@ -130,9 +130,9 @@ export default function LocationsPage() {
       </div>
 
       {/* Filters */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="w-full px-3 sm:px-4 lg:px-6 py-3">
+        <div className="bg-white rounded-lg shadow p-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Search Locations
@@ -166,8 +166,8 @@ export default function LocationsPage() {
 
       {/* Error Display */}
       {error && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+        <div className="w-full px-3 sm:px-4 lg:px-6">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
             <div className="flex justify-between items-center">
               <p className="text-red-800">{error}</p>
               <button
@@ -182,7 +182,7 @@ export default function LocationsPage() {
       )}
 
       {/* Locations Display */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+      <div className="w-full px-3 sm:px-4 lg:px-6 pb-4">
         {viewMode === 'list' ? (
           <div className="bg-white rounded-lg shadow">
             <LocationList
@@ -204,11 +204,11 @@ export default function LocationsPage() {
                     ({areaLocations.length} locations)
                   </span>
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {areaLocations.map(location => (
                     <div
                       key={location.id}
-                      className="bg-white rounded-lg shadow hover:shadow-md transition-all duration-200 p-6 transform hover:-translate-y-1"
+                      className="bg-white rounded-lg shadow hover:shadow-md transition-all duration-200 p-4 transform hover:-translate-y-1"
                     >
                       <div className="flex justify-between items-start mb-4">
                         <div>

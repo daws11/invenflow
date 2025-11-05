@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { User, CreateUser, UpdateUser } from '@invenflow/shared';
 import { userApi } from '../utils/api';
 import { useAuthStore } from '../store/authStore';
+import { Slider } from './Slider';
 
 export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
@@ -174,156 +175,162 @@ export default function UserManagement() {
         </ul>
       </div>
 
-      {/* Create User Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Create New User</h3>
-            <form onSubmit={handleCreateUser}>
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500"
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500"
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500"
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2">
-                  Role
-                </label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'user' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500"
-                >
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div className="flex justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Creating...' : 'Create User'}
-                </button>
-              </div>
-            </form>
+      {/* Create User Slider */}
+      <Slider
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Create New User"
+        footer={
+          <div className="flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={() => setShowCreateModal(false)}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              onClick={handleCreateUser}
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {isSubmitting ? 'Creating...' : 'Create User'}
+            </button>
           </div>
-        </div>
-      )}
+        }
+      >
+        <form onSubmit={handleCreateUser} className="space-y-4">
+          <div>
+            <label className="block text-gray-700 text-sm font-medium mb-1">
+              Name
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-700 text-sm font-medium mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              required
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-700 text-sm font-medium mb-1">
+              Password
+            </label>
+            <input
+              type="password"
+              required
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-700 text-sm font-medium mb-1">
+              Role
+            </label>
+            <select
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'user' })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+        </form>
+      </Slider>
 
-      {/* Edit User Modal */}
-      {showEditModal && selectedUser && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Edit User</h3>
-            <form onSubmit={handleUpdateUser}>
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500"
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500"
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2">
-                  New Password (leave empty to keep current)
-                </label>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500"
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2">
-                  Role
-                </label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'user' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500"
-                >
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div className="flex justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Updating...' : 'Update User'}
-                </button>
-              </div>
-            </form>
+      {/* Edit User Slider */}
+      <Slider
+        isOpen={showEditModal && !!selectedUser}
+        onClose={() => setShowEditModal(false)}
+        title="Edit User"
+        footer={
+          <div className="flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={() => setShowEditModal(false)}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              onClick={handleUpdateUser}
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {isSubmitting ? 'Updating...' : 'Update User'}
+            </button>
           </div>
-        </div>
-      )}
+        }
+      >
+        {selectedUser && (
+          <form onSubmit={handleUpdateUser} className="space-y-4">
+            <div>
+              <label className="block text-gray-700 text-sm font-medium mb-1">
+                Name
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-700 text-sm font-medium mb-1">
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-700 text-sm font-medium mb-1">
+                New Password (leave empty to keep current)
+              </label>
+              <input
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-700 text-sm font-medium mb-1">
+                Role
+              </label>
+              <select
+                value={formData.role}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'user' })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </form>
+        )}
+      </Slider>
     </div>
   );
 }

@@ -47,15 +47,15 @@ export function ThresholdRuleCard({
   };
 
   return (
-    <div className="bg-white border-2 border-gray-200 rounded-xl p-5 hover:border-blue-300 hover:shadow-md transition-all group">
+    <div className="bg-white border-2 border-gray-200 rounded-xl p-4 sm:p-5 hover:border-blue-300 hover:shadow-md transition-all group">
       {/* Header */}
-      <div className="flex items-start gap-4 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4 mb-3 sm:mb-4">
         {/* Priority Badge */}
         <div className="flex-shrink-0">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-base sm:text-lg shadow-lg">
             {index + 1}
           </div>
-          <p className="text-xs text-center text-gray-500 mt-1">Priority</p>
+          <p className="hidden sm:block text-xs text-center text-gray-500 mt-1">Priority</p>
         </div>
 
         {/* Color Preview & Rule Info */}
@@ -66,7 +66,7 @@ export function ThresholdRuleCard({
               style={{ backgroundColor: rule.color }}
             />
             <div className="flex-1 min-w-0">
-              <h4 className="font-bold text-gray-900 text-lg truncate mb-1">
+              <h4 className="font-bold text-gray-900 text-base sm:text-lg leading-snug mb-1 break-words">
                 {getRuleLabel()} {rule.value} {rule.unit}
               </h4>
               <p className="text-sm text-gray-600">
@@ -77,7 +77,7 @@ export function ThresholdRuleCard({
         </div>
 
         {/* Priority Controls */}
-        <div className="flex flex-col gap-1 flex-shrink-0">
+        <div className="hidden sm:flex flex-col gap-1 flex-shrink-0">
           <button
             type="button"
             onClick={() => onMovePriority(rule.id, 'up')}
@@ -97,6 +97,28 @@ export function ThresholdRuleCard({
             <ChevronDownIcon className="w-4 h-4" />
           </button>
         </div>
+      </div>
+
+      {/* Mobile Priority Controls */}
+      <div className="flex sm:hidden justify-end gap-2 mb-3">
+        <button
+          type="button"
+          onClick={() => onMovePriority(rule.id, 'up')}
+          disabled={index === 0}
+          className="px-3 py-1.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md text-xs transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          title="Move up (higher priority)"
+        >
+          Up
+        </button>
+        <button
+          type="button"
+          onClick={() => onMovePriority(rule.id, 'down')}
+          disabled={index === totalRules - 1}
+          className="px-3 py-1.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md text-xs transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          title="Move down (lower priority)"
+        >
+          Down
+        </button>
       </div>
 
       {/* Stats */}
@@ -137,7 +159,7 @@ export function ThresholdRuleCard({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2 pt-4 border-t border-gray-200">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-4 border-t border-gray-200">
         <button
           type="button"
           onClick={() => onEdit(rule)}

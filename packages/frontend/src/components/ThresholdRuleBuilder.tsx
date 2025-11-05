@@ -234,7 +234,7 @@ export function ThresholdRuleBuilder({ onSave, onCancel, initialRule, existingRu
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Time Unit
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {TIME_UNITS.map((u) => (
                   <button
                     key={u.value}
@@ -371,26 +371,26 @@ export function ThresholdRuleBuilder({ onSave, onCancel, initialRule, existingRu
           </div>
 
           {/* Actions */}
-          <div className="flex justify-between mt-6 pt-6 border-t border-gray-200">
+          <div className="flex flex-col sm:flex-row sm:justify-between gap-3 mt-6 pt-6 border-t border-gray-200">
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors w-full sm:w-auto"
             >
               Back
             </button>
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={onCancel}
-                className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors w-full sm:w-auto"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleSave}
-                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 w-full sm:w-auto"
               >
                 <CheckCircleIcon className="w-5 h-5" />
                 {initialRule ? 'Update Rule' : 'Create Rule'}

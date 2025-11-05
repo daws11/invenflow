@@ -38,7 +38,7 @@ export default function KanbanColumn({ id, title, products, onProductView, kanba
         </div>
       </div>
 
-      <div className="space-y-3 min-h-[200px]">
+      <div className="space-y-2 min-h-[150px]">
         {products.map((product) => (
           <ProductCard
             key={product.id}

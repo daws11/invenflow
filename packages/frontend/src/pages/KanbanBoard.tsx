@@ -13,9 +13,12 @@ import {
   DragEndEvent,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { Squares2X2Icon, ListBulletIcon } from '@heroicons/react/24/outline';
 import { useKanbanStore } from '../store/kanbanStore';
+import { useViewPreferencesStore } from '../store/viewPreferencesStore';
 import { ORDER_COLUMNS, RECEIVE_COLUMNS, Product, ValidationStatus, Kanban } from '@invenflow/shared';
 import KanbanColumn from '../components/KanbanColumn';
+import CompactBoardView from '../components/CompactBoardView';
 import ProductForm from '../components/ProductForm';
 import LocationFilter from '../components/LocationFilter';
 import ProductSidebar from '../components/ProductSidebar';
@@ -27,6 +30,7 @@ import { useToast } from '../store/toastStore';
 export default function KanbanBoard() {
   const { id } = useParams<{ id: string }>();
   const { currentKanban, loading, error, fetchKanbanById, moveProduct, updateKanban, deleteKanban } = useKanbanStore();
+  const { kanbanBoardViewMode, setKanbanBoardViewMode } = useViewPreferencesStore();
   const toast = useToast();
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -274,9 +278,9 @@ export default function KanbanBoard() {
       onDragEnd={handleDragEnd}
     >
       <div>
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-4 md:mb-6">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">{currentKanban.name}</h2>
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">{currentKanban.name}</h2>
             <div className="flex items-center space-x-4">
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                 currentKanban.type === 'order'
@@ -298,7 +302,27 @@ export default function KanbanBoard() {
             </div>
             <p className="text-gray-600 mt-3 max-w-2xl">{getKanbanDescription()}</p>
           </div>
-          <div className="flex space-x-4">
+          <div className="flex space-x-2 md:space-x-4">
+            {/* View Toggle */}
+            <button
+              className={`btn-secondary flex items-center ${
+                kanbanBoardViewMode === 'board' ? 'bg-gray-200' : ''
+              }`}
+              onClick={() => setKanbanBoardViewMode(kanbanBoardViewMode === 'board' ? 'compact' : 'board')}
+              title={kanbanBoardViewMode === 'board' ? 'Switch to compact view' : 'Switch to board view'}
+            >
+              {kanbanBoardViewMode === 'board' ? (
+                <>
+                  <ListBulletIcon className="w-5 h-5 mr-2" />
+                  <span className="hidden sm:inline">Compact</span>
+                </>
+              ) : (
+                <>
+                  <Squares2X2Icon className="w-5 h-5 mr-2" />
+                  <span className="hidden sm:inline">Board</span>
+                </>
+              )}
+            </button>
             {currentKanban && (
               <button
                 className="btn-secondary"
@@ -317,7 +341,7 @@ export default function KanbanBoard() {
         </div>
 
         {/* Location Filter */}
-        <div className="mb-6">
+        <div className="mb-3 md:mb-4">
           <LocationFilter
             selectedLocationId={selectedLocationId}
             onLocationChange={setSelectedLocationId}
@@ -338,23 +362,33 @@ export default function KanbanBoard() {
 
         {/* Threshold Legend */}
         {currentKanban?.thresholdRules && currentKanban.thresholdRules.length > 0 && (
-          <div className="mb-6">
+          <div className="mb-3 md:mb-4">
             <ThresholdLegend thresholdRules={currentKanban.thresholdRules} />
           </div>
         )}
 
-        <div className="flex space-x-6 overflow-x-auto pb-6">
-          {getColumns().map((column) => (
-            <KanbanColumn
-              key={column}
-              id={column}
-              title={column}
-              products={getProductsByColumn(column)}
-              onProductView={handleViewProduct}
-              kanban={currentKanban}
-            />
-          ))}
-        </div>
+        {/* Render Board or Compact View */}
+        {kanbanBoardViewMode === 'board' ? (
+          <div className="flex space-x-3 md:space-x-4 overflow-x-auto pb-4 lg:overflow-visible">
+            {getColumns().map((column) => (
+              <KanbanColumn
+                key={column}
+                id={column}
+                title={column}
+                products={getProductsByColumn(column)}
+                onProductView={handleViewProduct}
+                kanban={currentKanban}
+              />
+            ))}
+          </div>
+        ) : (
+          <CompactBoardView
+            kanban={currentKanban}
+            onProductView={handleViewProduct}
+            onMoveProduct={handleMoveProduct}
+            selectedLocationId={selectedLocationId}
+          />
+        )}
 
         {/* Add Product Form */}
         {showAddForm && (

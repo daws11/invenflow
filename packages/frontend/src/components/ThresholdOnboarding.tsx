@@ -18,9 +18,9 @@ export function ThresholdOnboarding({ onStart, onSkip }: ThresholdOnboardingProp
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-2xl w-full shadow-2xl animate-scale-in">
+      <div className="bg-white rounded-xl w-full max-w-screen-sm sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl animate-scale-in">
         {/* Header */}
-        <div className="relative px-8 pt-8 pb-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-t-xl">
+        <div className="relative px-6 pt-6 pb-5 sm:px-8 sm:pt-8 sm:pb-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-t-xl">
           <button
             type="button"
             onClick={handleSkip}
@@ -41,7 +41,7 @@ export function ThresholdOnboarding({ onStart, onSkip }: ThresholdOnboardingProp
         </div>
 
         {/* Content */}
-        <div className="px-8 py-6 space-y-6">
+        <div className="px-6 py-5 sm:px-8 sm:py-6 space-y-6">
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-3">
               What are Threshold Alerts?
@@ -119,7 +119,7 @@ export function ThresholdOnboarding({ onStart, onSkip }: ThresholdOnboardingProp
         </div>
 
         {/* Footer */}
-        <div className="px-8 py-6 bg-gray-50 rounded-b-xl border-t border-gray-200 flex items-center justify-between">
+        <div className="px-6 py-5 sm:px-8 sm:py-6 bg-gray-50 rounded-b-xl border-t border-gray-200 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0 sm:justify-between">
           <button
             type="button"
             onClick={handleSkip}
@@ -130,7 +130,7 @@ export function ThresholdOnboarding({ onStart, onSkip }: ThresholdOnboardingProp
           <button
             type="button"
             onClick={handleStart}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-medium shadow-lg shadow-blue-600/30"
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-medium shadow-lg shadow-blue-600/30 w-full sm:w-auto"
           >
             <PlayIcon className="w-5 h-5" />
             Start Setup

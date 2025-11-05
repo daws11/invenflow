@@ -10,7 +10,7 @@
 
 @layer components {
   .kanban-column {
-    @apply bg-gray-100 rounded-lg p-4 min-h-[400px] w-full lg:w-72 xl:w-80 flex-shrink-0;
+    @apply bg-gray-100 rounded-lg p-3 min-h-[300px] w-full flex-shrink-0 lg:flex-1 lg:min-w-[240px];
   }
 
   .kanban-column-header {
@@ -18,7 +18,7 @@
   }
 
   .product-card {
-    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-3 hover:shadow-md transition-all cursor-grab;
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-3 mb-2 hover:shadow-md transition-all cursor-grab;
     touch-action: auto;
   }
 
@@ -32,11 +32,11 @@
   }
 
   .btn-primary {
-    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-md transition-colors;
+    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium py-1.5 px-3 rounded-md transition-colors;
   }
 
   .btn-secondary {
-    @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-md transition-colors;
+    @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-1.5 px-3 rounded-md transition-colors;
   }
 
   /* Custom animations for CRUD feedback */
@@ -123,7 +123,7 @@
     }
 
     .product-card {
-      @apply p-3 mb-3 mx-1;
+      @apply p-2 mb-2 mx-1;
     }
 
     /* Prevent zoom on tap for iOS */
@@ -228,5 +228,205 @@
   /* Enhanced loading states */
   .loading-skeleton {
     @apply bg-gray-200 animate-pulse rounded;
+  }
+
+  /* Enhanced Slider Animations */
+  @keyframes slide-in-from-right {
+    0% {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    100% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slide-out-to-right {
+    0% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+  }
+
+  @keyframes backdrop-fade-in {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes backdrop-fade-out {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  .slider-enter {
+    animation: slide-in-from-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .slider-exit {
+    animation: slide-out-to-right 0.25s cubic-bezier(0.7, 0, 0.84, 0);
+  }
+
+  /* Custom scrollbar for slider content */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(209 213 219) rgb(243 244 246);
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: rgb(243 244 246);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgb(209 213 219);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgb(156 163 175);
+  }
+
+  /* Smooth content reveal animation */
+  @keyframes content-fade-in {
+    0% {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-content-fade-in {
+    animation: content-fade-in 0.4s ease-out 0.15s both;
+  }
+
+  /* Enhanced button hover effects */
+  .slider-button-hover {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  .slider-button-hover:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  }
+
+  .slider-button-hover:active {
+    transform: translateY(0);
+  }
+
+  /* Compact View Styles */
+  .compact-product-row {
+    @apply bg-white border-b border-gray-200 transition-all duration-200;
+    touch-action: auto;
+  }
+
+  .compact-product-row:hover {
+    @apply bg-gray-50;
+  }
+
+  .compact-product-row:active {
+    @apply cursor-grabbing;
+  }
+
+  .compact-product-row[data-dragging="true"] {
+    @apply opacity-50 scale-95;
+    touch-action: none;
+    user-select: none;
+  }
+
+  /* Compact Column Header */
+  .compact-column-header {
+    @apply bg-gray-50 hover:bg-gray-100 transition-colors duration-200;
+  }
+
+  /* Compact Kanban Row */
+  .compact-kanban-row {
+    @apply transition-all duration-200;
+  }
+
+  .compact-kanban-row:hover {
+    @apply shadow-lg;
+  }
+
+  /* Mobile optimizations for compact view */
+  @media (max-width: 640px) {
+    .compact-product-row {
+      @apply px-2 py-2;
+    }
+
+    .compact-column-header {
+      @apply px-3 py-2;
+    }
+
+    /* Ensure touch targets are properly sized in compact view */
+    .compact-product-row button {
+      @apply min-w-[44px] min-h-[44px];
+    }
+
+    /* Better spacing on mobile */
+    .compact-product-row .space-x-4 {
+      @apply space-x-2;
+    }
+  }
+
+  /* Drag feedback for compact view */
+  @media (pointer: coarse) {
+    .compact-product-row {
+      touch-action: pan-y;
+    }
+
+    .compact-product-row:active {
+      transform: scale(0.98);
+    }
+  }
+
+  /* Accordion expand/collapse animations */
+  @keyframes accordion-expand {
+    0% {
+      max-height: 0;
+      opacity: 0;
+    }
+    100% {
+      max-height: 1000px;
+      opacity: 1;
+    }
+  }
+
+  @keyframes accordion-collapse {
+    0% {
+      max-height: 1000px;
+      opacity: 1;
+    }
+    100% {
+      max-height: 0;
+      opacity: 0;
+    }
+  }
+
+  .accordion-expand {
+    animation: accordion-expand 0.3s ease-out;
+  }
+
+  .accordion-collapse {
+    animation: accordion-collapse 0.2s ease-out;
   }
 }

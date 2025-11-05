@@ -130,8 +130,8 @@ export function ThresholdSettingsSection({
       {/* Rule Builder Modal */}
       {showBuilder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="p-6">
+          <div className="bg-white rounded-xl w-full max-w-screen-sm sm:max-w-lg md:max-w-2xl lg:max-w-3xl xl:max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="p-4 sm:p-6">
               <ThresholdRuleBuilder
                 onSave={handleSaveRule}
                 onCancel={() => {
@@ -147,7 +147,7 @@ export function ThresholdSettingsSection({
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <SparklesIcon className="w-5 h-5 text-blue-600" />
@@ -158,12 +158,12 @@ export function ThresholdSettingsSection({
           </p>
         </div>
         {!showBuilder && (
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             {rules.length === 0 && (
               <button
                 type="button"
                 onClick={() => setShowTemplates(true)}
-                className="px-4 py-2 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-2"
+                className="px-4 py-2 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-2 w-full sm:w-auto"
               >
                 <SparklesIcon className="w-4 h-4" />
                 Use Template
@@ -172,7 +172,7 @@ export function ThresholdSettingsSection({
             <button
               type="button"
               onClick={() => setShowBuilder(true)}
-              className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center transition-colors shadow-lg shadow-blue-600/30"
+              className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center transition-colors shadow-lg shadow-blue-600/30 w-full sm:w-auto"
             >
               <PlusIcon className="w-4 h-4 mr-1" />
               Add Rule
@@ -210,7 +210,7 @@ export function ThresholdSettingsSection({
           <p className="text-sm text-gray-600 mb-6 max-w-md mx-auto">
             Create your first rule to automatically track and highlight products based on how long they stay in each column.
           </p>
-          <div className="flex gap-3 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
               type="button"
               onClick={() => setShowTemplates(true)}

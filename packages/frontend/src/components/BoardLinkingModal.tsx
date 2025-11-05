@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Kanban } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useToast } from '../store/toastStore';
+import { Slider } from './Slider';
 
 interface BoardLinkingModalProps {
   isOpen: boolean;
@@ -62,23 +63,47 @@ export default function BoardLinkingModal({ isOpen, onClose, currentKanban }: Bo
     }
   };
 
-  if (!isOpen) return null;
+  const footer = (
+    <div className="flex space-x-3">
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={isLinking}
+        className="btn-secondary flex-1 disabled:opacity-50"
+      >
+        Cancel
+      </button>
+
+      {linkedKanban ? (
+        <button
+          type="button"
+          onClick={handleUnlink}
+          disabled={isLinking}
+          className="btn-danger flex-1 disabled:opacity-50"
+        >
+          {isLinking ? 'Unlinking...' : 'Unlink Boards'}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={handleLink}
+          disabled={isLinking || !selectedKanbanId}
+          className="btn-primary flex-1 disabled:opacity-50"
+        >
+          {isLinking ? 'Linking...' : 'Link Boards'}
+        </button>
+      )}
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold">Board Linking</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <Slider
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Board Linking"
+      footer={footer}
+    >
+      <div className="space-y-6">
 
         {/* Current Board Info */}
         <div className="mb-6">
@@ -216,39 +241,7 @@ export default function BoardLinkingModal({ isOpen, onClose, currentKanban }: Bo
             )}
           </div>
         </div>
-
-        {/* Actions */}
-        <div className="flex space-x-3">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isLinking}
-            className="btn-secondary flex-1 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-
-          {linkedKanban ? (
-            <button
-              type="button"
-              onClick={handleUnlink}
-              disabled={isLinking}
-              className="btn-danger flex-1 disabled:opacity-50"
-            >
-              {isLinking ? 'Unlinking...' : 'Unlink Boards'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleLink}
-              disabled={isLinking || !selectedKanbanId}
-              className="btn-primary flex-1 disabled:opacity-50"
-            >
-              {isLinking ? 'Linking...' : 'Link Boards'}
-            </button>
-          )}
-        </div>
       </div>
-    </div>
+    </Slider>
   );
 }

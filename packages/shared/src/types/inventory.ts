@@ -72,6 +72,7 @@ export const InventoryResponseSchema = z.object({
 export const InventoryStatsSchema = z.object({
   totalStats: z.object({
     total: z.number(),
+    purchased: z.number(),
     received: z.number(),
     stored: z.number(),
     lowStock: z.number(),

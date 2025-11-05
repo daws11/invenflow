@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, User, MapPin, Camera } from 'lucide-react';
+import { User, MapPin, Camera } from 'lucide-react';
 import { ValidationStatus, ProductValidation } from '@invenflow/shared';
 import { useLocationStore } from '../store/locationStore';
 import ImageUpload from './ImageUpload';
+import { Slider } from './Slider';
 
 interface ValidationModalProps {
   isOpen: boolean;
@@ -50,21 +51,21 @@ export default function ValidationModal({
     const newErrors: Record<string, string> = {};
 
     if (!formData.recipientName.trim()) {
-      newErrors.recipientName = 'Nama penerima wajib diisi';
+      newErrors.recipientName = 'Recipient name is required';
     }
 
     if (columnStatus === 'Received') {
       if (!receivedImage) {
-        newErrors.receivedImage = 'Gambar penerimaan wajib diupload';
+        newErrors.receivedImage = 'Receipt image is required';
       }
     }
 
     if (columnStatus === 'Stored') {
       if (!formData.locationId) {
-        newErrors.locationId = 'Lokasi penyimpanan wajib dipilih';
+        newErrors.locationId = 'Storage location is required';
       }
       if (!storagePhoto) {
-        newErrors.storagePhoto = 'Gambar storage wajib diupload';
+        newErrors.storagePhoto = 'Storage photo is required';
       }
     }
 
@@ -96,27 +97,35 @@ export default function ValidationModal({
   const isForReceived = columnStatus === 'Received';
   const isForStored = columnStatus === 'Stored';
 
-  if (!isOpen) return null;
+  const footer = (
+    <div className="flex gap-3">
+      <button
+        type="button"
+        onClick={onClose}
+        className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+        disabled={isLoading}
+      >
+        Cancel
+      </button>
+      <button
+        type="submit"
+        onClick={handleSubmit}
+        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={isLoading}
+      >
+        {isLoading ? 'Saving...' : 'Save Validation'}
+      </button>
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Validasi {isForReceived ? 'Penerimaan' : 'Penyimpanan'} Barang
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-            disabled={isLoading}
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+    <Slider
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`Validate ${isForReceived ? 'Receipt' : 'Storage'} of Item`}
+      footer={footer}
+    >
+      <form onSubmit={handleSubmit} className="space-y-6">
           {/* Product Info */}
           <div className="bg-blue-50 p-4 rounded-lg">
             <p className="text-sm text-blue-800">
@@ -131,7 +140,7 @@ export default function ValidationModal({
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <User className="w-4 h-4 inline mr-1" />
-              Nama Penerima
+              Recipient Name
             </label>
             <input
               type="text"
@@ -140,7 +149,7 @@ export default function ValidationModal({
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 errors.recipientName ? 'border-red-500' : 'border-gray-300'
               }`}
-              placeholder="Masukkan nama penerima barang"
+              placeholder="Enter recipient name"
               disabled={isLoading}
             />
             {errors.recipientName && (
@@ -153,7 +162,7 @@ export default function ValidationModal({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <MapPin className="w-4 h-4 inline mr-1" />
-                Lokasi Penyimpanan
+                Storage Location
               </label>
               <select
                 value={formData.locationId}
@@ -163,7 +172,7 @@ export default function ValidationModal({
                 }`}
                 disabled={isLoading}
               >
-                <option value="">Pilih lokasi penyimpanan</option>
+                <option value="">Select storage location</option>
                 {locations.map((location) => (
                   <option key={location.id} value={location.id}>
                     {location.name}
@@ -181,12 +190,12 @@ export default function ValidationModal({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Camera className="w-4 h-4 inline mr-1" />
-                Foto Penerimaan Barang
+                Receipt Photo
               </label>
               <ImageUpload
                 value={receivedImage}
                 onChange={setReceivedImage}
-                placeholder="Upload foto barang saat diterima"
+                placeholder="Upload photo of item when received"
                 disabled={isLoading}
               />
               {errors.receivedImage && (
@@ -200,12 +209,12 @@ export default function ValidationModal({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Camera className="w-4 h-4 inline mr-1" />
-                Foto Lokasi Penyimpanan
+                Storage Location Photo
               </label>
               <ImageUpload
                 value={storagePhoto}
                 onChange={setStoragePhoto}
-                placeholder="Upload foto tempat penyimpanan barang"
+                placeholder="Upload photo of storage location"
                 disabled={isLoading}
               />
               {errors.storagePhoto && (
@@ -217,38 +226,18 @@ export default function ValidationModal({
           {/* Notes (Optional) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Catatan (Opsional)
+              Notes (Optional)
             </label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Tambahkan catatan jika diperlukan"
+              placeholder="Add notes if needed"
               disabled={isLoading}
             />
           </div>
-
-          {/* Actions */}
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-              disabled={isLoading}
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isLoading}
-            >
-              {isLoading ? 'Menyimpan...' : 'Simpan Validasi'}
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+    </Slider>
   );
 }

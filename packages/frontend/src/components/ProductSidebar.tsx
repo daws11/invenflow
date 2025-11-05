@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Product, UpdateProduct } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useToast } from '../store/toastStore';
+import { Slider } from './Slider';
+import { SliderTabs } from './SliderTabs';
 
 interface ProductSidebarProps {
   product: Product | null;
@@ -148,99 +150,13 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
 
   if (!product) return null;
 
-  return (
-    <>
-      {/* Backdrop */}
-      {isOpen && (
-        <div
-          className={`fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-200 ${
-            isOpen ? 'backdrop-enter' : 'backdrop-exit'
-          }`}
-          onClick={onClose}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              onClose();
-            }
-          }}
-        />
-      )}
-
-      {/* Sidebar */}
-      <div
-        className={`fixed top-0 right-0 h-full w-full sm:w-96 bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out sidebar-focus-trap ${
-          isOpen ? 'sidebar-enter' : 'sidebar-exit'
-        } sidebar-mobile`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="sidebar-title"
-      >
-        <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50 sidebar-content">
-            <h2 id="sidebar-title" className="text-xl font-semibold text-gray-900">Product Details</h2>
-            <button
-              onClick={onClose}
-              className="drag-exclude p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              title="Close sidebar"
-              aria-label="Close sidebar"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex border-b border-gray-200 bg-gray-50" role="tablist">
-            <button
-              onClick={() => setActiveTab('view')}
-              className={`drag-exclude flex-1 px-4 py-3 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                activeTab === 'view'
-                  ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-              }`}
-              role="tab"
-              aria-selected={activeTab === 'view'}
-              aria-controls="view-panel"
-              tabIndex={activeTab === 'view' ? 0 : -1}
-            >
-              View
-            </button>
-            <button
-              onClick={() => setActiveTab('edit')}
-              className={`drag-exclude flex-1 px-4 py-3 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                activeTab === 'edit'
-                  ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-              }`}
-              role="tab"
-              aria-selected={activeTab === 'edit'}
-              aria-controls="edit-panel"
-              tabIndex={activeTab === 'edit' ? 0 : -1}
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => setActiveTab('delete')}
-              className={`drag-exclude flex-1 px-4 py-3 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 ${
-                activeTab === 'delete'
-                  ? 'text-red-600 border-b-2 border-red-600 bg-white'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-              }`}
-              role="tab"
-              aria-selected={activeTab === 'delete'}
-              aria-controls="delete-panel"
-              tabIndex={activeTab === 'delete' ? 0 : -1}
-            >
-              Delete
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6 sidebar-content">
-            {activeTab === 'view' && (
-              <div id="view-panel" role="tabpanel" aria-labelledby="view-tab" tabIndex={0}>
-              <div className="space-y-6">
+  // Define tabs for SliderTabs component
+  const tabs = [
+    {
+      id: 'view',
+      label: 'View',
+      content: (
+        <div className="space-y-6">
                 {/* Product Image */}
                 {product.productImage && (
                   <div className="rounded-lg overflow-hidden bg-gray-100">
@@ -362,11 +278,13 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
                   </p>
                 </div>
               </div>
-              </div>
-            )}
-
-            {activeTab === 'edit' && (
-              <div className="space-y-4">
+      )
+    },
+    {
+      id: 'edit',
+      label: 'Edit',
+      content: (
+        <div className="space-y-4">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Edit Product</h3>
 
                 {/* Form Fields */}
@@ -554,10 +472,13 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
                   </button>
                 </div>
               </div>
-            )}
-
-            {activeTab === 'delete' && (
-              <div className="space-y-6">
+      )
+    },
+    {
+      id: 'delete',
+      label: 'Delete',
+      content: (
+        <div className="space-y-6">
                 <h3 className="text-lg font-medium text-red-900 mb-4">Delete Product</h3>
 
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -603,10 +524,21 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
                   {isDeleting ? 'Deleting...' : 'Delete Product Permanently'}
                 </button>
               </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </>
+      )
+    }
+  ];
+
+  return (
+    <Slider
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Product Details"
+    >
+      <SliderTabs
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={(tabId) => setActiveTab(tabId as TabType)}
+      />
+    </Slider>
   );
 }

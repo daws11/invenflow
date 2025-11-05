@@ -1,15 +1,19 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useKanbanStore } from '../store/kanbanStore';
+import { useViewPreferencesStore } from '../store/viewPreferencesStore';
 import { KanbanType, Kanban, CreateKanban } from '@invenflow/shared';
 import { CreateKanbanModal } from '../components/CreateKanbanModal';
 import { KanbanSettingsModal } from '../components/KanbanSettingsModal';
+import CompactKanbanListRow from '../components/CompactKanbanListRow';
 import { useToast } from '../store/toastStore';
 import {
   MagnifyingGlassIcon,
   FunnelIcon,
   Cog6ToothIcon,
   DocumentDuplicateIcon,
+  Squares2X2Icon,
+  ListBulletIcon,
 } from '@heroicons/react/24/outline';
 
 type SortField = 'name' | 'type' | 'createdAt';
@@ -17,6 +21,7 @@ type SortOrder = 'asc' | 'desc';
 
 export default function KanbanList() {
   const { kanbans, loading, error, fetchKanbans, createKanban, updateKanban, deleteKanban } = useKanbanStore();
+  const { kanbanListViewMode, setKanbanListViewMode } = useViewPreferencesStore();
   const toast = useToast();
   
   // Modal states
@@ -193,9 +198,29 @@ export default function KanbanList() {
   return (
     <div>
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <h2 className="text-3xl font-bold text-gray-900">Kanban Boards</h2>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 gap-4">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Kanban Boards</h2>
         <div className="flex flex-wrap gap-2">
+          {/* View Toggle */}
+          <button
+            className={`btn-secondary flex items-center ${
+              kanbanListViewMode === 'grid' ? 'bg-gray-200' : ''
+            }`}
+            onClick={() => setKanbanListViewMode(kanbanListViewMode === 'grid' ? 'compact' : 'grid')}
+            title={kanbanListViewMode === 'grid' ? 'Switch to compact view' : 'Switch to grid view'}
+          >
+            {kanbanListViewMode === 'grid' ? (
+              <>
+                <ListBulletIcon className="w-5 h-5 mr-2" />
+                <span className="hidden sm:inline">Compact</span>
+              </>
+            ) : (
+              <>
+                <Squares2X2Icon className="w-5 h-5 mr-2" />
+                <span className="hidden sm:inline">Grid</span>
+              </>
+            )}
+          </button>
           <button
             className="btn-secondary"
             onClick={() => openCreateModal('order')}
@@ -212,7 +237,7 @@ export default function KanbanList() {
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 mb-4">
         <div className="flex flex-col md:flex-row gap-4">
           {/* Search */}
           <div className="flex-1">
@@ -296,7 +321,7 @@ export default function KanbanList() {
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
           {error}
         </div>
       )}
@@ -344,12 +369,12 @@ export default function KanbanList() {
             </>
           )}
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      ) : kanbanListViewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredAndSortedKanbans.map((kanban) => (
             <div
               key={kanban.id}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 transform hover:-translate-y-1 animate-fade-in"
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all duration-200 transform hover:-translate-y-1 animate-fade-in"
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
@@ -429,6 +454,18 @@ export default function KanbanList() {
                 </div>
               </div>
             </div>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredAndSortedKanbans.map((kanban) => (
+            <CompactKanbanListRow
+              key={kanban.id}
+              kanban={kanban}
+              onSettings={openSettingsModal}
+              onCopyUrl={handleCopyUrl}
+              linkedKanbanName={getLinkedKanbanName(kanban)}
+            />
           ))}
         </div>
       )}

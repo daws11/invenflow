@@ -120,9 +120,9 @@ export function ThresholdTemplates({ onSelectTemplate, onSkip, onClose }: Thresh
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-scale-in">
+      <div className="bg-white rounded-xl w-full max-w-screen-sm sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl max-h-[90vh] overflow-y-auto shadow-2xl animate-scale-in">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between z-10">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Quick Start Templates</h2>
             <p className="text-sm text-gray-600 mt-1">
@@ -139,13 +139,13 @@ export function ThresholdTemplates({ onSelectTemplate, onSkip, onClose }: Thresh
         </div>
 
         {/* Templates Grid */}
-        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           {TEMPLATES.map((template) => (
             <button
               key={template.id}
               type="button"
               onClick={() => handleSelectTemplate(template)}
-              className="p-6 bg-white border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:shadow-lg transition-all text-left group"
+              className="p-4 sm:p-6 bg-white border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:shadow-lg transition-all text-left group"
             >
               {/* Header */}
               <div className="flex items-start gap-4 mb-4">
@@ -208,22 +208,22 @@ export function ThresholdTemplates({ onSelectTemplate, onSkip, onClose }: Thresh
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-4 py-3 sm:px-6 sm:py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0 sm:justify-between">
           <p className="text-sm text-gray-600">
             💡 Templates can be customized after selection
           </p>
-          <div className="flex gap-3">
+          <div className="flex gap-3 w-full sm:w-auto">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors w-full sm:w-auto"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={onSkip}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto"
             >
               Skip & Create Custom
             </button>

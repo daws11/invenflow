@@ -67,8 +67,8 @@ export default function InventoryManager() {
   
   if (error) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+      <div className="w-full">
+        <div className="bg-red-50 border border-red-200 rounded-md p-3">
           <div className="flex">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
@@ -99,12 +99,12 @@ export default function InventoryManager() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Header */}
-      <div className="bg-white shadow rounded-lg p-6">
+      <div className="bg-white shadow rounded-lg p-3">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Inventory Manager</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">Inventory Manager</h1>
             <p className="mt-1 text-sm text-gray-500">
               Manage and track all your inventory items from receive kanbans
             </p>
@@ -126,9 +126,9 @@ export default function InventoryManager() {
 
         {/* Stats Cards */}
         {stats && (
-          <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
             <div className="bg-gray-50 overflow-hidden rounded-lg">
-              <div className="p-5">
+              <div className="p-3">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <div className="bg-blue-500 rounded-md p-3">
@@ -148,7 +148,27 @@ export default function InventoryManager() {
             </div>
 
             <div className="bg-gray-50 overflow-hidden rounded-lg">
-              <div className="p-5">
+              <div className="p-3">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="bg-purple-500 rounded-md p-3">
+                      <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="ml-5 w-0 flex-1">
+                    <dl>
+                      <dt className="text-sm font-medium text-gray-500 truncate">Purchased</dt>
+                      <dd className="text-lg font-medium text-gray-900">{stats.totalStats.purchased.toLocaleString()}</dd>
+                    </dl>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 overflow-hidden rounded-lg">
+              <div className="p-3">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <div className="bg-yellow-500 rounded-md p-3">
@@ -168,7 +188,7 @@ export default function InventoryManager() {
             </div>
 
             <div className="bg-gray-50 overflow-hidden rounded-lg">
-              <div className="p-5">
+              <div className="p-3">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <div className="bg-green-500 rounded-md p-3">
@@ -188,7 +208,7 @@ export default function InventoryManager() {
             </div>
 
             <div className="bg-gray-50 overflow-hidden rounded-lg">
-              <div className="p-5">
+              <div className="p-3">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <div className="bg-red-500 rounded-md p-3">
@@ -210,7 +230,7 @@ export default function InventoryManager() {
         )}
 
         {/* Search and Filters */}
-        <div className="mt-6 flex flex-col sm:flex-row gap-4">
+        <div className="mt-3 flex flex-col sm:flex-row gap-2">
           <div className="flex-1">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -251,7 +271,7 @@ export default function InventoryManager() {
 
       {/* Filters Panel */}
       {showFilters && (
-        <div className="bg-white shadow rounded-lg p-6">
+        <div className="bg-white shadow rounded-lg p-3">
           <InventoryFilters onClose={() => setShowFilters(false)} />
         </div>
       )}
