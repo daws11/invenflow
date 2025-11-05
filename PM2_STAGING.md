@@ -29,7 +29,7 @@ Panduan untuk menjalankan aplikasi InvenFlow menggunakan PM2 di environment stag
 pnpm pm2:start
 
 # Atau langsung dengan PM2
-pm2 start pm2/ecosystem.config.js --env staging
+pm2 start pm2/ecosystem.config.cjs --env staging
 ```
 
 ### 2. Stop Aplikasi
@@ -87,7 +87,7 @@ pm2 monit
 
 ## Konfigurasi
 
-Konfigurasi PM2 berada di `pm2/ecosystem.config.js`. File ini sudah dikonfigurasi untuk:
+Konfigurasi PM2 berada di `pm2/ecosystem.config.cjs`. File ini sudah dikonfigurasi untuk:
 
 - ✅ Load environment variables dari `.env.staging`
 - ✅ Menggunakan `fork` mode (bukan cluster) untuk staging

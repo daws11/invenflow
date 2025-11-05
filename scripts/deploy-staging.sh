@@ -57,7 +57,7 @@ if [ "$1" = "rollback" ]; then
     ./scripts/build-staging.sh || error "Build failed during rollback"
 
     log "Restarting PM2 with previous version..."
-    pm2 reload ecosystem.config.js --env staging || error "PM2 reload failed"
+    pm2 reload ecosystem.config.cjs --env staging || error "PM2 reload failed"
 
     success "Rollback completed successfully"
     exit 0
@@ -144,7 +144,7 @@ fi
 
 # Step 6: Start application
 log "🚀 Step 6: Starting application with PM2..."
-pm2 start pm2/ecosystem.config.js --env staging || error "Failed to start application"
+pm2 start pm2/ecosystem.config.cjs --env staging || error "Failed to start application"
 
 # Step 7: Health check
 log "🏥 Step 7: Performing health checks..."

@@ -37,7 +37,7 @@ pm2 delete invenflow-staging 2>/dev/null || true
 
 # Start with staging environment
 echo "▶️  Starting PM2 with staging environment..."
-pm2 start pm2/ecosystem.config.js --env staging
+pm2 start pm2/ecosystem.config.cjs --env staging
 
 # Show status
 echo ""

@@ -63,7 +63,7 @@ module.exports = {
       repo: 'git@github.com:your-username/invenflow.git',
       path: '/var/www/invenflow-staging',
       'pre-deploy-local': '',
-      'post-deploy': 'pnpm install && pnpm run build-staging && pnpm run migrate-staging && pm2 reload ecosystem.config.js --env staging',
+      'post-deploy': 'pnpm install && pnpm run build-staging && pnpm run migrate-staging && pm2 reload ecosystem.config.cjs --env staging',
       'pre-setup': '',
       'ssh_options': 'StrictHostKeyChecking=no'
     }

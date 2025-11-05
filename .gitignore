@@ -103,3 +103,5 @@ Thumbs.db
 
 #upload
 packages/backend/uploads/*
+
+logs/*
