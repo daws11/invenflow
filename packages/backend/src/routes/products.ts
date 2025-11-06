@@ -5,6 +5,7 @@ import { eq, and, desc, getTableColumns } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import type { NewProduct } from '../db/schema';
 import { authenticateToken } from '../middleware/auth';
+import { nanoid } from 'nanoid';
 
 const router = Router();
 
@@ -83,7 +84,6 @@ router.post('/', async (req, res, next) => {
       category,
       tags,
       supplier,
-      sku,
       dimensions,
       weight,
       unitPrice,
@@ -107,6 +107,9 @@ router.post('/', async (req, res, next) => {
       }
     }
 
+    // Generate unique SKU
+    const generatedSku = `SKU-${nanoid(10)}`;
+
     const newProduct: NewProduct = {
       kanbanId,
       columnStatus,
@@ -120,7 +123,7 @@ router.post('/', async (req, res, next) => {
       category: category ?? null,
       tags: Array.isArray(tags) ? tags.map((tag: unknown) => String(tag)) : null,
       supplier: supplier ?? null,
-      sku: sku ?? null,
+      sku: generatedSku,
       dimensions: dimensions ?? null,
       weight: coerceDecimal(weight),
       unitPrice: coerceDecimal(unitPrice),

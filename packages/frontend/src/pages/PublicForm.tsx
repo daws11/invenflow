@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { publicApi } from '../utils/api';
 import { useLocationStore } from '../store/locationStore';
+import { PRODUCT_CATEGORIES } from '@invenflow/shared';
 
 interface KanbanInfo {
   id: string;
@@ -26,7 +27,6 @@ export default function PublicForm() {
     priority: '',
     category: '',
     supplier: '',
-    sku: '',
     productImage: '',
     dimensions: '',
     weight: '',
@@ -75,9 +75,8 @@ export default function PublicForm() {
         location: formData.location.trim() || undefined,
         locationId: formData.locationId || undefined,
         priority: formData.priority || undefined,
-        category: formData.category.trim() || undefined,
+        category: formData.category || undefined,
         supplier: formData.supplier.trim() || undefined,
-        sku: formData.sku.trim() || undefined,
         productImage: formData.productImage.trim() || undefined,
         dimensions: formData.dimensions.trim() || undefined,
         weight: formData.weight || undefined,
@@ -96,7 +95,6 @@ export default function PublicForm() {
         priority: '',
         category: '',
         supplier: '',
-        sku: '',
         productImage: '',
         dimensions: '',
         weight: '',
@@ -238,32 +236,18 @@ export default function PublicForm() {
             )}
           </div>
 
-          {/* SKU and Supplier */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                SKU
-              </label>
-              <input
-                type="text"
-                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Stock Keeping Unit"
-                value={formData.sku}
-                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Supplier
-              </label>
-              <input
-                type="text"
-                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Supplier name"
-                value={formData.supplier}
-                onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-              />
-            </div>
+          {/* Supplier */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Supplier
+            </label>
+            <input
+              type="text"
+              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Supplier name"
+              value={formData.supplier}
+              onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
+            />
           </div>
 
           {/* Category and Priority */}
@@ -272,13 +256,18 @@ export default function PublicForm() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Category
               </label>
-              <input
-                type="text"
+              <select
                 className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Product category"
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              />
+              >
+                <option value="">Select category</option>
+                {PRODUCT_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">

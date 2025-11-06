@@ -1,3 +1,4 @@
+export * from './category';
 export * from './inventory';
 export * from './kanban';
 export * from './location';

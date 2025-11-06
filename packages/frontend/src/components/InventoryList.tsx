@@ -19,6 +19,7 @@ import {
   ArrowsUpDownIcon,
   ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline';
+import { formatCurrency } from '../utils/formatters';
 import { MovementModal } from './MovementModal';
 
 interface InventoryListProps {
@@ -410,11 +411,11 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
                         <div>
                           <h4 className="font-medium text-gray-900 mb-2">Product Information</h4>
                           <div className="space-y-1">
-                            {item.unitPrice && (
+                            {item.unitPrice && formatCurrency(item.unitPrice) && (
                               <div className="flex items-center">
                                 <CurrencyDollarIcon className="h-4 w-4 text-gray-400 mr-2" />
                                 <span className="text-gray-600">Unit Price: </span>
-                                <span className="font-medium">${item.unitPrice.toFixed(2)}</span>
+                                <span className="font-medium">{formatCurrency(item.unitPrice)}</span>
                               </div>
                             )}
                             {item.dimensions && (
@@ -443,7 +444,7 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
                         </div>
 
                         {/* Tags */}
-                        {item.tags && item.tags.length > 0 && (
+                        {item.tags && Array.isArray(item.tags) && item.tags.length > 0 && (
                           <div>
                             <h4 className="font-medium text-gray-900 mb-2">Tags</h4>
                             <div className="flex flex-wrap gap-1">

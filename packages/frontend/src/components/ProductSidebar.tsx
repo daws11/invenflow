@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Product, UpdateProduct } from '@invenflow/shared';
+import { Product, UpdateProduct, PRODUCT_CATEGORIES } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useLocationStore } from '../store/locationStore';
 import { useToast } from '../store/toastStore';
 import { Slider } from './Slider';
 import { SliderTabs } from './SliderTabs';
+import { formatCurrency } from '../utils/formatters';
 
 interface ProductSidebarProps {
   product: Product | null;
@@ -217,15 +218,15 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
                       Stock: {product.stockLevel}
                     </span>
                   )}
-                  {product.unitPrice !== null && (
+                  {product.unitPrice !== null && formatCurrency(product.unitPrice) && (
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200">
-                      ${product.unitPrice.toFixed(2)}
+                      {formatCurrency(product.unitPrice)}
                     </span>
                   )}
                 </div>
 
                 {/* Product Tags */}
-                {product.tags && product.tags.length > 0 && (
+                {product.tags && Array.isArray(product.tags) && product.tags.length > 0 && (
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-2">Tags</h4>
                     <div className="flex flex-wrap gap-1">
@@ -310,27 +311,15 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">SKU</label>
-                    <input
-                      type="text"
-                      name="sku"
-                      value={formData.sku}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
-                    <input
-                      type="text"
-                      name="supplier"
-                      value={formData.supplier}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                  <input
+                    type="text"
+                    name="supplier"
+                    value={formData.supplier}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
                 </div>
 
                 <div>
@@ -381,13 +370,19 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                    <input
-                      type="text"
+                    <select
                       name="category"
                       value={formData.category}
                       onChange={handleInputChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
+                    >
+                      <option value="">Select Category</option>
+                      {PRODUCT_CATEGORIES.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>

@@ -3,6 +3,7 @@ import { Product, Location, Kanban } from '@invenflow/shared';
 import { useDraggable } from '@dnd-kit/core';
 import TransferHistoryViewer from './TransferHistoryViewer';
 import { getAppliedThreshold, calculateTimeInColumn, formatTimeDuration, formatThresholdRule } from '../utils/thresholdCalculator';
+import { formatCurrency } from '../utils/formatters';
 
 interface ProductCardProps {
   product: Product;
@@ -262,15 +263,15 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
             Stock: {product.stockLevel}
           </span>
         )}
-        {product.unitPrice !== null && (
+        {product.unitPrice !== null && formatCurrency(product.unitPrice) && (
           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
-            ${product.unitPrice.toFixed(2)}
+            {formatCurrency(product.unitPrice)}
           </span>
         )}
       </div>
 
       {/* Product Tags */}
-      {product.tags && product.tags.length > 0 && (
+      {product.tags && Array.isArray(product.tags) && product.tags.length > 0 && (
         <div className="hidden sm:flex flex-wrap gap-1">
           {product.tags.slice(0, 3).map((tag, index) => (
             <span
@@ -397,10 +398,10 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
             </div>
           )}
 
-          {product.unitPrice !== null && (
+          {product.unitPrice !== null && formatCurrency(product.unitPrice) && (
             <div>
               <span className="font-medium text-gray-700">Unit Price:</span>
-              <span className="ml-2 text-gray-600">${product.unitPrice.toFixed(2)}</span>
+              <span className="ml-2 text-gray-600">{formatCurrency(product.unitPrice)}</span>
             </div>
           )}
 
@@ -420,7 +421,7 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
             </div>
           )}
 
-          {product.tags && product.tags.length > 0 && (
+          {product.tags && Array.isArray(product.tags) && product.tags.length > 0 && (
             <div>
               <span className="font-medium text-gray-700">Tags:</span>
               <div className="flex flex-wrap gap-1 mt-1">

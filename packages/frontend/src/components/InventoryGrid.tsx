@@ -9,6 +9,7 @@ import {
   ClockIcon,
   ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline';
+import { formatCurrency } from '../utils/formatters';
 import { ValidationImageDisplay } from './ValidationImageDisplay';
 import { MovementModal } from './MovementModal';
 import { useLocationStore } from '../store/locationStore';
@@ -252,11 +253,11 @@ export function InventoryGrid({ items, loading, viewMode, onProductClick }: Inve
                   )}
 
                   {/* Price */}
-                  {item.unitPrice && (
+                  {item.unitPrice && formatCurrency(item.unitPrice) && (
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-sm text-gray-600">Unit Price</span>
                       <span className="text-sm font-medium text-gray-900">
-                        ${item.unitPrice.toFixed(2)}
+                        {formatCurrency(item.unitPrice)}
                       </span>
                     </div>
                   )}
@@ -430,11 +431,11 @@ export function InventoryGrid({ items, loading, viewMode, onProductClick }: Inve
                       )}
 
                       {/* Price */}
-                      {item.unitPrice && (
+                      {item.unitPrice && formatCurrency(item.unitPrice) && (
                         <div className="flex items-center justify-between mt-2">
                           <span className="text-sm text-gray-600">Unit Price</span>
                           <span className="text-sm font-medium text-gray-900">
-                            ${item.unitPrice.toFixed(2)}
+                            {formatCurrency(item.unitPrice)}
                           </span>
                         </div>
                       )}

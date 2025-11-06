@@ -20,6 +20,7 @@ import { ImageGallery } from './ImageGallery';
 import { Slider } from './Slider';
 import { SliderTabs, SliderTab } from './SliderTabs';
 import { ProductMovementHistory } from './ProductMovementHistory';
+import { formatCurrency } from '../utils/formatters';
 
 interface ProductDetailModalProps {
   item: InventoryItem;
@@ -228,12 +229,12 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
           </div>
         )}
 
-        {item.unitPrice && (
+        {item.unitPrice && formatCurrency(item.unitPrice) && (
           <div>
             <h4 className="text-sm font-medium text-gray-700">Unit Price</h4>
             <div className="flex items-center mt-1">
               <CurrencyDollarIcon className="h-4 w-4 text-gray-400 mr-1" />
-              <p className="text-sm text-gray-600">${item.unitPrice.toFixed(2)}</p>
+              <p className="text-sm text-gray-600">{formatCurrency(item.unitPrice)}</p>
             </div>
           </div>
         )}

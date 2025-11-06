@@ -4,6 +4,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import TransferHistoryViewer from './TransferHistoryViewer';
 import { getAppliedThreshold, calculateTimeInColumn, formatTimeDuration, formatThresholdRule } from '../utils/thresholdCalculator';
+import { formatCurrency } from '../utils/formatters';
 
 interface CompactProductRowProps {
   product: Product;
@@ -283,10 +284,10 @@ export default function CompactProductRow({ product, onView, location, kanban }:
               </div>
             )}
 
-            {product.unitPrice !== null && (
+            {product.unitPrice !== null && formatCurrency(product.unitPrice) && (
               <div>
                 <span className="font-medium text-gray-700">Unit Price:</span>
-                <span className="ml-2 text-gray-600">${product.unitPrice.toFixed(2)}</span>
+                <span className="ml-2 text-gray-600">{formatCurrency(product.unitPrice)}</span>
               </div>
             )}
 
@@ -305,7 +306,7 @@ export default function CompactProductRow({ product, onView, location, kanban }:
             )}
           </div>
 
-          {product.tags && product.tags.length > 0 && (
+          {product.tags && Array.isArray(product.tags) && product.tags.length > 0 && (
             <div className="mt-3">
               <span className="font-medium text-gray-700 text-sm">Tags:</span>
               <div className="flex flex-wrap gap-1 mt-1">

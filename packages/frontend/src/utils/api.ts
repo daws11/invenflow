@@ -224,7 +224,6 @@ export const publicApi = {
     priority?: string;
     category?: string;
     supplier?: string;
-    sku?: string;
     productImage?: string;
     dimensions?: string;
     weight?: string;

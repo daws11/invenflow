@@ -3,6 +3,7 @@ import { db } from '../db';
 import { kanbans, products } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
+import { nanoid } from 'nanoid';
 
 const router = Router();
 
@@ -47,7 +48,6 @@ router.post('/form/:token', async (req, res, next) => {
       priority,
       category,
       supplier,
-      sku,
       productImage,
       dimensions,
       weight,
@@ -76,6 +76,14 @@ router.post('/form/:token', async (req, res, next) => {
       throw createError('Public forms are only available for Order kanbans', 400);
     }
 
+    // Generate unique SKU
+    const generatedSku = `SKU-${nanoid(10)}`;
+
+    // Parse tags from comma-separated string to array
+    const parsedTags = tags 
+      ? tags.split(',').map((tag: string) => tag.trim()).filter(Boolean)
+      : null;
+
     // Create product in "New Request" column
     const newProduct = {
       kanbanId: kanban.id,
@@ -87,12 +95,12 @@ router.post('/form/:token', async (req, res, next) => {
       priority: priority || null,
       category: category || null,
       supplier: supplier || null,
-      sku: sku || null,
+      sku: generatedSku,
       productImage: productImage || null,
       dimensions: dimensions || null,
-      weight: weight || null,
-      unitPrice: unitPrice || null,
-      tags: tags || null,
+      weight: weight ? parseFloat(weight) : null,
+      unitPrice: unitPrice ? parseFloat(unitPrice) : null,
+      tags: parsedTags,
       notes: notes || null,
       stockLevel: stockLevel ? parseInt(stockLevel) : null,
     };
