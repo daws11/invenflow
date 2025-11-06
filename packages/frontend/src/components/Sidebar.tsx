@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { X, Menu, Layout, MapPin, Users, LogOut, Package, ArrowRightLeft } from 'lucide-react';
+import { X, Menu, Layout, MapPin, Users, UserCircle, LogOut, Package, ArrowRightLeft } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -82,6 +82,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
       name: 'Locations',
       path: '/locations',
       icon: MapPin,
+    },
+    {
+      name: 'Personnel',
+      path: '/persons',
+      icon: UserCircle,
     },
     {
       name: 'Users',

@@ -13,6 +13,7 @@ import { formatCurrency } from '../utils/formatters';
 import { ValidationImageDisplay } from './ValidationImageDisplay';
 import { MovementModal } from './MovementModal';
 import { useLocationStore } from '../store/locationStore';
+import { usePersonStore } from '../store/personStore';
 
 interface InventoryGridProps {
   items: InventoryItem[];
@@ -26,10 +27,12 @@ export function InventoryGrid({ items, loading, viewMode, onProductClick }: Inve
   const [selectedProductForMove, setSelectedProductForMove] = useState<InventoryItem | null>(null);
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
   const { locations, fetchLocations } = useLocationStore();
+  const { persons, fetchPersons } = usePersonStore();
 
   useEffect(() => {
-    fetchLocations();
-  }, [fetchLocations]);
+    fetchLocations({ activeOnly: true });
+    fetchPersons({ activeOnly: true });
+  }, [fetchLocations, fetchPersons]);
 
   const handleImageError = (itemId: string) => {
     setImageErrors(prev => new Set(prev).add(itemId));
@@ -211,22 +214,26 @@ export function InventoryGrid({ items, loading, viewMode, onProductClick }: Inve
                     </div>
                   )}
 
-                  {/* Location */}
-                  {item.location && (() => {
+                  {/* Location or Person Assignment */}
+                  {item.locationId && (() => {
                     const location = locations.find(loc => loc.id === item.locationId);
-                    const isPerson = location?.type === 'person';
-                    return (
+                    return location ? (
                       <div className="flex items-center mt-1">
-                        {isPerson ? (
-                          <svg className="w-4 h-4 text-purple-600 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                        ) : (
-                          <MapPinIcon className="h-4 w-4 text-gray-400 mr-1" />
-                        )}
-                        <span className="text-sm text-gray-600 truncate">{item.location}</span>
+                        <MapPinIcon className="h-4 w-4 text-blue-500 mr-1" />
+                        <span className="text-sm text-gray-600 truncate">{location.name} • {location.area}</span>
                       </div>
-                    );
+                    ) : null;
+                  })()}
+                  {item.assignedToPersonId && (() => {
+                    const person = persons.find(p => p.id === item.assignedToPersonId);
+                    return person ? (
+                      <div className="flex items-center mt-1">
+                        <svg className="w-4 h-4 text-purple-600 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        <span className="text-sm text-purple-700 truncate font-medium">{person.name} • {person.department}</span>
+                      </div>
+                    ) : null;
                   })()}
 
                   {/* Stock Level (only for stored items) */}

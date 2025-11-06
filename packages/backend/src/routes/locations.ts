@@ -36,16 +36,16 @@ const combineSqlClauses = (clauses: SQL<unknown>[]): SQL<unknown> => {
   return combined ?? sql`1 = 1`;
 };
 
-// Get all locations (with optional search, area, and type filter)
+// Get all locations (with optional search and area filter)
 router.get('/', async (req, res, next) => {
   try {
-    const { search, area, type, sortBy = 'name', sortOrder = 'asc' } = req.query;
+    const { search, area, sortBy = 'name', sortOrder = 'asc', activeOnly = 'true' } = req.query;
 
     const searchValue = typeof search === 'string' ? search : undefined;
     const areaValue = typeof area === 'string' ? area : undefined;
-    const typeValue = typeof type === 'string' ? type : undefined;
     const sortByValue = typeof sortBy === 'string' ? sortBy : 'name';
     const sortOrderValue = sortOrder === 'desc' ? 'desc' : 'asc';
+    const activeOnlyValue = activeOnly === 'true';
 
     const conditions: SQL<unknown>[] = [];
 
@@ -64,8 +64,8 @@ router.get('/', async (req, res, next) => {
       conditions.push(eq(locations.area, areaValue));
     }
 
-    if (typeValue && (typeValue === 'physical' || typeValue === 'person')) {
-      conditions.push(eq(locations.type, typeValue));
+    if (activeOnlyValue) {
+      conditions.push(eq(locations.isActive, true));
     }
 
     const baseQuery = db.select().from(locations);
@@ -160,7 +160,7 @@ router.get('/:id/products', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const validatedData = CreateLocationSchema.parse(req.body);
-    const { name, area, code, type, description } = validatedData;
+    const { name, area, code, building, floor, capacity, isActive = true, description } = validatedData;
 
     // Check if code already exists
     const existingLocation = await db
@@ -177,7 +177,10 @@ router.post('/', async (req, res, next) => {
       name,
       area,
       code: code.toUpperCase().replace(/\s+/g, '-'),
-      type: type || 'physical',
+      building: building || null,
+      floor: floor || null,
+      capacity: capacity || null,
+      isActive,
       description: description || null,
     };
 
@@ -197,7 +200,7 @@ router.put('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
     const validatedData = UpdateLocationSchema.parse(req.body);
-    const { name, area, code, type, description } = validatedData;
+    const { name, area, code, building, floor, capacity, isActive, description } = validatedData;
 
     // Check if location exists
     const [existingLocation] = await db
@@ -216,7 +219,10 @@ router.put('/:id', async (req, res, next) => {
 
     if (name !== undefined) updateData.name = name;
     if (area !== undefined) updateData.area = area;
-    if (type !== undefined) updateData.type = type;
+    if (building !== undefined) updateData.building = building;
+    if (floor !== undefined) updateData.floor = floor;
+    if (capacity !== undefined) updateData.capacity = capacity;
+    if (isActive !== undefined) updateData.isActive = isActive;
     if (code !== undefined) {
       const newCode = code.toUpperCase().replace(/\s+/g, '-');
 

@@ -2,6 +2,7 @@ import { pgTable, uuid, text, integer, timestamp, index } from 'drizzle-orm/pg-c
 import { relations } from 'drizzle-orm';
 import { products } from './products';
 import { locations } from './locations';
+import { persons } from './persons';
 
 export const movementLogs = pgTable(
   'movement_logs',
@@ -13,8 +14,11 @@ export const movementLogs = pgTable(
     fromLocationId: uuid('from_location_id')
       .references(() => locations.id, { onDelete: 'set null' }),
     toLocationId: uuid('to_location_id')
-      .notNull()
       .references(() => locations.id, { onDelete: 'set null' }),
+    fromPersonId: uuid('from_person_id')
+      .references(() => persons.id, { onDelete: 'set null' }),
+    toPersonId: uuid('to_person_id')
+      .references(() => persons.id, { onDelete: 'set null' }),
     fromStockLevel: integer('from_stock_level'),
     toStockLevel: integer('to_stock_level').notNull(),
     notes: text('notes'),
@@ -25,6 +29,8 @@ export const movementLogs = pgTable(
     productIdIdx: index('movement_logs_product_id_idx').on(table.productId),
     fromLocationIdIdx: index('movement_logs_from_location_id_idx').on(table.fromLocationId),
     toLocationIdIdx: index('movement_logs_to_location_id_idx').on(table.toLocationId),
+    fromPersonIdIdx: index('movement_logs_from_person_id_idx').on(table.fromPersonId),
+    toPersonIdIdx: index('movement_logs_to_person_id_idx').on(table.toPersonId),
     createdAtIdx: index('movement_logs_created_at_idx').on(table.createdAt),
   })
 );
@@ -42,6 +48,14 @@ export const movementLogsRelations = relations(movementLogs, ({ one }) => ({
   toLocation: one(locations, {
     fields: [movementLogs.toLocationId],
     references: [locations.id],
+  }),
+  fromPerson: one(persons, {
+    fields: [movementLogs.fromPersonId],
+    references: [persons.id],
+  }),
+  toPerson: one(persons, {
+    fields: [movementLogs.toPersonId],
+    references: [persons.id],
   }),
 }));
 

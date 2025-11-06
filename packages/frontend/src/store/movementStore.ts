@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { MovementLog, CreateMovement, MovementStats, Location, InventoryItem } from '@invenflow/shared';
+import type { MovementLog, CreateMovement, CreateBatchDistribution, MovementStats, Location, InventoryItem, Person } from '@invenflow/shared';
 import { api } from '../utils/api';
 import { useToastStore } from './toastStore';
 
@@ -8,6 +8,8 @@ export interface EnrichedMovementLog extends MovementLog {
   product?: InventoryItem | null;
   fromLocation?: Location | null;
   toLocation?: Location | null;
+  fromPerson?: Person | null;
+  toPerson?: Person | null;
 }
 
 interface MovementFilters {
@@ -30,6 +32,7 @@ interface MovementState {
   fetchMovements: () => Promise<void>;
   fetchMovementHistory: (productId: string) => Promise<EnrichedMovementLog[]>;
   createMovement: (movement: CreateMovement) => Promise<{ movementLog: MovementLog; product: any }>;
+  createBatchDistribution: (distribution: CreateBatchDistribution) => Promise<any>;
   fetchStats: () => Promise<void>;
   setFilters: (filters: Partial<MovementFilters>) => void;
   clearFilters: () => void;
@@ -93,6 +96,30 @@ export const useMovementStore = create<MovementState>((set, get) => ({
       return response.data;
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Failed to move product';
+      set({ error: errorMessage, loading: false });
+      useToastStore.getState().addErrorToast(errorMessage);
+      throw error;
+    }
+  },
+
+  createBatchDistribution: async (distribution: CreateBatchDistribution) => {
+    set({ loading: true, error: null });
+    try {
+      const response = await api.post('/api/movements/batch-distribute', distribution);
+      
+      // Refresh movements list and stats
+      await get().fetchMovements();
+      await get().fetchStats();
+      
+      const totalDistributed = distribution.distributions.reduce((sum, d) => sum + d.quantity, 0);
+      useToastStore.getState().addSuccessToast(
+        `Successfully distributed ${totalDistributed} items to ${distribution.distributions.length} recipient(s)`
+      );
+      set({ loading: false });
+      
+      return response.data;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Failed to distribute products';
       set({ error: errorMessage, loading: false });
       useToastStore.getState().addErrorToast(errorMessage);
       throw error;

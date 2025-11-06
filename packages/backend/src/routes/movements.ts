@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { movementLogs, products, locations } from '../db/schema';
+import { movementLogs, products, locations, persons } from '../db/schema';
 import { eq, desc, and, gte, lte, sql, inArray, type SQL } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
-import { CreateMovementSchema } from '@invenflow/shared';
+import { CreateMovementSchema, CreateBatchDistributionSchema } from '@invenflow/shared';
 
 const router = Router();
 
@@ -27,11 +27,14 @@ const combineConditions = (conditions: SQL<unknown>[]): SQL<unknown> => {
 type MovementLogRecord = typeof movementLogs.$inferSelect;
 type ProductRecord = typeof products.$inferSelect;
 type LocationRecord = typeof locations.$inferSelect;
+type PersonRecord = typeof persons.$inferSelect;
 
 type EnrichedMovementLog = MovementLogRecord & {
   product: ProductRecord | null;
   fromLocation: LocationRecord | null;
   toLocation: LocationRecord | null;
+  fromPerson: PersonRecord | null;
+  toPerson: PersonRecord | null;
 };
 
 const enrichMovementLogs = async (logs: MovementLogRecord[]): Promise<EnrichedMovementLog[]> => {
@@ -47,6 +50,13 @@ const enrichMovementLogs = async (logs: MovementLogRecord[]): Promise<EnrichedMo
         .filter((id): id is string => Boolean(id))
     )
   );
+  const personIds = Array.from(
+    new Set(
+      logs
+        .flatMap((log) => [log.fromPersonId, log.toPersonId])
+        .filter((id): id is string => Boolean(id))
+    )
+  );
 
   const productPromise = productIds.length
     ? db.select().from(products).where(inArray(products.id, productIds))
@@ -56,19 +66,27 @@ const enrichMovementLogs = async (logs: MovementLogRecord[]): Promise<EnrichedMo
     ? db.select().from(locations).where(inArray(locations.id, locationIds))
     : Promise.resolve<LocationRecord[]>([]);
 
-  const [productRows, locationRows] = await Promise.all([
+  const personPromise = personIds.length
+    ? db.select().from(persons).where(inArray(persons.id, personIds))
+    : Promise.resolve<PersonRecord[]>([]);
+
+  const [productRows, locationRows, personRows] = await Promise.all([
     productPromise,
     locationPromise,
+    personPromise,
   ]);
 
   const productMap = new Map(productRows.map((row) => [row.id, row]));
   const locationMap = new Map(locationRows.map((row) => [row.id, row]));
+  const personMap = new Map(personRows.map((row) => [row.id, row]));
 
   return logs.map((log) => ({
     ...log,
     product: productMap.get(log.productId) ?? null,
     fromLocation: log.fromLocationId ? locationMap.get(log.fromLocationId) ?? null : null,
-    toLocation: locationMap.get(log.toLocationId) ?? null,
+    toLocation: log.toLocationId ? locationMap.get(log.toLocationId) ?? null : null,
+    fromPerson: log.fromPersonId ? personMap.get(log.fromPersonId) ?? null : null,
+    toPerson: log.toPersonId ? personMap.get(log.toPersonId) ?? null : null,
   }));
 };
 
@@ -153,7 +171,7 @@ router.get('/product/:productId', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const validatedData = CreateMovementSchema.parse(req.body);
-    const { productId, toLocationId, toStockLevel, notes } = validatedData;
+    const { productId, toLocationId, toPersonId, toStockLevel, notes } = validatedData;
 
     // Get user from auth token
     const movedBy = (req as any).user?.email || (req as any).user?.username || null;
@@ -175,15 +193,29 @@ router.post('/', async (req, res, next) => {
         throw createError('Only products with "Stored" status can be moved', 400);
       }
 
-      // 2. Verify target location exists
-      const [targetLocation] = await tx
-        .select()
-        .from(locations)
-        .where(eq(locations.id, toLocationId))
-        .limit(1);
+      // 2. Verify target location or person exists
+      if (toLocationId) {
+        const [targetLocation] = await tx
+          .select()
+          .from(locations)
+          .where(eq(locations.id, toLocationId))
+          .limit(1);
 
-      if (!targetLocation) {
-        throw createError('Target location not found', 404);
+        if (!targetLocation) {
+          throw createError('Target location not found', 404);
+        }
+      }
+
+      if (toPersonId) {
+        const [targetPerson] = await tx
+          .select()
+          .from(persons)
+          .where(eq(persons.id, toPersonId))
+          .limit(1);
+
+        if (!targetPerson) {
+          throw createError('Target person not found', 404);
+        }
       }
 
       // 3. Create movement log
@@ -192,7 +224,9 @@ router.post('/', async (req, res, next) => {
         .values({
           productId,
           fromLocationId: product.locationId,
-          toLocationId,
+          toLocationId: toLocationId || null,
+          fromPersonId: product.assignedToPersonId,
+          toPersonId: toPersonId || null,
           fromStockLevel: product.stockLevel,
           toStockLevel,
           notes: notes || null,
@@ -200,11 +234,12 @@ router.post('/', async (req, res, next) => {
         })
         .returning();
 
-      // 4. Update product location and stock level
+      // 4. Update product location/person and stock level
       const [updatedProduct] = await tx
         .update(products)
         .set({
-          locationId: toLocationId,
+          locationId: toLocationId || product.locationId,
+          assignedToPersonId: toPersonId || product.assignedToPersonId,
           stockLevel: toStockLevel,
           updatedAt: new Date(),
         })
@@ -214,6 +249,157 @@ router.post('/', async (req, res, next) => {
       return {
         movementLog,
         product: updatedProduct,
+      };
+    });
+
+    res.status(201).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Batch distribute product to multiple locations
+router.post('/batch-distribute', async (req, res, next) => {
+  try {
+    const validatedData = CreateBatchDistributionSchema.parse(req.body);
+    const { sourceProductId, distributions } = validatedData;
+
+    // Get user from auth token
+    const movedBy = (req as any).user?.email || (req as any).user?.username || null;
+
+    // Validate total quantity doesn't exceed available stock
+    const totalQuantity = distributions.reduce((sum, dist) => sum + dist.quantity, 0);
+
+    // Check for duplicate locations
+    const locationIds = distributions.map(d => d.toLocationId);
+    const uniqueLocationIds = new Set(locationIds);
+    if (locationIds.length !== uniqueLocationIds.size) {
+      throw createError('Cannot distribute to the same location multiple times in one batch', 400);
+    }
+
+    // Use transaction to ensure data consistency
+    const result = await db.transaction(async (tx) => {
+      // 1. Verify source product exists and is stored
+      const [sourceProduct] = await tx
+        .select()
+        .from(products)
+        .where(eq(products.id, sourceProductId))
+        .limit(1);
+
+      if (!sourceProduct) {
+        throw createError('Source product not found', 404);
+      }
+
+      if (sourceProduct.columnStatus !== 'Stored') {
+        throw createError('Only products with "Stored" status can be distributed', 400);
+      }
+
+      const availableStock = sourceProduct.stockLevel || 0;
+      if (totalQuantity > availableStock) {
+        throw createError(
+          `Total quantity (${totalQuantity}) exceeds available stock (${availableStock})`,
+          400
+        );
+      }
+
+      // 2. Verify all target locations and persons exist
+      const targetLocationIds = distributions.filter(d => d.toLocationId).map(d => d.toLocationId!);
+      const targetPersonIds = distributions.filter(d => d.toPersonId).map(d => d.toPersonId!);
+      
+      if (targetLocationIds.length > 0) {
+        const targetLocations = await tx
+          .select()
+          .from(locations)
+          .where(inArray(locations.id, targetLocationIds));
+
+        if (targetLocations.length !== targetLocationIds.length) {
+          throw createError('One or more target locations not found', 404);
+        }
+      }
+
+      if (targetPersonIds.length > 0) {
+        const targetPersons = await tx
+          .select()
+          .from(persons)
+          .where(inArray(persons.id, targetPersonIds));
+
+        if (targetPersons.length !== targetPersonIds.length) {
+          throw createError('One or more target persons not found', 404);
+        }
+      }
+
+      // 3. Create new product records and movement logs for each distribution
+      const createdProducts = [];
+      const createdMovementLogs = [];
+
+      for (const distribution of distributions) {
+        // Create new product record (copy all fields from source)
+        const [newProduct] = await tx
+          .insert(products)
+          .values({
+            kanbanId: sourceProduct.kanbanId,
+            columnStatus: 'Stored',
+            productDetails: sourceProduct.productDetails,
+            productLink: sourceProduct.productLink,
+            locationId: distribution.toLocationId || null,
+            assignedToPersonId: distribution.toPersonId || null,
+            priority: sourceProduct.priority,
+            stockLevel: distribution.quantity,
+            sourceProductId: sourceProductId, // Track parent product
+            productImage: sourceProduct.productImage,
+            category: sourceProduct.category,
+            tags: sourceProduct.tags,
+            supplier: sourceProduct.supplier,
+            sku: sourceProduct.sku,
+            dimensions: sourceProduct.dimensions,
+            weight: sourceProduct.weight,
+            unitPrice: sourceProduct.unitPrice,
+            notes: distribution.notes || sourceProduct.notes,
+            columnEnteredAt: new Date(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .returning();
+
+        createdProducts.push(newProduct);
+
+        // Create movement log
+        const [movementLog] = await tx
+          .insert(movementLogs)
+          .values({
+            productId: newProduct!.id,
+            fromLocationId: sourceProduct.locationId,
+            toLocationId: distribution.toLocationId || null,
+            fromPersonId: sourceProduct.assignedToPersonId,
+            toPersonId: distribution.toPersonId || null,
+            fromStockLevel: availableStock,
+            toStockLevel: distribution.quantity,
+            notes: distribution.notes || `Batch distribution from ${sourceProduct.productDetails}`,
+            movedBy,
+          })
+          .returning();
+
+        createdMovementLogs.push(movementLog);
+      }
+
+      // 4. Update source product stock level
+      const remainingStock = availableStock - totalQuantity;
+      
+      const [updatedSourceProduct] = await tx
+        .update(products)
+        .set({
+          stockLevel: remainingStock,
+          updatedAt: new Date(),
+        })
+        .where(eq(products.id, sourceProductId))
+        .returning();
+
+      return {
+        sourceProduct: updatedSourceProduct,
+        distributedProducts: createdProducts,
+        movementLogs: createdMovementLogs,
+        totalDistributed: totalQuantity,
+        remainingStock,
       };
     });
 

@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { InventoryItem } from '@invenflow/shared';
 import { useLocationStore } from '../store/locationStore';
+import { usePersonStore } from '../store/personStore';
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -37,11 +38,17 @@ interface SortConfig {
 }
 
 export function InventoryList({ items, loading, onProductClick }: InventoryListProps) {
-  const { locations } = useLocationStore();
+  const { locations, fetchLocations } = useLocationStore();
+  const { persons, fetchPersons } = usePersonStore();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<SortConfig>({ field: 'updatedAt', direction: 'desc' });
   const [selectedProductForMove, setSelectedProductForMove] = useState<InventoryItem | null>(null);
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
+
+  useEffect(() => {
+    fetchLocations({ activeOnly: true });
+    fetchPersons({ activeOnly: true });
+  }, [fetchLocations, fetchPersons]);
 
   const handleMoveClick = (e: React.MouseEvent, item: InventoryItem) => {
     e.stopPropagation();
@@ -53,27 +60,48 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
     setSelectedProductForMove(null);
   };
 
-  // Create location lookup map
+  // Create location and person lookup maps
   const locationMap = useMemo(() => {
     return new Map(locations.map(loc => [loc.id, loc]));
   }, [locations]);
 
-  // Get structured location display
-  const getStructuredLocation = (item: InventoryItem) => {
+  const personMap = useMemo(() => {
+    return new Map(persons.map(p => [p.id, p]));
+  }, [persons]);
+
+  // Get structured assignment display (location or person)
+  const getAssignmentDisplay = (item: InventoryItem) => {
+    // Check for person assignment first
+    if (item.assignedToPersonId && personMap.has(item.assignedToPersonId)) {
+      const person = personMap.get(item.assignedToPersonId)!;
+      return {
+        type: 'person' as const,
+        name: person.name,
+        area: person.department,
+        code: '',
+        display: `👤 ${person.name} (${person.department})`
+      };
+    }
+    
+    // Check for location assignment
     if (item.locationId && locationMap.has(item.locationId)) {
       const location = locationMap.get(item.locationId)!;
       return {
+        type: 'location' as const,
         name: location.name,
         area: location.area,
         code: location.code,
-        display: `${location.name} (${location.area})`
+        display: `📍 ${location.name} (${location.area})`
       };
     }
+    
+    // No assignment
     return {
-      name: item.location || 'No location specified',
+      type: 'none' as const,
+      name: 'No assignment',
       area: '',
       code: '',
-      display: item.location || 'No location specified'
+      display: 'No assignment'
     };
   };
 
@@ -91,8 +119,8 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
           bValue = b.productDetails?.toLowerCase() || '';
           break;
         case 'location':
-          aValue = getStructuredLocation(a).display.toLowerCase();
-          bValue = getStructuredLocation(b).display.toLowerCase();
+          aValue = getAssignmentDisplay(a).display.toLowerCase();
+          bValue = getAssignmentDisplay(b).display.toLowerCase();
           break;
         case 'stockLevel':
           aValue = a.stockLevel ?? 0;
@@ -272,7 +300,7 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
           {sortedItems.map((item) => {
-            const location = getStructuredLocation(item);
+            const assignment = getAssignmentDisplay(item);
             const isExpanded = expandedRows.has(item.id);
             const hasImages = Boolean(item.availableImages && item.availableImages.length > 0);
 
@@ -303,8 +331,18 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center text-sm text-gray-900">
-                      <MapPinIcon className="h-4 w-4 text-gray-400 mr-1 flex-shrink-0" />
-                      <span>{location.display}</span>
+                      {assignment.type === 'person' ? (
+                        <svg className="w-4 h-4 text-purple-600 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      ) : assignment.type === 'location' ? (
+                        <MapPinIcon className="h-4 w-4 text-blue-500 mr-1 flex-shrink-0" />
+                      ) : (
+                        <MapPinIcon className="h-4 w-4 text-gray-300 mr-1 flex-shrink-0" />
+                      )}
+                      <span className={assignment.type === 'person' ? 'text-purple-700 font-medium' : ''}>
+                        {assignment.display}
+                      </span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

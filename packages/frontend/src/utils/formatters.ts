@@ -53,3 +53,4 @@ export function formatWeight(
   return formatted !== null ? `${formatted} kg` : null;
 }
 
+
