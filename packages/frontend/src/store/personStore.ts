@@ -32,7 +32,7 @@ export const usePersonStore = create<PersonStore>((set, get) => ({
   fetchPersons: async (params) => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const queryParams = new URLSearchParams();
       
       if (params?.search) queryParams.append('search', params.search);
@@ -59,7 +59,7 @@ export const usePersonStore = create<PersonStore>((set, get) => ({
   fetchPersonById: async (id: string) => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await axios.get(`${API_URL}/api/persons/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -76,7 +76,7 @@ export const usePersonStore = create<PersonStore>((set, get) => ({
   createPerson: async (data: CreatePerson) => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await axios.post(`${API_URL}/api/persons`, data, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -98,7 +98,7 @@ export const usePersonStore = create<PersonStore>((set, get) => ({
   updatePerson: async (id: string, data: UpdatePerson) => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await axios.put(`${API_URL}/api/persons/${id}`, data, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -122,7 +122,7 @@ export const usePersonStore = create<PersonStore>((set, get) => ({
   deletePerson: async (id: string) => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       await axios.delete(`${API_URL}/api/persons/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });

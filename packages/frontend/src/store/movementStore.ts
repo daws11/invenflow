@@ -12,6 +12,9 @@ export interface EnrichedMovementLog extends MovementLog {
   toPerson?: Person | null;
 }
 
+// Type alias for the stats response
+export type MovementStatsResponse = MovementStats;
+
 interface MovementFilters {
   productId?: string;
   locationId?: string;

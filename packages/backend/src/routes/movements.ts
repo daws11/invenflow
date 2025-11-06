@@ -442,25 +442,61 @@ router.get('/stats', async (req, res, next) => {
       .from(movementLogs)
       .where(whereClause);
 
-    // Most used locations (top 5)
-    const mostUsedLocationsResult = await db.execute(
-      sql<{ locationId: string; locationName: string; locationCode: string; movementCount: number }>`
-        SELECT 
-          loc.id as "locationId",
-          loc.name as "locationName",
-          loc.code as "locationCode",
-          count(*)::int as "movementCount"
-        FROM (
-          SELECT ${movementLogs.toLocationId} as location_id
-          FROM ${movementLogs}
-          WHERE ${whereClause}
+    // Most active recipients (locations and persons combined, top 5)
+    // Build WHERE clause conditions as SQL fragments
+    const dateConditions: SQL<unknown>[] = [];
+    if (startDate) {
+      dateConditions.push(sql`created_at >= ${new Date(startDate as string)}`);
+    }
+    if (endDate) {
+      dateConditions.push(sql`created_at <= ${new Date(endDate as string)}`);
+    }
+    const dateWhereClause = dateConditions.length > 0 
+      ? sql`WHERE ${sql.join(dateConditions, sql` AND `)} AND`
+      : sql`WHERE`;
+
+    const mostActiveRecipientsResult = await db.execute(
+      sql<{ recipientId: string; recipientName: string; recipientCode: string; recipientType: string; movementCount: number }>`
+        WITH movement_recipients AS (
+          -- Movements to locations
+          SELECT 
+            to_location_id as recipient_id,
+            'location' as recipient_type
+          FROM movement_logs
+          ${dateWhereClause} to_location_id IS NOT NULL
           UNION ALL
-          SELECT ${movementLogs.fromLocationId} as location_id
-          FROM ${movementLogs}
-          WHERE ${whereClause} AND ${movementLogs.fromLocationId} IS NOT NULL
-        ) movements
-        JOIN ${locations} loc ON movements.location_id = loc.id
-        GROUP BY loc.id, loc.name, loc.code
+          -- Movements from locations
+          SELECT 
+            from_location_id as recipient_id,
+            'location' as recipient_type
+          FROM movement_logs
+          ${dateWhereClause} from_location_id IS NOT NULL
+          UNION ALL
+          -- Movements to persons
+          SELECT 
+            to_person_id as recipient_id,
+            'person' as recipient_type
+          FROM movement_logs
+          ${dateWhereClause} to_person_id IS NOT NULL
+          UNION ALL
+          -- Movements from persons
+          SELECT 
+            from_person_id as recipient_id,
+            'person' as recipient_type
+          FROM movement_logs
+          ${dateWhereClause} from_person_id IS NOT NULL
+        )
+        SELECT 
+          mr.recipient_id as "recipientId",
+          COALESCE(loc.name, per.name) as "recipientName",
+          COALESCE(loc.code, per.department) as "recipientCode",
+          mr.recipient_type as "recipientType",
+          count(*)::int as "movementCount"
+        FROM movement_recipients mr
+        LEFT JOIN locations loc ON mr.recipient_id = loc.id AND mr.recipient_type = 'location'
+        LEFT JOIN persons per ON mr.recipient_id = per.id AND mr.recipient_type = 'person'
+        WHERE mr.recipient_id IS NOT NULL
+        GROUP BY mr.recipient_id, mr.recipient_type, loc.name, loc.code, per.name, per.department
         ORDER BY "movementCount" DESC
         LIMIT 5
       `
@@ -479,10 +515,11 @@ router.get('/stats', async (req, res, next) => {
     res.json({
       totalMovements: Number(stats?.totalMovements ?? 0),
       activeProducts: Number(activeProductsResult?.activeProducts ?? 0),
-      mostUsedLocations: Array.from(mostUsedLocationsResult) as Array<{
-        locationId: string;
-        locationName: string;
-        locationCode: string;
+      mostActiveRecipients: Array.from(mostActiveRecipientsResult) as Array<{
+        recipientId: string;
+        recipientName: string;
+        recipientCode: string;
+        recipientType: 'location' | 'person';
         movementCount: number;
       }>,
       recentMovements: enrichedRecentLogs,

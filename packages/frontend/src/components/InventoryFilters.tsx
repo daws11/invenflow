@@ -16,14 +16,17 @@ export function InventoryFilters({ onClose }: InventoryFiltersProps) {
   const {
     filters,
     availableFilters,
+    displayMode,
     setFilters,
     clearFilters,
+    fetchGroupedInventory,
   } = useInventoryStore();
 
   const [expandedSections, setExpandedSections] = useState({
     search: true,
     category: true,
     supplier: true,
+    status: true,
     location: true,
     stock: true,
     date: true,
@@ -35,6 +38,7 @@ export function InventoryFilters({ onClose }: InventoryFiltersProps) {
     search: filters.search || '',
     category: filters.category || [],
     supplier: filters.supplier || [],
+    status: '',
     location: filters.location || [],
     kanbanIds: filters.kanbanIds || [],
     stockRange: { min: '', max: '' },
@@ -50,6 +54,7 @@ export function InventoryFilters({ onClose }: InventoryFiltersProps) {
       search: filters.search || '',
       category: filters.category || [],
       supplier: filters.supplier || [],
+      status: '',
       location: filters.location || [],
       kanbanIds: filters.kanbanIds || [],
       stockRange: { min: '', max: '' },
@@ -118,6 +123,20 @@ export function InventoryFilters({ onClose }: InventoryFiltersProps) {
   };
 
   const applyFilters = () => {
+    // For grouped mode, apply filters differently
+    if (displayMode === 'grouped') {
+      const groupedParams: any = {};
+      if (localFilters.search) groupedParams.search = localFilters.search;
+      if (localFilters.category.length > 0) groupedParams.category = localFilters.category;
+      if (localFilters.supplier.length > 0) groupedParams.supplier = localFilters.supplier;
+      if (localFilters.status) groupedParams.status = localFilters.status;
+      
+      fetchGroupedInventory(groupedParams);
+      if (onClose) onClose();
+      return;
+    }
+
+    // For individual mode, use existing filter logic
     const newFilters: any = {
       search: localFilters.search || undefined,
       category: localFilters.category.length > 0 ? localFilters.category : undefined,
@@ -156,6 +175,7 @@ export function InventoryFilters({ onClose }: InventoryFiltersProps) {
       search: '',
       category: [],
       supplier: [],
+      status: '',
       location: [],
       kanbanIds: [],
       stockRange: { min: '', max: '' },
@@ -164,6 +184,11 @@ export function InventoryFilters({ onClose }: InventoryFiltersProps) {
       sortOrder: 'desc',
     });
     setStockRangeType('custom');
+    
+    // Reload data based on display mode
+    if (displayMode === 'grouped') {
+      fetchGroupedInventory();
+    }
   };
 
   const hasActiveFilters = localFilters.category.length > 0 ||
@@ -291,6 +316,102 @@ export function InventoryFilters({ onClose }: InventoryFiltersProps) {
           </div>
         )}
       </div>
+
+      {/* Status Filter (Only for Grouped Mode) */}
+      {displayMode === 'grouped' && (
+        <div className="border-b border-gray-200 pb-4">
+          <button
+            onClick={() => toggleSection('status')}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <h4 className="text-sm font-medium text-gray-900">Product Status</h4>
+            {expandedSections.status ? (
+              <ChevronUpIcon className="h-4 w-4 text-gray-500" />
+            ) : (
+              <ChevronDownIcon className="h-4 w-4 text-gray-500" />
+            )}
+          </button>
+          {expandedSections.status && (
+            <div className="mt-3 space-y-2">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="status"
+                  checked={localFilters.status === ''}
+                  onChange={() => setLocalFilters(prev => ({ ...prev, status: '' }))}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="ml-2 text-sm text-gray-700">All Statuses</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="status"
+                  checked={localFilters.status === 'incoming'}
+                  onChange={() => setLocalFilters(prev => ({ ...prev, status: 'incoming' }))}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="ml-2 text-sm text-gray-700 inline-flex items-center gap-2">
+                  <span className="text-lg">🔄</span>
+                  Incoming (Purchased)
+                </span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="status"
+                  checked={localFilters.status === 'received'}
+                  onChange={() => setLocalFilters(prev => ({ ...prev, status: 'received' }))}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="ml-2 text-sm text-gray-700 inline-flex items-center gap-2">
+                  <span className="text-lg">📦</span>
+                  Received
+                </span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="status"
+                  checked={localFilters.status === 'stored'}
+                  onChange={() => setLocalFilters(prev => ({ ...prev, status: 'stored' }))}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="ml-2 text-sm text-gray-700 inline-flex items-center gap-2">
+                  <span className="text-lg">🏢</span>
+                  Stored
+                </span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="status"
+                  checked={localFilters.status === 'used'}
+                  onChange={() => setLocalFilters(prev => ({ ...prev, status: 'used' }))}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="ml-2 text-sm text-gray-700 inline-flex items-center gap-2">
+                  <span className="text-lg">👤</span>
+                  Used (Assigned)
+                </span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="status"
+                  checked={localFilters.status === 'available'}
+                  onChange={() => setLocalFilters(prev => ({ ...prev, status: 'available' }))}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="ml-2 text-sm text-gray-700 inline-flex items-center gap-2">
+                  <span className="text-lg">✅</span>
+                  Available (Stored & Not Assigned)
+                </span>
+              </label>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Location Filter */}
       <div className="border-b border-gray-200 pb-4">

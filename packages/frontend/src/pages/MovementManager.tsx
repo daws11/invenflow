@@ -162,9 +162,9 @@ export default function MovementManager() {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-700 truncate">Top Location</dt>
+                      <dt className="text-sm font-medium text-gray-700 truncate">Top Recipient</dt>
                       <dd className="text-sm font-medium text-gray-900 truncate">
-                        {stats.mostUsedLocations[0]?.locationName || 'N/A'}
+                        {stats.mostActiveRecipients[0]?.recipientName || 'N/A'}
                       </dd>
                     </dl>
                   </div>
@@ -174,85 +174,38 @@ export default function MovementManager() {
           </div>
         )}
 
-        {/* Most Used Locations */}
-        {stats && stats.mostUsedLocations.length > 0 && (
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Most Used Locations Card */}
+        {/* Most Active Recipients */}
+        {stats && stats.mostActiveRecipients.length > 0 && (
+          <div className="mt-3">
             <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
               <div className="flex items-center mb-3">
-                <MapPinIcon className="h-5 w-5 text-blue-600 mr-2" />
-                <h3 className="text-sm font-semibold text-gray-800">Most Active Locations</h3>
+                <svg className="h-5 w-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <h3 className="text-sm font-semibold text-gray-800">Most Active Recipients</h3>
               </div>
               <div className="space-y-2">
-                {stats.mostUsedLocations.map((location) => {
-                  // Find the location type from movements array
-                  // First try to find in toLocation, then in fromLocation
-                  const movementWithLocation = movements.find(m => 
-                    m.toLocation?.id === location.locationId
-                  );
-                  
-                  const locationType = movementWithLocation?.toLocation?.type || 
-                    movements.find(m => m.fromLocation?.id === location.locationId)?.fromLocation?.type || 
-                    'physical';
-                  
-                  const isPerson = locationType === 'person';
-                  
-                  return (
-                  <div key={location.locationId} className="flex items-center justify-between text-sm bg-white px-3 py-2 rounded-md shadow-sm">
+                {stats.mostActiveRecipients.map((recipient) => (
+                  <div key={recipient.recipientId} className="flex items-center justify-between text-sm bg-white px-3 py-2 rounded-md shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex items-center space-x-2">
-                      {isPerson ? (
+                      {recipient.recipientType === 'person' ? (
                         <svg className="w-4 h-4 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
                       ) : (
-                        <MapPinIcon className="h-4 w-4 text-blue-500" />
+                        <MapPinIcon className="h-4 w-4 text-blue-500 flex-shrink-0" />
                       )}
                       <div>
-                        <span className="text-gray-900 font-medium">{location.locationName}</span>
-                        <span className="text-xs text-gray-500 ml-1.5">({location.locationCode})</span>
+                        <span className="text-gray-900 font-medium">{recipient.recipientName}</span>
+                        <span className="text-xs text-gray-500 ml-1.5">({recipient.recipientCode})</span>
                       </div>
                     </div>
                     <div className="flex items-center space-x-1">
-                      <span className="text-gray-700 font-semibold">{location.movementCount}</span>
+                      <span className="text-gray-700 font-semibold">{recipient.movementCount}</span>
                       <span className="text-xs text-gray-500">moves</span>
                     </div>
                   </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Movement Type Summary */}
-            <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-100">
-              <div className="flex items-center mb-3">
-                <svg className="h-5 w-5 text-purple-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <h3 className="text-sm font-semibold text-gray-800">Movement Types</h3>
-              </div>
-              <div className="space-y-2">
-                {/* Physical Locations */}
-                <div className="flex items-center justify-between text-sm bg-white px-3 py-2 rounded-md shadow-sm">
-                  <div className="flex items-center space-x-2">
-                    <MapPinIcon className="h-4 w-4 text-blue-500" />
-                    <span className="text-gray-700">To Physical Locations</span>
-                  </div>
-                  <span className="text-gray-900 font-semibold">
-                    {movements.filter(m => m.toLocation?.type === 'physical').length}
-                  </span>
-                </div>
-                {/* Person Assignments */}
-                <div className="flex items-center justify-between text-sm bg-white px-3 py-2 rounded-md shadow-sm">
-                  <div className="flex items-center space-x-2">
-                    <svg className="h-4 w-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                    <span className="text-gray-700">To People (Assigned)</span>
-                  </div>
-                  <span className="text-gray-900 font-semibold">
-                    {movements.filter(m => m.toLocation?.type === 'person').length}
-                  </span>
-                </div>
+                ))}
               </div>
             </div>
           </div>
@@ -294,10 +247,10 @@ export default function MovementManager() {
                     Product
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    From Location
+                    From
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    To Location
+                    To
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Stock Change
@@ -309,7 +262,7 @@ export default function MovementManager() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {movements.map((movement) => (
-                  <tr key={movement.id} className="hover:bg-gray-50">
+                  <tr key={movement.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex items-center">
                         <CalendarIcon className="h-4 w-4 text-gray-400 mr-2" />
@@ -336,18 +289,24 @@ export default function MovementManager() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                      {movement.fromLocation ? (
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {movement.fromPerson ? (
                         <div className="flex items-start space-x-2">
-                          {movement.fromLocation.type === 'person' ? (
-                            <svg className="w-4 h-4 mt-0.5 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                          ) : (
-                            <MapPinIcon className="w-4 h-4 mt-0.5 text-blue-500 flex-shrink-0" />
-                          )}
+                          <svg className="w-4 h-4 mt-0.5 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
                           <div>
-                            <div className="font-medium">{movement.fromLocation.name}</div>
+                            <div className="font-medium text-purple-900">{movement.fromPerson.name}</div>
+                            <div className="text-xs text-gray-500">
+                              {movement.fromPerson.department}
+                            </div>
+                          </div>
+                        </div>
+                      ) : movement.fromLocation ? (
+                        <div className="flex items-start space-x-2">
+                          <MapPinIcon className="w-4 h-4 mt-0.5 text-blue-500 flex-shrink-0" />
+                          <div>
+                            <div className="font-medium text-blue-900">{movement.fromLocation.name}</div>
                             <div className="text-xs text-gray-500 flex items-center space-x-1">
                               <span>{movement.fromLocation.area}</span>
                               <span>•</span>
@@ -356,21 +315,27 @@ export default function MovementManager() {
                           </div>
                         </div>
                       ) : (
-                        <span className="text-gray-400">—</span>
+                        <span className="text-gray-400 italic text-xs">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                      {movement.toLocation ? (
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {movement.toPerson ? (
                         <div className="flex items-start space-x-2">
-                          {movement.toLocation.type === 'person' ? (
-                            <svg className="w-4 h-4 mt-0.5 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                          ) : (
-                            <MapPinIcon className="w-4 h-4 mt-0.5 text-blue-500 flex-shrink-0" />
-                          )}
+                          <svg className="w-4 h-4 mt-0.5 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
                           <div>
-                            <div className="font-medium">{movement.toLocation.name}</div>
+                            <div className="font-medium text-purple-900">{movement.toPerson.name}</div>
+                            <div className="text-xs text-gray-500">
+                              {movement.toPerson.department}
+                            </div>
+                          </div>
+                        </div>
+                      ) : movement.toLocation ? (
+                        <div className="flex items-start space-x-2">
+                          <MapPinIcon className="w-4 h-4 mt-0.5 text-blue-500 flex-shrink-0" />
+                          <div>
+                            <div className="font-medium text-blue-900">{movement.toLocation.name}</div>
                             <div className="text-xs text-gray-500 flex items-center space-x-1">
                               <span>{movement.toLocation.area}</span>
                               <span>•</span>
@@ -379,7 +344,7 @@ export default function MovementManager() {
                           </div>
                         </div>
                       ) : (
-                        <span className="text-gray-400">—</span>
+                        <span className="text-gray-400 italic text-xs">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm">

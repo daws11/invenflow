@@ -216,6 +216,14 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
             {product.supplier && (
               <div className="hidden sm:block text-xs text-gray-600">Supplier: {product.supplier}</div>
             )}
+            {timeInColumn && (
+              <div className="hidden sm:flex items-center text-xs text-gray-500">
+                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>In column for {timeInColumn}</span>
+              </div>
+            )}
           </div>
 
           {/* Enhanced Action Buttons */}
@@ -266,6 +274,14 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
         {product.unitPrice !== null && formatCurrency(product.unitPrice) && (
           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
             {formatCurrency(product.unitPrice)}
+          </span>
+        )}
+        {timeInColumn && (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            In column: {timeInColumn}
           </span>
         )}
       </div>

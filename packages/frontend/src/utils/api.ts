@@ -11,6 +11,7 @@ import {
   InventoryFilters,
   InventoryResponse,
   InventoryStats,
+  GroupedInventoryResponse,
   User,
   CreateUser,
   UpdateUser,
@@ -241,6 +242,11 @@ export const publicApi = {
 export const inventoryApi = {
   getInventory: async (params: InventoryFilters & { page?: number; pageSize?: number }): Promise<InventoryResponse> => {
     const response = await api.get('/api/inventory', { params });
+    return response.data;
+  },
+
+  getGroupedInventory: async (params?: { search?: string; category?: string[]; supplier?: string[]; status?: string }): Promise<GroupedInventoryResponse> => {
+    const response = await api.get('/api/inventory/grouped', { params });
     return response.data;
   },
 

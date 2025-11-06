@@ -1,9 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ThresholdRule } from '@invenflow/shared';
 import { nanoid } from 'nanoid';
 import { ThresholdRuleBuilder } from './ThresholdRuleBuilder';
+import { ThresholdTemplates } from './ThresholdTemplates';
+import { ThresholdOnboarding } from './ThresholdOnboarding';
 import { ThresholdRuleCard } from './ThresholdRuleCard';
-import { PlusIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import {
+  PlusIcon,
+  SparklesIcon,
+} from '@heroicons/react/24/outline';
 
 interface ThresholdSettingsSectionProps {
   thresholdRules: ThresholdRule[] | null | undefined;
@@ -18,10 +23,20 @@ export function ThresholdSettingsSection({
   kanbanType: _kanbanType = 'order',
   products = []
 }: ThresholdSettingsSectionProps) {
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);
   const [editingRule, setEditingRule] = useState<ThresholdRule | null>(null);
 
   const rules = thresholdRules || [];
+
+  // Check if user needs onboarding
+  useEffect(() => {
+    const hasCompleted = localStorage.getItem('threshold_onboarding_complete');
+    if (!hasCompleted && rules.length === 0) {
+      setShowOnboarding(true);
+    }
+  }, []);
 
   const handleSaveRule = (ruleData: Omit<ThresholdRule, 'id' | 'priority'>) => {
     if (editingRule) {
@@ -46,6 +61,16 @@ export function ThresholdSettingsSection({
     setEditingRule(null);
   };
 
+  const handleSelectTemplate = (templateRules: Omit<ThresholdRule, 'id' | 'priority'>[]) => {
+    const newRules: ThresholdRule[] = templateRules.map((rule, index) => ({
+      id: nanoid(),
+      ...rule,
+      priority: index + 1,
+    }));
+    onChange(newRules);
+    setShowTemplates(false);
+  };
+
   const handleEditRule = (rule: ThresholdRule) => {
     setEditingRule(rule);
     setShowBuilder(true);
@@ -59,58 +84,102 @@ export function ThresholdSettingsSection({
   };
 
   const handleMovePriority = (ruleId: string, direction: 'up' | 'down') => {
-    const ruleIndex = rules.findIndex(r => r.id === ruleId);
-    if (ruleIndex === -1) return;
+    const currentIndex = rules.findIndex(r => r.id === ruleId);
+    if (currentIndex === -1) return;
 
-    const newIndex = direction === 'up' ? ruleIndex - 1 : ruleIndex + 1;
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
     if (newIndex < 0 || newIndex >= rules.length) return;
 
     const newRules = [...rules];
-    [newRules[ruleIndex], newRules[newIndex]] = [newRules[newIndex], newRules[ruleIndex]];
-    
-    // Update priorities
-    const updatedRules = newRules.map((r, index) => ({ ...r, priority: index + 1 }));
-    onChange(updatedRules);
-  };
+    const [movedRule] = newRules.splice(currentIndex, 1);
+    newRules.splice(newIndex, 0, movedRule);
 
-  const handleCancelBuilder = () => {
-    setShowBuilder(false);
-    setEditingRule(null);
+    // Re-index priorities
+    const reindexedRules = newRules.map((r, index) => ({ ...r, priority: index + 1 }));
+    onChange(reindexedRules);
   };
 
   return (
     <div className="space-y-6">
+      {/* Onboarding Modal */}
+      {showOnboarding && (
+        <ThresholdOnboarding
+          onStart={() => {
+            setShowOnboarding(false);
+            setShowTemplates(true);
+          }}
+          onSkip={() => {
+            setShowOnboarding(false);
+            setShowBuilder(true);
+          }}
+        />
+      )}
+
+      {/* Templates Modal */}
+      {showTemplates && (
+        <ThresholdTemplates
+          onSelectTemplate={handleSelectTemplate}
+          onSkip={() => {
+            setShowTemplates(false);
+            setShowBuilder(true);
+          }}
+          onClose={() => setShowTemplates(false)}
+        />
+      )}
+
+      {/* Rule Builder Modal */}
+      {showBuilder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-screen-sm sm:max-w-lg md:max-w-2xl lg:max-w-3xl xl:max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="p-4 sm:p-6">
+              <ThresholdRuleBuilder
+                onSave={handleSaveRule}
+                onCancel={() => {
+                  setShowBuilder(false);
+                  setEditingRule(null);
+                }}
+                initialRule={editingRule}
+                existingRulesCount={rules.length}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Threshold Alerts</h3>
+          <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <SparklesIcon className="w-5 h-5 text-blue-600" />
+            Threshold Alert Rules
+          </h4>
           <p className="text-sm text-gray-600 mt-1">
-            Automatically track products based on how long they stay in columns
+            Automatically highlight products based on time in column. Rules are checked in priority order.
           </p>
         </div>
         {!showBuilder && (
-          <button
-            type="button"
-            onClick={() => setShowBuilder(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-          >
-            <PlusIcon className="w-5 h-5" />
-            Add Rule
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            {rules.length === 0 && (
+              <button
+                type="button"
+                onClick={() => setShowTemplates(true)}
+                className="px-4 py-2 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-2 w-full sm:w-auto"
+              >
+                <SparklesIcon className="w-4 h-4" />
+                Use Template
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowBuilder(true)}
+              className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center transition-colors shadow-lg shadow-blue-600/30 w-full sm:w-auto"
+            >
+              <PlusIcon className="w-4 h-4 mr-1" />
+              Add Rule
+            </button>
+          </div>
         )}
       </div>
-
-      {/* Rule Builder */}
-      {showBuilder && (
-        <div className="p-6 bg-white border-2 border-blue-200 rounded-xl shadow-sm">
-          <ThresholdRuleBuilder
-            onSave={handleSaveRule}
-            onCancel={handleCancelBuilder}
-            initialRule={editingRule}
-            existingRulesCount={rules.length}
-          />
-        </div>
-      )}
 
       {/* Rules List */}
       {rules.length > 0 ? (
@@ -130,7 +199,7 @@ export function ThresholdSettingsSection({
               />
             ))}
         </div>
-      ) : !showBuilder ? (
+      ) : (
         <div className="text-center py-12 px-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-300">
           <div className="w-16 h-16 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center">
             <SparklesIcon className="w-8 h-8 text-gray-400" />
@@ -141,16 +210,27 @@ export function ThresholdSettingsSection({
           <p className="text-sm text-gray-600 mb-6 max-w-md mx-auto">
             Create your first rule to automatically track and highlight products based on how long they stay in each column.
           </p>
-          <button
-            type="button"
-            onClick={() => setShowBuilder(true)}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center gap-2"
-          >
-            <PlusIcon className="w-5 h-5" />
-            Create First Rule
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              type="button"
+              onClick={() => setShowTemplates(true)}
+              className="px-4 py-2 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <SparklesIcon className="w-4 h-4" />
+              Use Template
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowBuilder(true)}
+              className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center transition-colors shadow-lg shadow-blue-600/30"
+            >
+              <PlusIcon className="w-4 h-4 mr-1" />
+              Create Custom Rule
+            </button>
+          </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
+

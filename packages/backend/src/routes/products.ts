@@ -185,7 +185,7 @@ router.put('/:id', async (req, res, next) => {
 
     if (productDetails !== undefined) updateData.productDetails = productDetails;
     if (productLink !== undefined) updateData.productLink = productLink;
-    if (location !== undefined) updateData.location = location;
+    // Note: location is now handled via locationId, not as a separate field
     if (priority !== undefined) updateData.priority = priority;
     if (stockLevel !== undefined) {
       updateData.stockLevel = coerceInteger(stockLevel);

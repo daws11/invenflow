@@ -239,20 +239,21 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
           </div>
         )}
 
-        {item.location && (() => {
-          const location = locations.find(loc => loc.id === item.locationId);
-          const isPerson = location?.type === 'person';
+        {(item.assignedToPersonId || item.locationId) && (() => {
+          const hasPerson = !!item.assignedToPersonId;
+          const location = item.locationId ? locations.find(loc => loc.id === item.locationId) : null;
+          const person = item.assignedToPersonId ? persons.find(p => p.id === item.assignedToPersonId) : null;
           
           return (
             <div className={`p-4 rounded-lg border-2 ${
-              isPerson 
+              hasPerson 
                 ? 'bg-purple-50 border-purple-200' 
                 : 'bg-blue-50 border-blue-200'
             }`}>
               <h4 className={`text-sm font-semibold mb-2 flex items-center ${
-                isPerson ? 'text-purple-900' : 'text-blue-900'
+                hasPerson ? 'text-purple-900' : 'text-blue-900'
               }`}>
-                {isPerson ? (
+                {hasPerson ? (
                   <>
                     <svg className="w-5 h-5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -269,41 +270,41 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
               <div className="space-y-2">
                 <div>
                   <p className={`font-bold text-base ${
-                    isPerson ? 'text-purple-900' : 'text-blue-900'
+                    hasPerson ? 'text-purple-900' : 'text-blue-900'
                   }`}>
-                    {item.location}
+                    {hasPerson ? person?.name : location?.name}
                   </p>
-                  {location && (
+                  {(person || location) && (
                     <p className="text-sm text-gray-600 mt-0.5">
-                      {isPerson ? (
+                      {hasPerson ? (
                         <>
                           <svg className="w-4 h-4 inline mr-1 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                           </svg>
-                          Department: {location.area}
+                          Department: {person?.department}
                         </>
                       ) : (
-                        <>Area: {location.area}</>
+                        <>Area: {location?.area}</>
                       )}
                     </p>
                   )}
                 </div>
-                {location && (
+                {(person || location) && (
                   <div className="flex items-center justify-between pt-2 border-t border-current opacity-30">
                     <span className="text-xs font-mono text-gray-600">
-                      Code: {location.code}
+                      {hasPerson ? `ID: ${person?.employeeId}` : `Code: ${location?.code}`}
                     </span>
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      isPerson 
+                      hasPerson 
                         ? 'bg-purple-200 text-purple-800' 
                         : 'bg-blue-200 text-blue-800'
                     }`}>
-                      {isPerson ? 'Person' : 'Physical'}
+                      {hasPerson ? 'Person' : 'Location'}
                     </span>
                   </div>
                 )}
               </div>
-              {isPerson && (
+              {hasPerson && (
                 <div className="mt-3 pt-3 border-t border-purple-200">
                   <p className="text-xs text-purple-700 italic flex items-center">
                     <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">

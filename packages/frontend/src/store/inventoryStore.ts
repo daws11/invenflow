@@ -4,6 +4,8 @@ import {
   InventoryFilters,
   InventoryResponse,
   InventoryStats,
+  GroupedInventoryItem,
+  GroupedInventoryResponse,
 } from '@invenflow/shared';
 import { inventoryApi } from '../utils/api';
 import { useToastStore } from './toastStore';
@@ -11,6 +13,7 @@ import { useToastStore } from './toastStore';
 interface InventoryState {
   // Data
   items: InventoryItem[];
+  groupedItems: GroupedInventoryItem[];
   stats: InventoryStats | null;
   availableFilters: {
     categories: string[];
@@ -33,6 +36,8 @@ interface InventoryState {
   // Filters
   filters: InventoryFilters;
   viewMode: 'unified' | 'by-kanban' | 'list';
+  displayMode: 'individual' | 'grouped';
+  groupedViewMode: 'grid' | 'list';
 
   // Selected item for detail view
   selectedItem: InventoryItem | null;
@@ -40,10 +45,14 @@ interface InventoryState {
 
   // Actions
   fetchInventory: (params?: Partial<InventoryFilters> & { page?: number; pageSize?: number }) => Promise<void>;
+  fetchGroupedInventory: (params?: { search?: string; category?: string[]; supplier?: string[]; status?: string }) => Promise<void>;
+  fetchProductsBySku: (sku: string) => Promise<InventoryItem[]>;
   fetchStats: () => Promise<void>;
   setFilters: (filters: Partial<InventoryFilters>) => void;
   clearFilters: () => void;
   setViewMode: (mode: 'unified' | 'by-kanban' | 'list') => void;
+  setDisplayMode: (mode: 'individual' | 'grouped') => void;
+  setGroupedViewMode: (mode: 'grid' | 'list') => void;
   setSelectedItem: (item: InventoryItem | null) => void;
   setShowDetailModal: (show: boolean) => void;
   updateProductStock: (productId: string, stockLevel: number) => Promise<void>;
@@ -63,6 +72,7 @@ const defaultFilters: InventoryFilters = {
 export const useInventoryStore = create<InventoryState>((set, get) => ({
   // Initial state
   items: [],
+  groupedItems: [],
   stats: null,
   availableFilters: {
     categories: [],
@@ -79,6 +89,8 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   totalItems: 0,
   filters: defaultFilters,
   viewMode: 'list',
+  displayMode: 'grouped', // Default to grouped view
+  groupedViewMode: 'grid', // Default grouped view as grid
   selectedItem: null,
   showDetailModal: false,
 
@@ -149,9 +161,59 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     get().fetchInventory();
   },
 
+  fetchGroupedInventory: async (params = {}) => {
+    set({ loading: true, error: null });
+
+    try {
+      const response: GroupedInventoryResponse = await inventoryApi.getGroupedInventory(params);
+
+      set({
+        groupedItems: response.items,
+        totalItems: response.total,
+        loading: false,
+      });
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to fetch grouped inventory',
+        loading: false,
+      });
+    }
+  },
+
+  fetchProductsBySku: async (sku: string) => {
+    try {
+      const response: InventoryResponse = await inventoryApi.getInventory({ 
+        search: sku,
+        pageSize: 1000, // Get all products with this SKU
+        columnStatus: ['Purchased', 'Received', 'Stored'], // Include all statuses including incoming (Purchased)
+        sortBy: 'updatedAt',
+        sortOrder: 'desc',
+        viewMode: 'unified',
+      });
+      return response.items;
+    } catch (error) {
+      console.error('Failed to fetch products by SKU:', error);
+      return [];
+    }
+  },
+
   setViewMode: (mode) => {
     set({ viewMode: mode });
     get().fetchInventory();
+  },
+
+  setDisplayMode: (mode) => {
+    set({ displayMode: mode });
+    // Fetch appropriate data based on display mode
+    if (mode === 'grouped') {
+      get().fetchGroupedInventory();
+    } else {
+      get().fetchInventory();
+    }
+  },
+
+  setGroupedViewMode: (mode) => {
+    set({ groupedViewMode: mode });
   },
 
   setSelectedItem: (item) => {

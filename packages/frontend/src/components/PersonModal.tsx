@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import type { Person, CreatePerson, DEFAULT_DEPARTMENTS } from '@invenflow/shared';
+import type { Person, CreatePerson } from '@invenflow/shared';
 import { usePersonStore } from '../store/personStore';
 import { useToastStore } from '../store/toastStore';
 

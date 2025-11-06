@@ -169,6 +169,14 @@ export default function CompactProductRow({ product, onView, location, kanban }:
           {/* Product Name */}
           <div className="flex-1 min-w-0">
             <h4 className="font-medium text-gray-900 truncate">{product.productDetails}</h4>
+            {timeInColumn && (
+              <div className="flex items-center text-xs text-gray-500 mt-0.5">
+                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>In column: {timeInColumn}</span>
+              </div>
+            )}
           </div>
 
           {/* SKU */}
@@ -302,6 +310,13 @@ export default function CompactProductRow({ product, onView, location, kanban }:
               <div>
                 <span className="font-medium text-gray-700">Created:</span>
                 <span className="ml-2 text-gray-600">{new Date(product.createdAt).toLocaleDateString()}</span>
+              </div>
+            )}
+
+            {timeInColumn && (
+              <div>
+                <span className="font-medium text-gray-700">In Column:</span>
+                <span className="ml-2 text-gray-600">{timeInColumn}</span>
               </div>
             )}
           </div>

@@ -24,7 +24,6 @@ import LocationFilter from '../components/LocationFilter';
 import ProductSidebar from '../components/ProductSidebar';
 import ValidationModal from '../components/ValidationModal';
 import { KanbanSettingsModal } from '../components/KanbanSettingsModal';
-import { ThresholdLegend } from '../components/ThresholdLegend';
 import { useToast } from '../store/toastStore';
 
 export default function KanbanBoard() {
@@ -359,13 +358,6 @@ export default function KanbanBoard() {
             </div>
           )}
         </div>
-
-        {/* Threshold Legend */}
-        {currentKanban?.thresholdRules && currentKanban.thresholdRules.length > 0 && (
-          <div className="mb-3 md:mb-4">
-            <ThresholdLegend thresholdRules={currentKanban.thresholdRules} />
-          </div>
-        )}
 
         {/* Render Board or Compact View */}
         {kanbanBoardViewMode === 'board' ? (

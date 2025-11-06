@@ -120,34 +120,6 @@ export default function LocationsPage() {
               
               {/* Quick Actions */}
               <div className="hidden md:flex items-center space-x-2">
-                <button
-                  onClick={() => setSelectedType('person')}
-                  className={`px-3 py-2 rounded-lg transition-colors flex items-center space-x-1.5 text-sm ${
-                    selectedType === 'person'
-                      ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
-                      : 'bg-white text-gray-600 border border-gray-300 hover:bg-purple-50'
-                  }`}
-                  title="Show person assignments only"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  <span>👤 People</span>
-                </button>
-                <button
-                  onClick={() => setSelectedType('physical')}
-                  className={`px-3 py-2 rounded-lg transition-colors flex items-center space-x-1.5 text-sm ${
-                    selectedType === 'physical'
-                      ? 'bg-blue-100 text-blue-700 border-2 border-blue-300'
-                      : 'bg-white text-gray-600 border border-gray-300 hover:bg-blue-50'
-                  }`}
-                  title="Show physical locations only"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                  <span>📍 Physical</span>
-                </button>
                 {selectedType && (
                   <button
                     onClick={() => setSelectedType('')}
@@ -203,29 +175,12 @@ export default function LocationsPage() {
                 <div>
                   <p className="text-sm text-blue-700">Physical Locations</p>
                   <p className="text-3xl font-bold text-blue-900 mt-1">
-                    {locations.filter(loc => loc.type === 'physical').length}
+                    {locations.length}
                   </p>
                 </div>
                 <div className="p-3 bg-white rounded-lg shadow-sm">
                   <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            {/* Person Assignments */}
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-purple-700">Person Assignments</p>
-                  <p className="text-3xl font-bold text-purple-900 mt-1">
-                    {locations.filter(loc => loc.type === 'person').length}
-                  </p>
-                </div>
-                <div className="p-3 bg-white rounded-lg shadow-sm">
-                  <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                   </svg>
                 </div>
               </div>
@@ -249,20 +204,6 @@ export default function LocationsPage() {
                 placeholder="Search by name, code, or area..."
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Filter by Type
-              </label>
-              <select
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">All Types</option>
-                <option value="physical">Physical Locations</option>
-                <option value="person">Person Assignments</option>
-              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -327,33 +268,17 @@ export default function LocationsPage() {
                   {areaLocations.map(location => (
                     <div
                       key={location.id}
-                      className={`relative bg-white rounded-lg shadow hover:shadow-lg transition-all duration-200 p-5 transform hover:-translate-y-1 border-l-4 ${
-                        location.type === 'person' 
-                          ? 'border-purple-500 hover:border-purple-600' 
-                          : 'border-blue-500 hover:border-blue-600'
-                      }`}
+                      className="relative bg-white rounded-lg shadow hover:shadow-lg transition-all duration-200 p-5 transform hover:-translate-y-1 border-l-4 border-blue-500 hover:border-blue-600"
                     >
                       {/* Header with Icon and Type Badge */}
                       <div className="flex items-start justify-between mb-3">
-                        <div className={`p-2 rounded-lg ${
-                          location.type === 'person' ? 'bg-purple-100' : 'bg-blue-100'
-                        }`}>
-                          {location.type === 'person' ? (
-                            <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                          ) : (
-                            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                            </svg>
-                          )}
+                        <div className="p-2 rounded-lg bg-blue-100">
+                          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
                         </div>
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                          location.type === 'person' 
-                            ? 'bg-purple-100 text-purple-700' 
-                            : 'bg-blue-100 text-blue-700'
-                        }`}>
-                          {location.type === 'person' ? '👤 Person' : '📍 Physical'}
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700">
+                          📍 Physical Location
                         </span>
                       </div>
 
@@ -363,22 +288,11 @@ export default function LocationsPage() {
                           {location.name}
                         </h3>
                         <p className="text-sm text-gray-600 font-medium flex items-center">
-                          {location.type === 'person' ? (
-                            <>
-                              <svg className="w-4 h-4 mr-1 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                              </svg>
-                              {location.area}
-                            </>
-                          ) : (
-                            <>
-                              <svg className="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                              </svg>
-                              {location.area}
-                            </>
-                          )}
+                          <svg className="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          {location.area}
                         </p>
                         <p className="text-xs text-gray-500 font-mono mt-1 bg-gray-50 px-2 py-1 rounded inline-block">
                           {location.code}
@@ -403,11 +317,7 @@ export default function LocationsPage() {
                         <div className="flex space-x-1.5">
                           <button
                             onClick={() => openEditModal(location)}
-                            className={`p-1.5 rounded-lg transition-colors ${
-                              location.type === 'person'
-                                ? 'text-purple-600 hover:bg-purple-50'
-                                : 'text-blue-600 hover:bg-blue-50'
-                            }`}
+                            className="p-1.5 rounded-lg transition-colors text-blue-600 hover:bg-blue-50"
                             title="Edit"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

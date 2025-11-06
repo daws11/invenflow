@@ -109,7 +109,14 @@ router.get('/', async (req, res, next) => {
       }
     };
 
-    pushCondition(inArray(products.columnStatus, ['Received', 'Stored']));
+    // Allow filtering by specific column statuses, or default to Received/Stored
+    const columnStatusValues = toStringArray(req.query.columnStatus);
+    if (columnStatusValues.length > 0) {
+      pushCondition(inArray(products.columnStatus, columnStatusValues));
+    } else {
+      // Default: only show Received and Stored products
+      pushCondition(inArray(products.columnStatus, ['Received', 'Stored']));
+    }
 
     if (searchValue) {
       pushCondition(
@@ -130,7 +137,7 @@ router.get('/', async (req, res, next) => {
     }
 
     if (locationValues.length > 0) {
-      pushCondition(inArray(products.location, locationValues));
+      pushCondition(inArray(products.locationId, locationValues));
     }
 
     if (stockMinValue !== undefined) {
@@ -162,18 +169,8 @@ router.get('/', async (req, res, next) => {
 
     const productColumns = getTableColumns(products);
 
-    // Subquery to get all validations for each product, then we'll prioritize in the application logic
-    const productValidationsQuery = db
-      .select({
-        productId: productValidations.productId,
-        columnStatus: productValidations.columnStatus,
-        receivedImage: productValidations.receivedImage,
-        storagePhoto: productValidations.storagePhoto,
-        validatedAt: productValidations.createdAt,
-      })
-      .from(productValidations)
-      .as('product_validations_data');
-
+    // Simplified approach: Get products first, then validations separately
+    // This avoids complex SQL subquery issues with Drizzle ORM
     const inventoryItems = await db
       .select({
         ...productColumns,
@@ -183,38 +180,33 @@ router.get('/', async (req, res, next) => {
           type: kanbans.type,
           linkedKanbanId: kanbans.linkedKanbanId,
         },
-        validations: sql<ProductValidation[]>`
-          COALESCE(
-            json_agg(
-              CASE
-                WHEN ${productValidationsQuery.receivedImage} IS NOT NULL
-                     OR ${productValidationsQuery.storagePhoto} IS NOT NULL
-                THEN jsonb_build_object(
-                  'columnStatus', ${productValidationsQuery.columnStatus},
-                  'receivedImage', ${productValidationsQuery.receivedImage},
-                  'storagePhoto', ${productValidationsQuery.storagePhoto},
-                  'validatedAt', ${productValidationsQuery.validatedAt}
-                )
-                END
-            ) FILTER (WHERE (
-              ${productValidationsQuery.receivedImage} IS NOT NULL
-              OR ${productValidationsQuery.storagePhoto} IS NOT NULL
-            )),
-            '[]'::json
-          )
-        `.as('validations'),
       })
       .from(products)
       .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
-      .leftJoin(
-        productValidationsQuery,
-        eq(productValidationsQuery.productId, products.id)
-      )
       .where(filterCondition)
-      .groupBy(products.id, kanbans.id)
       .orderBy(sortDirection(sortColumn))
       .limit(pageSize)
       .offset(offset);
+
+    // Get validations for these products in a separate query
+    const productIds = inventoryItems.map(item => item.id);
+    let validationsMap: Record<string, any[]> = {};
+    
+    if (productIds.length > 0) {
+      const allValidations = await db
+        .select()
+        .from(productValidations)
+        .where(inArray(productValidations.productId, productIds));
+      
+      // Group validations by productId for efficient lookup
+      validationsMap = allValidations.reduce((acc, validation) => {
+        if (!acc[validation.productId]) {
+          acc[validation.productId] = [];
+        }
+        acc[validation.productId].push(validation);
+        return acc;
+      }, {} as Record<string, any[]>);
+    }
 
     const totalResult = await db
       .select({ value: sql<number>`count(*)` })
@@ -258,18 +250,18 @@ router.get('/', async (req, res, next) => {
         ),
 
       db
-        .selectDistinct({ location: products.location })
+        .selectDistinct({ locationId: products.locationId })
         .from(products)
         .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
         .where(
           and(
             inArray(products.columnStatus, ['Received', 'Stored']),
-            isNotNull(products.location)
+            isNotNull(products.locationId)
           )
         )
         .then((result) =>
           result
-            .map((r) => r.location)
+            .map((r) => r.locationId)
             .filter((value): value is string => Boolean(value))
         ),
 
@@ -288,6 +280,9 @@ router.get('/', async (req, res, next) => {
         (now - updatedAt.getTime()) / (1000 * 60 * 60 * 24)
       );
 
+      // Get validations for this product from the map
+      const productValidations = validationsMap[item.id] || [];
+
       // Enhanced image priority logic for multiple validation records
       let displayImage = item.productImage; // Default fallback
       let availableImages: Array<{
@@ -296,23 +291,21 @@ router.get('/', async (req, res, next) => {
         validatedAt: string;
       }> = [];
 
-      if (item.validations && Array.isArray(item.validations) && item.validations.length > 0) {
-        const validations = item.validations;
-
+      if (productValidations.length > 0) {
         // Build available images array with metadata
-        validations.forEach(validation => {
+        productValidations.forEach(validation => {
           if (validation.columnStatus === 'Received' && validation.receivedImage) {
             availableImages.push({
               url: validation.receivedImage,
               type: 'received',
-              validatedAt: (validation as any).validatedAt || ''
+              validatedAt: validation.createdAt.toISOString()
             });
           }
           if (validation.columnStatus === 'Stored' && validation.storagePhoto) {
             availableImages.push({
               url: validation.storagePhoto,
               type: 'stored',
-              validatedAt: (validation as any).validatedAt || ''
+              validatedAt: validation.createdAt.toISOString()
             });
           }
         });
@@ -323,19 +316,19 @@ router.get('/', async (req, res, next) => {
         // Find the most appropriate image based on current product status
         if (item.columnStatus === 'Stored') {
           // For Stored products: prioritize storagePhoto > receivedImage
-          const storedValidation = validations.find(v => v.columnStatus === 'Stored');
+          const storedValidation = productValidations.find(v => v.columnStatus === 'Stored');
           if (storedValidation?.storagePhoto) {
             displayImage = storedValidation.storagePhoto;
           } else {
             // Fallback to Received image if no Stored image
-            const receivedValidation = validations.find(v => v.columnStatus === 'Received');
+            const receivedValidation = productValidations.find(v => v.columnStatus === 'Received');
             if (receivedValidation?.receivedImage) {
               displayImage = receivedValidation.receivedImage;
             }
           }
         } else if (item.columnStatus === 'Received') {
           // For Received products: prioritize receivedImage
-          const receivedValidation = validations.find(v => v.columnStatus === 'Received');
+          const receivedValidation = productValidations.find(v => v.columnStatus === 'Received');
           if (receivedValidation?.receivedImage) {
             displayImage = receivedValidation.receivedImage;
           }
@@ -344,6 +337,7 @@ router.get('/', async (req, res, next) => {
 
       return {
         ...item,
+        validations: productValidations,
         daysInInventory,
         displayImage,
         hasMultipleImages: availableImages.length > 1,
@@ -453,6 +447,123 @@ router.get('/stats', async (req, res, next) => {
       },
       categoryStats: normalizedCategoryStats,
       supplierStats: normalizedSupplierStats,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get grouped inventory items (products grouped by SKU with status breakdown)
+router.get('/grouped', async (req, res, next) => {
+  try {
+    const searchValue = toStringValue(req.query.search);
+    const categoryValues = toStringArray(req.query.category);
+    const supplierValues = toStringArray(req.query.supplier);
+    const statusFilter = toStringValue(req.query.status);
+
+    // Build WHERE conditions manually for raw SQL (to avoid Drizzle ORM conflicts)
+    const whereClauses: string[] = [];
+    
+    // Base conditions: only receive kanban products with SKU
+    whereClauses.push("k.type = 'receive'");
+    whereClauses.push("p.sku IS NOT NULL");
+
+    // Search filter
+    if (searchValue) {
+      // Escape single quotes to prevent SQL injection
+      const escapedSearch = searchValue.replace(/'/g, "''");
+      whereClauses.push(`(p.product_details ILIKE '%${escapedSearch}%' OR p.sku ILIKE '%${escapedSearch}%')`);
+    }
+
+    // Category filter
+    if (categoryValues.length > 0) {
+      const escapedCategories = categoryValues.map(c => `'${c.replace(/'/g, "''")}'`).join(', ');
+      whereClauses.push(`p.category IN (${escapedCategories})`);
+    }
+
+    // Supplier filter
+    if (supplierValues.length > 0) {
+      const escapedSuppliers = supplierValues.map(s => `'${s.replace(/'/g, "''")}'`).join(', ');
+      whereClauses.push(`p.supplier IN (${escapedSuppliers})`);
+    }
+
+    const whereClause = whereClauses.length > 0 
+      ? `WHERE ${whereClauses.join(' AND ')}` 
+      : '';
+
+    // Execute raw SQL query to group by SKU and calculate status breakdown
+    const groupedResult = await db.execute(
+      sql`
+        SELECT
+          p.sku,
+          MAX(p.product_details) as "productName",
+          MAX(p.category) as category,
+          MAX(p.supplier) as supplier,
+          MAX(p.product_image) as "productImage",
+          COUNT(CASE WHEN p.column_status = 'Purchased' THEN 1 END)::int as incoming,
+          COUNT(CASE WHEN p.column_status = 'Received' THEN 1 END)::int as received,
+          COUNT(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NULL THEN 1 END)::int as stored,
+          COUNT(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NOT NULL THEN 1 END)::int as used,
+          (
+            COUNT(CASE WHEN p.column_status = 'Received' THEN 1 END) +
+            COUNT(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NULL THEN 1 END) +
+            COUNT(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NOT NULL THEN 1 END)
+          )::int as "totalStock",
+          COUNT(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NULL THEN 1 END)::int as available,
+          array_agg(p.id) as "productIds",
+          MAX(p.unit_price) as "unitPrice",
+          MAX(p.updated_at) as "lastUpdated"
+        FROM products p
+        INNER JOIN kanbans k ON p.kanban_id = k.id
+        ${sql.raw(whereClause)}
+        GROUP BY p.sku
+        ORDER BY MAX(p.updated_at) DESC
+      `
+    );
+
+    const groupedItems = Array.from(groupedResult).map((row: any) => ({
+      sku: row.sku,
+      productName: row.productName,
+      category: row.category,
+      supplier: row.supplier,
+      productImage: row.productImage,
+      statusBreakdown: {
+        incoming: Number(row.incoming ?? 0),
+        received: Number(row.received ?? 0),
+        stored: Number(row.stored ?? 0),
+        used: Number(row.used ?? 0),
+      },
+      totalStock: Number(row.totalStock ?? 0),
+      available: Number(row.available ?? 0),
+      productIds: row.productIds as string[],
+      unitPrice: row.unitPrice ? Number(row.unitPrice) : null,
+      lastUpdated: row.lastUpdated,
+    }));
+
+    // Apply status filter if specified
+    let filteredItems = groupedItems;
+    if (statusFilter) {
+      filteredItems = groupedItems.filter((item) => {
+        switch (statusFilter) {
+          case 'incoming':
+            return item.statusBreakdown.incoming > 0;
+          case 'received':
+            return item.statusBreakdown.received > 0;
+          case 'stored':
+            return item.statusBreakdown.stored > 0;
+          case 'used':
+            return item.statusBreakdown.used > 0;
+          case 'available':
+            return item.available > 0;
+          default:
+            return true;
+        }
+      });
+    }
+
+    res.json({
+      items: filteredItems,
+      total: filteredItems.length,
     });
   } catch (error) {
     next(error);

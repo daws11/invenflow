@@ -53,7 +53,7 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
         stockLevel: product.stockLevel?.toString() || '',
         productImage: product.productImage || '',
         category: product.category || '',
-        tags: product.tags?.join(', ') || '',
+        tags: Array.isArray(product.tags) ? product.tags.join(', ') : '',
         supplier: product.supplier || '',
         sku: product.sku || '',
         dimensions: product.dimensions || '',

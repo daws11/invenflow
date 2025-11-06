@@ -3,18 +3,24 @@ import type { InventoryItem } from '@invenflow/shared';
 import { useInventoryStore } from '../store/inventoryStore';
 import { InventoryGrid } from '../components/InventoryGrid';
 import { InventoryList } from '../components/InventoryList';
+import { InventoryGroupedView } from '../components/InventoryGroupedView';
+import { InventoryGroupedList } from '../components/InventoryGroupedList';
 import { InventoryFilters } from '../components/InventoryFilters';
 import { ProductDetailModal } from '../components/ProductDetailModal';
 import { ViewModeDropdown } from '../components/ViewModeDropdown';
 import {
   MagnifyingGlassIcon,
   AdjustmentsHorizontalIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  Squares2X2Icon,
+  RectangleStackIcon,
+  TableCellsIcon
 } from '@heroicons/react/24/outline';
 
 export default function InventoryManager() {
   const {
     items,
+    groupedItems,
     stats,
     loading,
     error,
@@ -24,13 +30,18 @@ export default function InventoryManager() {
     totalItems,
     filters,
     viewMode,
+    displayMode,
+    groupedViewMode,
     selectedItem,
     showDetailModal,
     fetchInventory,
+    fetchGroupedInventory,
     fetchStats,
     setFilters,
     clearFilters,
     setViewMode,
+    setDisplayMode,
+    setGroupedViewMode,
     setSelectedItem,
     setShowDetailModal,
     setPage,
@@ -42,9 +53,13 @@ export default function InventoryManager() {
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
-    fetchInventory();
+    if (displayMode === 'individual') {
+      fetchInventory();
+    } else {
+      fetchGroupedInventory();
+    }
     fetchStats();
-  }, [fetchInventory, fetchStats]);
+  }, [displayMode, fetchInventory, fetchGroupedInventory, fetchStats]);
 
   // Debounced search
   useEffect(() => {
@@ -110,10 +125,70 @@ export default function InventoryManager() {
             </p>
           </div>
           <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-            <ViewModeDropdown
-              currentMode={viewMode}
-              onModeChange={setViewMode}
-            />
+            {/* Display Mode Toggle */}
+            <div className="inline-flex rounded-md shadow-sm" role="group">
+              <button
+                onClick={() => setDisplayMode('individual')}
+                className={`inline-flex items-center px-3 py-2 text-sm font-medium border rounded-l-md transition-colors ${
+                  displayMode === 'individual'
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+                title="Individual View"
+              >
+                <Squares2X2Icon className="h-4 w-4 mr-2" />
+                Individual
+              </button>
+              <button
+                onClick={() => setDisplayMode('grouped')}
+                className={`inline-flex items-center px-3 py-2 text-sm font-medium border-t border-b border-r rounded-r-md transition-colors ${
+                  displayMode === 'grouped'
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+                title="Grouped View"
+              >
+                <RectangleStackIcon className="h-4 w-4 mr-2" />
+                Grouped
+              </button>
+            </div>
+
+            {/* View Mode Toggle/Dropdown */}
+            {displayMode === 'individual' ? (
+              <ViewModeDropdown
+                currentMode={viewMode}
+                onModeChange={setViewMode}
+              />
+            ) : (
+              /* Grouped View Mode Toggle */
+              <div className="inline-flex rounded-md shadow-sm" role="group">
+                <button
+                  onClick={() => setGroupedViewMode('grid')}
+                  className={`inline-flex items-center px-3 py-2 text-sm font-medium border rounded-l-md transition-colors ${
+                    groupedViewMode === 'grid'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                  title="Grid View"
+                >
+                  <Squares2X2Icon className="h-4 w-4 mr-2" />
+                  Grid
+                </button>
+                <button
+                  onClick={() => setGroupedViewMode('list')}
+                  className={`inline-flex items-center px-3 py-2 text-sm font-medium border-t border-b border-r rounded-r-md transition-colors ${
+                    groupedViewMode === 'list'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                  title="List View"
+                >
+                  <TableCellsIcon className="h-4 w-4 mr-2" />
+                  List
+                </button>
+              </div>
+            )}
+
             <button
               onClick={refreshInventory}
               className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -278,7 +353,21 @@ export default function InventoryManager() {
 
       {/* Inventory Display */}
       <div className="bg-white shadow rounded-lg">
-        {viewMode === 'list' ? (
+        {displayMode === 'grouped' ? (
+          <div className={groupedViewMode === 'grid' ? 'p-6' : ''}>
+            {groupedViewMode === 'list' ? (
+              <InventoryGroupedList
+                items={groupedItems}
+                loading={loading}
+              />
+            ) : (
+              <InventoryGroupedView
+                items={groupedItems}
+                loading={loading}
+              />
+            )}
+          </div>
+        ) : viewMode === 'list' ? (
           <InventoryList
             items={items}
             loading={loading}
@@ -294,8 +383,8 @@ export default function InventoryManager() {
         )}
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
+      {/* Pagination (only for individual mode) */}
+      {displayMode === 'individual' && totalPages > 1 && (
         <div className="bg-white shadow rounded-lg px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
           <div className="flex-1 flex justify-between sm:hidden">
             <button

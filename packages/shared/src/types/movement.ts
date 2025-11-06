@@ -56,10 +56,11 @@ export const MovementFiltersSchema = z.object({
 export const MovementStatsSchema = z.object({
   totalMovements: z.number().int().min(0),
   activeProducts: z.number().int().min(0),
-  mostUsedLocations: z.array(z.object({
-    locationId: z.string().uuid(),
-    locationName: z.string(),
-    locationCode: z.string(),
+  mostActiveRecipients: z.array(z.object({
+    recipientId: z.string().uuid(),
+    recipientName: z.string(),
+    recipientCode: z.string(),
+    recipientType: z.enum(['location', 'person']),
     movementCount: z.number().int().min(0),
   })),
   recentMovements: z.array(MovementLogSchema),

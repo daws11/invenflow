@@ -82,8 +82,9 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
       <div className="flow-root">
         <ul className="-mb-8">
           {movements.map((movement, idx) => {
-            const isPerson = movement.toLocation?.type === 'person';
-            const wasPersonBefore = movement.fromLocation?.type === 'person';
+            const hasToPerson = !!movement.toPerson;
+            const hasFromPerson = !!movement.fromPerson;
+            const isPersonMovement = hasToPerson;
             
             return (
             <li key={movement.id}>
@@ -91,7 +92,7 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
                 {idx !== movements.length - 1 && (
                   <span
                     className={`absolute top-5 left-5 -ml-px h-full w-0.5 ${
-                      isPerson ? 'bg-purple-200' : 'bg-blue-200'
+                      isPersonMovement ? 'bg-purple-200' : 'bg-blue-200'
                     }`}
                     aria-hidden="true"
                   />
@@ -100,9 +101,9 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
                   {/* Timeline Icon */}
                   <div className="relative">
                     <div className={`h-10 w-10 rounded-full flex items-center justify-center ring-8 ring-white ${
-                      isPerson ? 'bg-purple-500' : 'bg-blue-500'
+                      isPersonMovement ? 'bg-purple-500' : 'bg-blue-500'
                     }`}>
-                      {isPerson ? (
+                      {isPersonMovement ? (
                         <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
@@ -115,14 +116,14 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
                   <div className="min-w-0 flex-1">
                     {/* Header with action and date */}
                     <div className={`rounded-lg border-l-4 p-3 ${
-                      isPerson 
+                      isPersonMovement 
                         ? 'bg-purple-50 border-purple-500' 
                         : 'bg-blue-50 border-blue-500'
                     }`}>
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">
                           <div className="text-sm font-semibold text-gray-900 flex items-center">
-                            {isPerson ? (
+                            {isPersonMovement ? (
                               <>
                                 <svg className="w-4 h-4 mr-1.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -142,62 +143,74 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
                           </p>
                         </div>
                         <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                          isPerson 
+                          isPersonMovement 
                             ? 'bg-purple-200 text-purple-800' 
                             : 'bg-blue-200 text-blue-800'
                         }`}>
-                          {isPerson ? 'Person' : 'Physical'}
+                          {isPersonMovement ? 'Person' : 'Location'}
                         </span>
                       </div>
 
                       {/* Movement Details */}
                       <div className="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm">
-                        {/* From Location */}
+                        {/* From */}
                         <div className="flex-1">
                           <div className="text-xs font-medium text-gray-500 mb-1.5">From</div>
-                          {movement.fromLocation ? (
+                          {movement.fromPerson ? (
                             <div>
                               <div className="flex items-center">
-                                {wasPersonBefore ? (
-                                  <svg className="w-4 h-4 mr-1 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                  </svg>
-                                ) : (
-                                  <svg className="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                  </svg>
-                                )}
-                                <span className="font-medium text-sm">{movement.fromLocation.name}</span>
+                                <svg className="w-4 h-4 mr-1 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                <span className="font-medium text-sm text-purple-900">{movement.fromPerson.name}</span>
+                              </div>
+                              <div className="text-xs text-gray-500 mt-0.5 ml-5">
+                                {movement.fromPerson.department}
+                              </div>
+                            </div>
+                          ) : movement.fromLocation ? (
+                            <div>
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                </svg>
+                                <span className="font-medium text-sm text-blue-900">{movement.fromLocation.name}</span>
                               </div>
                               <div className="text-xs text-gray-500 mt-0.5 ml-5">
                                 {movement.fromLocation.area}
                               </div>
                             </div>
                           ) : (
-                            <div className="text-gray-400 italic text-sm">Initial location</div>
+                            <div className="text-gray-400 italic text-sm">—</div>
                           )}
                         </div>
 
                         <ArrowRightIcon className={`h-5 w-5 flex-shrink-0 ${
-                          isPerson ? 'text-purple-400' : 'text-blue-400'
+                          isPersonMovement ? 'text-purple-400' : 'text-blue-400'
                         }`} />
 
-                        {/* To Location */}
+                        {/* To */}
                         <div className="flex-1">
                           <div className="text-xs font-medium text-gray-500 mb-1.5">To</div>
-                          {movement.toLocation ? (
+                          {movement.toPerson ? (
                             <div>
                               <div className="flex items-center">
-                                {isPerson ? (
-                                  <svg className="w-4 h-4 mr-1 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                  </svg>
-                                ) : (
-                                  <svg className="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                  </svg>
-                                )}
-                                <span className="font-medium text-sm">{movement.toLocation.name}</span>
+                                <svg className="w-4 h-4 mr-1 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                <span className="font-medium text-sm text-purple-900">{movement.toPerson.name}</span>
+                              </div>
+                              <div className="text-xs text-gray-500 mt-0.5 ml-5">
+                                {movement.toPerson.department}
+                              </div>
+                            </div>
+                          ) : movement.toLocation ? (
+                            <div>
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                </svg>
+                                <span className="font-medium text-sm text-blue-900">{movement.toLocation.name}</span>
                               </div>
                               <div className="text-xs text-gray-500 mt-0.5 ml-5">
                                 {movement.toLocation.area}

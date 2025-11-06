@@ -41,6 +41,7 @@ export const InventoryFiltersSchema = z.object({
   category: z.array(z.string()).optional(),
   supplier: z.array(z.string()).optional(),
   location: z.array(z.string()).optional(),
+  columnStatus: z.array(z.string()).optional(), // Filter by specific column statuses
   stockMin: z.number().int().min(0).optional(),
   stockMax: z.number().int().min(0).optional(),
   dateFrom: z.date().optional(),
@@ -116,3 +117,36 @@ export const SORT_OPTIONS = [
 ] as const;
 
 export type SortOption = typeof SORT_OPTIONS[number]['value'];
+
+// Product status breakdown for grouped inventory
+export const ProductStatusBreakdownSchema = z.object({
+  incoming: z.number().int().min(0),
+  received: z.number().int().min(0),
+  stored: z.number().int().min(0),
+  used: z.number().int().min(0),
+});
+
+// Grouped inventory item (products grouped by SKU)
+export const GroupedInventoryItemSchema = z.object({
+  sku: z.string(),
+  productName: z.string(),
+  category: z.string().nullable(),
+  supplier: z.string().nullable(),
+  productImage: z.string().url().nullable(),
+  statusBreakdown: ProductStatusBreakdownSchema,
+  totalStock: z.number().int().min(0), // received + stored + used (excludes incoming)
+  available: z.number().int().min(0), // stored only (not assigned)
+  productIds: z.array(z.string().uuid()),
+  unitPrice: z.number().nullable(),
+  lastUpdated: z.coerce.date(),
+});
+
+// Grouped inventory response
+export const GroupedInventoryResponseSchema = z.object({
+  items: z.array(GroupedInventoryItemSchema),
+  total: z.number(),
+});
+
+export type ProductStatusBreakdown = z.infer<typeof ProductStatusBreakdownSchema>;
+export type GroupedInventoryItem = z.infer<typeof GroupedInventoryItemSchema>;
+export type GroupedInventoryResponse = z.infer<typeof GroupedInventoryResponseSchema>;

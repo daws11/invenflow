@@ -5,7 +5,7 @@ import { PersonModal } from '../components/PersonModal';
 import { PersonCard } from '../components/PersonCard';
 import type { Person } from '@invenflow/shared';
 
-export function PersonsPage() {
+export default function PersonsPage() {
   const { persons, loading, fetchPersons } = usePersonStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
