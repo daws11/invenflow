@@ -1,15 +1,14 @@
 import { z } from 'zod';
 
-// Location types
-export const LocationTypeEnum = z.enum(['physical', 'person']);
-export type LocationType = z.infer<typeof LocationTypeEnum>;
-
 export const LocationSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1).max(255),
   area: z.string().min(1).max(255),
   code: z.string().min(1).max(50),
-  type: LocationTypeEnum,
+  building: z.string().max(255).nullable(),
+  floor: z.string().max(50).nullable(),
+  capacity: z.number().int().positive().nullable(),
+  isActive: z.boolean(),
   description: z.string().max(1000).nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -19,15 +18,21 @@ export const CreateLocationSchema = z.object({
   name: z.string().min(1).max(255),
   area: z.string().min(1).max(255),
   code: z.string().min(1).max(50),
-  type: LocationTypeEnum.default('physical'),
-  description: z.string().max(1000).nullable(),
+  building: z.string().max(255).nullable().optional(),
+  floor: z.string().max(50).nullable().optional(),
+  capacity: z.number().int().positive().nullable().optional(),
+  isActive: z.boolean().default(true).optional(),
+  description: z.string().max(1000).nullable().optional(),
 });
 
 export const UpdateLocationSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   area: z.string().min(1).max(255).optional(),
   code: z.string().min(1).max(50).optional(),
-  type: LocationTypeEnum.optional(),
+  building: z.string().max(255).nullable().optional(),
+  floor: z.string().max(50).nullable().optional(),
+  capacity: z.number().int().positive().nullable().optional(),
+  isActive: z.boolean().optional(),
   description: z.string().max(1000).nullable().optional(),
 });
 
@@ -36,7 +41,7 @@ export type CreateLocation = z.infer<typeof CreateLocationSchema>;
 export type UpdateLocation = z.infer<typeof UpdateLocationSchema>;
 
 // Default areas for physical locations
-export const DEFAULT_PHYSICAL_AREAS = [
+export const DEFAULT_AREAS = [
   'Gudang Utama',
   'Gudang A',
   'Gudang B',
@@ -48,23 +53,6 @@ export const DEFAULT_PHYSICAL_AREAS = [
   'Area Packaging',
   'Gudang Sementara'
 ] as const;
-
-// Default areas for person assignments
-export const DEFAULT_PERSON_AREAS = [
-  'Assigned Personnel',
-  'HR Team',
-  'IT Team',
-  'Finance Team',
-  'Operations Team',
-  'Management',
-  'Sales Team',
-  'Marketing Team',
-  'Engineering Team',
-  'Support Team'
-] as const;
-
-// Combined default areas
-export const DEFAULT_AREAS = [...DEFAULT_PHYSICAL_AREAS, ...DEFAULT_PERSON_AREAS] as const;
 
 export type Area = typeof DEFAULT_AREAS[number];
 
@@ -78,9 +66,4 @@ export function generateLocationCode(area: string, name: string): string {
 // Helper function to validate location code uniqueness
 export function isValidLocationCode(code: string, existingCodes: string[]): boolean {
   return !existingCodes.includes(code);
-}
-
-// Helper function to get appropriate areas based on location type
-export function getAreasByType(type: LocationType): readonly string[] {
-  return type === 'person' ? DEFAULT_PERSON_AREAS : DEFAULT_PHYSICAL_AREAS;
 }

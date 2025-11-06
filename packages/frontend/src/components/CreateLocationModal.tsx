@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CreateLocation, LocationType, DEFAULT_PHYSICAL_AREAS, DEFAULT_PERSON_AREAS } from '@invenflow/shared';
+import { CreateLocation, DEFAULT_AREAS } from '@invenflow/shared';
 import { Slider } from './Slider';
 
 interface CreateLocationModalProps {
@@ -13,7 +13,10 @@ export function CreateLocationModal({ isOpen, onClose, onCreate }: CreateLocatio
     name: '',
     area: '',
     code: '',
-    type: 'physical',
+    building: null,
+    floor: null,
+    capacity: null,
+    isActive: true,
     description: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,7 +29,10 @@ export function CreateLocationModal({ isOpen, onClose, onCreate }: CreateLocatio
         name: '',
         area: '',
         code: '',
-        type: 'physical',
+        building: null,
+        floor: null,
+        capacity: null,
+        isActive: true,
         description: '',
       });
       setErrors({});
@@ -39,7 +45,7 @@ export function CreateLocationModal({ isOpen, onClose, onCreate }: CreateLocatio
     return `${areaCode}-${nameCode}`;
   };
 
-  const handleFormChange = (field: keyof CreateLocation, value: string) => {
+  const handleFormChange = (field: keyof CreateLocation, value: any) => {
     const newFormData = { ...formData, [field]: value };
 
     // Auto-generate code if name or area changes and code is empty
@@ -91,235 +97,94 @@ export function CreateLocationModal({ isOpen, onClose, onCreate }: CreateLocatio
       await onCreate(formData);
       onClose();
     } catch (error) {
-      // Error handling is done in parent component via toast
-      console.error('Failed to create location:', error);
+      // Error is handled by parent
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const footer = (
-    <div className="flex justify-end space-x-3">
-      <button
-        type="button"
-        onClick={onClose}
-        disabled={isSubmitting}
-        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
-      >
-        Cancel
-      </button>
-      <button
-        type="submit"
-        onClick={handleSubmit}
-        disabled={isSubmitting}
-        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-      >
-        {isSubmitting ? (
-          <>
-            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Creating...
-          </>
-        ) : (
-          'Create Location'
-        )}
-      </button>
-    </div>
-  );
+  if (!isOpen) return null;
+
+  const availableAreas = DEFAULT_AREAS;
 
   return (
-    <Slider
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Create New Location"
-      footer={footer}
-    >
-      <form onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            {/* Location Type Selector - Enhanced */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                What are you creating? <span className="text-red-500">*</span>
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                {/* Physical Location Card */}
-                <label className={`relative cursor-pointer rounded-lg border-2 p-4 transition-all ${
-                  formData.type === 'physical'
-                    ? 'border-blue-500 bg-blue-50 shadow-md'
-                    : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-sm'
-                }`}>
-                  <input
-                    type="radio"
-                    name="type"
-                    value="physical"
-                    checked={formData.type === 'physical'}
-                    onChange={(e) => {
-                      handleFormChange('type', e.target.value as LocationType);
-                      setFormData(prev => ({ ...prev, area: '' }));
-                    }}
-                    disabled={isSubmitting}
-                    className="sr-only"
-                  />
-                  <div className="flex flex-col items-center text-center">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 ${
-                      formData.type === 'physical' ? 'bg-blue-100' : 'bg-gray-100'
-                    }`}>
-                      <svg className={`w-7 h-7 ${formData.type === 'physical' ? 'text-blue-600' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                      </svg>
-                    </div>
-                    <span className={`font-medium ${formData.type === 'physical' ? 'text-blue-900' : 'text-gray-900'}`}>
-                      Physical Location
-                    </span>
-                    <span className="text-xs text-gray-500 mt-1">
-                      Warehouse, office, storage
-                    </span>
-                  </div>
-                  {formData.type === 'physical' && (
-                    <div className="absolute top-2 right-2">
-                      <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                  )}
-                </label>
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" onClick={onClose} />
 
-                {/* Person Assignment Card */}
-                <label className={`relative cursor-pointer rounded-lg border-2 p-4 transition-all ${
-                  formData.type === 'person'
-                    ? 'border-purple-500 bg-purple-50 shadow-md'
-                    : 'border-gray-200 bg-white hover:border-purple-300 hover:shadow-sm'
-                }`}>
-                  <input
-                    type="radio"
-                    name="type"
-                    value="person"
-                    checked={formData.type === 'person'}
-                    onChange={(e) => {
-                      handleFormChange('type', e.target.value as LocationType);
-                      setFormData(prev => ({ ...prev, area: '' }));
-                    }}
-                    disabled={isSubmitting}
-                    className="sr-only"
-                  />
-                  <div className="flex flex-col items-center text-center">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 ${
-                      formData.type === 'person' ? 'bg-purple-100' : 'bg-gray-100'
-                    }`}>
-                      <svg className={`w-7 h-7 ${formData.type === 'person' ? 'text-purple-600' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                    </div>
-                    <span className={`font-medium ${formData.type === 'person' ? 'text-purple-900' : 'text-gray-900'}`}>
-                      Person Assignment
-                    </span>
-                    <span className="text-xs text-gray-500 mt-1">
-                      Individual, employee
-                    </span>
-                  </div>
-                  {formData.type === 'person' && (
-                    <div className="absolute top-2 right-2">
-                      <svg className="w-5 h-5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                  )}
-                </label>
+      {/* Modal */}
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Create Physical Location</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Add a new storage or warehouse location
+                </p>
               </div>
-              
-              {/* Info Box */}
-              {formData.type === 'person' && (
-                <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                  <div className="flex items-start">
-                    <svg className="w-5 h-5 text-purple-600 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                    <div className="text-sm text-purple-800">
-                      <p className="font-medium mb-1">💡 Tips for Person Assignment:</p>
-                      <ul className="text-xs space-y-1">
-                        <li>• Use full names (e.g., "John Doe", "Jane Smith")</li>
-                        <li>• Select appropriate team/department as area</li>
-                        <li>• Track who's responsible for company assets</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
+          </div>
 
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto max-h-[calc(90vh-140px)]">
+            {/* Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {formData.type === 'person' ? (
-                  <>
-                    <span className="inline-flex items-center">
-                      <svg className="w-4 h-4 mr-1 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      Person Name
-                    </span>
-                  </>
-                ) : 'Location Name'} <span className="text-red-500">*</span>
+                Location Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                required
                 value={formData.name}
                 onChange={(e) => handleFormChange('name', e.target.value)}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 ${
-                  formData.type === 'person' 
-                    ? 'focus:ring-purple-500 border-purple-200' 
-                    : 'focus:ring-blue-500 border-gray-300'
-                } focus:border-transparent ${
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 border-gray-300 focus:border-transparent ${
                   errors.name ? 'border-red-300' : ''
                 }`}
-                placeholder={formData.type === 'physical' ? 'e.g., Rack A-1, Warehouse Section B' : 'e.g., John Doe, Jane Smith'}
+                placeholder="e.g., Rack A-1, Warehouse Section B"
                 disabled={isSubmitting}
               />
-              {formData.type === 'person' && !formData.name && (
-                <p className="mt-1 text-xs text-purple-600">💡 Enter the employee's full name</p>
-              )}
               {errors.name && (
                 <p className="mt-1 text-sm text-red-600">{errors.name}</p>
               )}
             </div>
 
+            {/* Area */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {formData.type === 'person' ? 'Department / Team' : 'Area'} <span className="text-red-500">*</span>
+                Area <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                required
                 value={formData.area}
                 onChange={(e) => handleFormChange('area', e.target.value)}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 ${
-                  formData.type === 'person' 
-                    ? 'focus:ring-purple-500 border-purple-200' 
-                    : 'focus:ring-blue-500 border-gray-300'
-                } focus:border-transparent ${
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 border-gray-300 focus:border-transparent ${
                   errors.area ? 'border-red-300' : ''
                 }`}
-                placeholder={formData.type === 'physical' ? 'e.g., Gudang Utama, Main Office' : 'e.g., HR Team, IT Department'}
+                placeholder="e.g., Gudang Utama, Workshop"
                 disabled={isSubmitting}
               />
               <div className="mt-2">
                 <p className="text-xs text-gray-500 mb-1.5">
-                  {formData.type === 'person' ? '👥 Quick select department:' : '📍 Or select from locations:'}
+                  📍 Quick select from common areas:
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {(formData.type === 'physical' ? DEFAULT_PHYSICAL_AREAS : DEFAULT_PERSON_AREAS).slice(0, 6).map(area => (
+                  {availableAreas.map((area) => (
                     <button
                       key={area}
                       type="button"
                       onClick={() => handleFormChange('area', area)}
                       disabled={isSubmitting}
-                      className={`text-xs px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-50 ${
-                        formData.type === 'person'
-                          ? 'bg-purple-100 hover:bg-purple-200 text-purple-700'
-                          : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
-                      }`}
+                      className="text-xs px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-50 bg-blue-100 hover:bg-blue-200 text-blue-700"
                     >
                       {area}
                     </button>
@@ -331,43 +196,127 @@ export function CreateLocationModal({ isOpen, onClose, onCreate }: CreateLocatio
               )}
             </div>
 
+            {/* Location Code */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Location Code <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                required
                 value={formData.code}
-                onChange={(e) => handleFormChange('code', e.target.value.toUpperCase())}
-                className={`w-full px-3 py-2 border rounded-lg font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  errors.code ? 'border-red-300' : 'border-gray-300'
+                onChange={(e) => handleFormChange('code', e.target.value.toUpperCase().replace(/\s+/g, '-'))}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 border-gray-300 focus:border-transparent ${
+                  errors.code ? 'border-red-300' : ''
                 }`}
                 placeholder="e.g., GUDANG-UTAMA-RACK-A1"
                 disabled={isSubmitting}
               />
-              <p className="text-xs text-gray-500 mt-1">Auto-generated based on area and name</p>
+              <p className="mt-1 text-xs text-gray-500">
+                💡 Will be auto-generated from area + name
+              </p>
               {errors.code && (
                 <p className="mt-1 text-sm text-red-600">{errors.code}</p>
               )}
             </div>
 
+            {/* Building */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description
+                Building (Optional)
               </label>
-              <textarea
-                value={formData.description ?? ''}
-                onChange={(e) => handleFormChange('description', e.target.value)}
+              <input
+                type="text"
+                value={formData.building || ''}
+                onChange={(e) => handleFormChange('building', e.target.value || null)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                rows={3}
-                placeholder="Optional description of this location"
+                placeholder="e.g., Building A, Main Warehouse"
                 disabled={isSubmitting}
               />
             </div>
+
+            {/* Floor */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Floor (Optional)
+              </label>
+              <input
+                type="text"
+                value={formData.floor || ''}
+                onChange={(e) => handleFormChange('floor', e.target.value || null)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="e.g., Ground Floor, Floor 2"
+                disabled={isSubmitting}
+              />
+            </div>
+
+            {/* Capacity */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Capacity (Optional)
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={formData.capacity || ''}
+                onChange={(e) => handleFormChange('capacity', e.target.value ? parseInt(e.target.value) : null)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Maximum storage capacity"
+                disabled={isSubmitting}
+              />
+            </div>
+
+            {/* Active Status */}
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="isActive"
+                checked={formData.isActive}
+                onChange={(e) => handleFormChange('isActive', e.target.checked)}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                disabled={isSubmitting}
+              />
+              <label htmlFor="isActive" className="ml-2 text-sm text-gray-700">
+                Location is active
+              </label>
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description (Optional)
+              </label>
+              <textarea
+                value={formData.description || ''}
+                onChange={(e) => handleFormChange('description', e.target.value || null)}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                placeholder="Additional notes about this location..."
+                disabled={isSubmitting}
+              />
+            </div>
+          </form>
+
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              {isSubmitting ? 'Creating...' : 'Create Location'}
+            </button>
           </div>
-        </form>
-    </Slider>
+        </div>
+      </div>
+    </div>
   );
 }
-

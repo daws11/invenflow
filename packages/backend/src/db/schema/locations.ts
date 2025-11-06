@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, index, integer, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { products } from './products';
 
@@ -9,7 +9,10 @@ export const locations = pgTable(
     name: text('name').notNull(),
     area: text('area').notNull(),
     code: text('code').notNull().unique(),
-    type: text('type').notNull().default('physical'), // 'physical' or 'person'
+    building: text('building'),
+    floor: text('floor'),
+    capacity: integer('capacity'),
+    isActive: boolean('is_active').notNull().default(true),
     description: text('description'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -18,7 +21,8 @@ export const locations = pgTable(
     areaIdx: index('locations_area_idx').on(table.area),
     codeIdx: index('locations_code_idx').on(table.code),
     nameIdx: index('locations_name_idx').on(table.name),
-    typeIdx: index('locations_type_idx').on(table.type),
+    buildingIdx: index('locations_building_idx').on(table.building),
+    isActiveIdx: index('locations_is_active_idx').on(table.isActive),
     uniqueAreaName: index('locations_area_name_idx').on(table.area, table.name),
   })
 );

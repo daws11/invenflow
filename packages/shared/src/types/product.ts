@@ -7,10 +7,11 @@ export const ProductSchema = z.object({
   columnStatus: z.string(),
   productDetails: z.string().min(1).max(1000),
   productLink: z.string().url().nullable(),
-  location: z.string().max(255).nullable(),
   locationId: z.string().uuid().nullable(),
+  assignedToPersonId: z.string().uuid().nullable(),
   priority: z.string().max(100).nullable(),
   stockLevel: z.number().int().min(0).nullable(),
+  sourceProductId: z.string().uuid().nullable(),
   // Enhanced fields
   productImage: z.string().url().nullable(),
   category: z.string().max(100).nullable(),
@@ -31,8 +32,8 @@ export const CreateProductSchema = z.object({
   columnStatus: z.string(),
   productDetails: z.string().min(1).max(1000),
   productLink: z.string().url().nullable(),
-  location: z.string().max(255).nullable(),
   locationId: z.string().uuid().nullable(),
+  assignedToPersonId: z.string().uuid().nullable(),
   priority: z.string().max(100).nullable(),
   // Enhanced fields
   productImage: z.string().url().nullable(),
@@ -50,8 +51,8 @@ export const CreateProductSchema = z.object({
 export const UpdateProductSchema = z.object({
   productDetails: z.string().min(1).max(1000).optional(),
   productLink: z.string().url().nullable().optional(),
-  location: z.string().max(255).nullable().optional(),
   locationId: z.string().uuid().nullable().optional(),
+  assignedToPersonId: z.string().uuid().nullable().optional(),
   priority: z.string().max(100).nullable().optional(),
   stockLevel: z.number().int().min(0).nullable().optional(),
   // Enhanced fields
@@ -73,8 +74,8 @@ export const MoveProductSchema = z.object({
 export const PublicFormSubmitSchema = z.object({
   productDetails: z.string().min(1).max(1000),
   productLink: z.string().url().nullable(),
-  location: z.string().max(255).nullable(),
   locationId: z.string().uuid().nullable(),
+  assignedToPersonId: z.string().uuid().nullable(),
   priority: z.string().max(100).nullable(),
   // Enhanced fields for public forms
   category: z.string().max(100).nullable(),

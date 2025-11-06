@@ -57,6 +57,34 @@
       "when": 1762366318742,
       "tag": "0007_reflective_william_stryker",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1762366318743,
+      "tag": "0008_muted_dazzler",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1762414032385,
+      "tag": "0009_striped_valkyrie",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1762415089262,
+      "tag": "0010_crazy_robbie_robertson",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1762417568802,
+      "tag": "0011_military_pet_avengers",
+      "breakpoints": true
     }
   ]
 }
