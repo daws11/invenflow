@@ -43,7 +43,18 @@ router.post('/form/:token', async (req, res, next) => {
       productDetails,
       productLink,
       location,
+      locationId,
       priority,
+      category,
+      supplier,
+      sku,
+      productImage,
+      dimensions,
+      weight,
+      unitPrice,
+      tags,
+      notes,
+      stockLevel,
     } = req.body;
 
     if (!productDetails) {
@@ -72,8 +83,18 @@ router.post('/form/:token', async (req, res, next) => {
       productDetails,
       productLink: productLink || null,
       location: location || null,
+      locationId: locationId || null,
       priority: priority || null,
-      stockLevel: null,
+      category: category || null,
+      supplier: supplier || null,
+      sku: sku || null,
+      productImage: productImage || null,
+      dimensions: dimensions || null,
+      weight: weight || null,
+      unitPrice: unitPrice || null,
+      tags: tags || null,
+      notes: notes || null,
+      stockLevel: stockLevel ? parseInt(stockLevel) : null,
     };
 
     const [createdProduct] = await db

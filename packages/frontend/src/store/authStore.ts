@@ -12,7 +12,7 @@ interface AuthState {
 
   // Actions
   login: (credentials: Login) => Promise<void>;
-  logout: () => void;
+  logout: (redirectToLogin?: boolean) => void;
   fetchCurrentUser: () => Promise<void>;
   clearError: () => void;
   setLoading: (loading: boolean) => void;
@@ -56,7 +56,7 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      logout: () => {
+      logout: (redirectToLogin = false) => {
         // Remove token from localStorage
         localStorage.removeItem('auth_token');
 
@@ -67,6 +67,11 @@ export const useAuthStore = create<AuthState>()(
           error: null,
           loading: false,
         });
+
+        // Redirect to login if requested (useful for token expiration)
+        if (redirectToLogin) {
+          window.location.href = '/login';
+        }
       },
 
       fetchCurrentUser: async () => {
@@ -89,7 +94,7 @@ export const useAuthStore = create<AuthState>()(
             error: null,
           });
         } catch (error: any) {
-          // Token is invalid or expired
+          // Token is invalid or expired - logout and redirect to login
           localStorage.removeItem('auth_token');
           set({
             loading: false,
@@ -98,6 +103,8 @@ export const useAuthStore = create<AuthState>()(
             token: null,
             isAuthenticated: false,
           });
+          // Redirect to login on token expiration
+          window.location.href = '/login';
         }
       },
 

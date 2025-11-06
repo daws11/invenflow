@@ -26,7 +26,7 @@ export const authenticateToken = (
 
   jwt.verify(token, env.JWT_SECRET, (err, decoded) => {
     if (err) {
-      return next(createError('Invalid or expired token', 403));
+      return next(createError('Invalid or expired token', 401));
     }
 
     // Attach user info to request

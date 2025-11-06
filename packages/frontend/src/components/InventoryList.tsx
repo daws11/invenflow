@@ -17,7 +17,9 @@ import {
   ArrowUpIcon,
   ArrowDownIcon,
   ArrowsUpDownIcon,
+  ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline';
+import { MovementModal } from './MovementModal';
 
 interface InventoryListProps {
   items: InventoryItem[];
@@ -37,6 +39,18 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
   const { locations } = useLocationStore();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<SortConfig>({ field: 'updatedAt', direction: 'desc' });
+  const [selectedProductForMove, setSelectedProductForMove] = useState<InventoryItem | null>(null);
+  const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
+
+  const handleMoveClick = (e: React.MouseEvent, item: InventoryItem) => {
+    e.stopPropagation();
+    setSelectedProductForMove(item);
+    setIsMovementModalOpen(true);
+  };
+
+  const handleMovementSuccess = () => {
+    setSelectedProductForMove(null);
+  };
 
   // Create location lookup map
   const locationMap = useMemo(() => {
@@ -366,13 +380,22 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
                         <EyeIcon className="h-4 w-4" />
                       </button>
                       {item.columnStatus === 'Stored' && (
-                        <button
-                          onClick={() => onProductClick(item)}
-                          className="text-gray-600 hover:text-gray-900"
-                          title="Edit item"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </button>
+                        <>
+                          <button
+                            onClick={(e) => handleMoveClick(e, item)}
+                            className="text-green-600 hover:text-green-900"
+                            title="Move product"
+                          >
+                            <ArrowsRightLeftIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => onProductClick(item)}
+                            className="text-gray-600 hover:text-gray-900"
+                            title="Edit item"
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>
@@ -469,6 +492,17 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
           })}
         </tbody>
       </table>
+
+      {/* Movement Modal */}
+      <MovementModal
+        isOpen={isMovementModalOpen}
+        onClose={() => {
+          setIsMovementModalOpen(false);
+          setSelectedProductForMove(null);
+        }}
+        preselectedProduct={selectedProductForMove || undefined}
+        onSuccess={handleMovementSuccess}
+      />
     </div>
   );
 }

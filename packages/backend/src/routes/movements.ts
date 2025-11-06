@@ -1,0 +1,310 @@
+import { Router } from 'express';
+import { db } from '../db';
+import { movementLogs, products, locations } from '../db/schema';
+import { eq, desc, and, gte, lte, sql, inArray, type SQL } from 'drizzle-orm';
+import { createError } from '../middleware/errorHandler';
+import { authenticateToken } from '../middleware/auth';
+import { CreateMovementSchema } from '@invenflow/shared';
+
+const router = Router();
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
+
+const combineConditions = (conditions: SQL<unknown>[]): SQL<unknown> => {
+  if (conditions.length === 0) {
+    return sql`1 = 1`;
+  }
+  if (conditions.length === 1) {
+    return conditions[0]!;
+  }
+  const combined = and(
+    ...(conditions as [SQL<unknown>, SQL<unknown>, ...SQL<unknown>[]])
+  );
+  return combined ?? sql`1 = 1`;
+};
+
+type MovementLogRecord = typeof movementLogs.$inferSelect;
+type ProductRecord = typeof products.$inferSelect;
+type LocationRecord = typeof locations.$inferSelect;
+
+type EnrichedMovementLog = MovementLogRecord & {
+  product: ProductRecord | null;
+  fromLocation: LocationRecord | null;
+  toLocation: LocationRecord | null;
+};
+
+const enrichMovementLogs = async (logs: MovementLogRecord[]): Promise<EnrichedMovementLog[]> => {
+  if (logs.length === 0) {
+    return [];
+  }
+
+  const productIds = Array.from(new Set(logs.map((log) => log.productId)));
+  const locationIds = Array.from(
+    new Set(
+      logs
+        .flatMap((log) => [log.fromLocationId, log.toLocationId])
+        .filter((id): id is string => Boolean(id))
+    )
+  );
+
+  const productPromise = productIds.length
+    ? db.select().from(products).where(inArray(products.id, productIds))
+    : Promise.resolve<ProductRecord[]>([]);
+
+  const locationPromise = locationIds.length
+    ? db.select().from(locations).where(inArray(locations.id, locationIds))
+    : Promise.resolve<LocationRecord[]>([]);
+
+  const [productRows, locationRows] = await Promise.all([
+    productPromise,
+    locationPromise,
+  ]);
+
+  const productMap = new Map(productRows.map((row) => [row.id, row]));
+  const locationMap = new Map(locationRows.map((row) => [row.id, row]));
+
+  return logs.map((log) => ({
+    ...log,
+    product: productMap.get(log.productId) ?? null,
+    fromLocation: log.fromLocationId ? locationMap.get(log.fromLocationId) ?? null : null,
+    toLocation: locationMap.get(log.toLocationId) ?? null,
+  }));
+};
+
+// Get movement logs with optional filtering
+router.get('/', async (req, res, next) => {
+  try {
+    const {
+      productId,
+      locationId,
+      limit = '50',
+      offset = '0',
+      startDate,
+      endDate,
+    } = req.query;
+
+    const limitNum = parseInt(limit as string) || 50;
+    const offsetNum = parseInt(offset as string) || 0;
+
+    const whereConditions: SQL<unknown>[] = [];
+
+    if (productId) {
+      whereConditions.push(eq(movementLogs.productId, productId as string));
+    }
+
+    if (locationId) {
+      whereConditions.push(
+        sql`(${movementLogs.fromLocationId} = ${locationId} OR ${movementLogs.toLocationId} = ${locationId})`
+      );
+    }
+
+    if (startDate) {
+      whereConditions.push(gte(movementLogs.createdAt, new Date(startDate as string)));
+    }
+
+    if (endDate) {
+      whereConditions.push(lte(movementLogs.createdAt, new Date(endDate as string)));
+    }
+
+    const logs = await db
+      .select()
+      .from(movementLogs)
+      .where(combineConditions(whereConditions))
+      .orderBy(desc(movementLogs.createdAt))
+      .limit(limitNum)
+      .offset(offsetNum);
+
+    // Enrich with related data
+    const enrichedLogs = await enrichMovementLogs(logs);
+
+    res.json(enrichedLogs);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get movement logs by product ID
+router.get('/product/:productId', async (req, res, next) => {
+  try {
+    const { productId } = req.params;
+    const { limit = '50', offset = '0' } = req.query;
+
+    const limitNum = parseInt(limit as string) || 50;
+    const offsetNum = parseInt(offset as string) || 0;
+
+    const logs = await db
+      .select()
+      .from(movementLogs)
+      .where(eq(movementLogs.productId, productId))
+      .orderBy(desc(movementLogs.createdAt))
+      .limit(limitNum)
+      .offset(offsetNum);
+
+    const enrichedLogs = await enrichMovementLogs(logs);
+
+    res.json(enrichedLogs);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Create movement log
+router.post('/', async (req, res, next) => {
+  try {
+    const validatedData = CreateMovementSchema.parse(req.body);
+    const { productId, toLocationId, toStockLevel, notes } = validatedData;
+
+    // Get user from auth token
+    const movedBy = (req as any).user?.email || (req as any).user?.username || null;
+
+    // Use transaction to ensure data consistency
+    const result = await db.transaction(async (tx) => {
+      // 1. Verify product exists and is stored
+      const [product] = await tx
+        .select()
+        .from(products)
+        .where(eq(products.id, productId))
+        .limit(1);
+
+      if (!product) {
+        throw createError('Product not found', 404);
+      }
+
+      if (product.columnStatus !== 'Stored') {
+        throw createError('Only products with "Stored" status can be moved', 400);
+      }
+
+      // 2. Verify target location exists
+      const [targetLocation] = await tx
+        .select()
+        .from(locations)
+        .where(eq(locations.id, toLocationId))
+        .limit(1);
+
+      if (!targetLocation) {
+        throw createError('Target location not found', 404);
+      }
+
+      // 3. Create movement log
+      const [movementLog] = await tx
+        .insert(movementLogs)
+        .values({
+          productId,
+          fromLocationId: product.locationId,
+          toLocationId,
+          fromStockLevel: product.stockLevel,
+          toStockLevel,
+          notes: notes || null,
+          movedBy,
+        })
+        .returning();
+
+      // 4. Update product location and stock level
+      const [updatedProduct] = await tx
+        .update(products)
+        .set({
+          locationId: toLocationId,
+          stockLevel: toStockLevel,
+          updatedAt: new Date(),
+        })
+        .where(eq(products.id, productId))
+        .returning();
+
+      return {
+        movementLog,
+        product: updatedProduct,
+      };
+    });
+
+    res.status(201).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get movement statistics
+router.get('/stats', async (req, res, next) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    const whereConditions: SQL<unknown>[] = [];
+
+    if (startDate) {
+      whereConditions.push(gte(movementLogs.createdAt, new Date(startDate as string)));
+    }
+
+    if (endDate) {
+      whereConditions.push(lte(movementLogs.createdAt, new Date(endDate as string)));
+    }
+
+    const whereClause = combineConditions(whereConditions);
+
+    // Total movements count
+    const [stats] = await db
+      .select({
+        totalMovements: sql<number>`count(*)`,
+      })
+      .from(movementLogs)
+      .where(whereClause);
+
+    // Active products count (products that have been moved)
+    const [activeProductsResult] = await db
+      .select({
+        activeProducts: sql<number>`count(distinct ${movementLogs.productId})`,
+      })
+      .from(movementLogs)
+      .where(whereClause);
+
+    // Most used locations (top 5)
+    const mostUsedLocationsResult = await db.execute(
+      sql<{ locationId: string; locationName: string; locationCode: string; movementCount: number }>`
+        SELECT 
+          loc.id as "locationId",
+          loc.name as "locationName",
+          loc.code as "locationCode",
+          count(*)::int as "movementCount"
+        FROM (
+          SELECT ${movementLogs.toLocationId} as location_id
+          FROM ${movementLogs}
+          WHERE ${whereClause}
+          UNION ALL
+          SELECT ${movementLogs.fromLocationId} as location_id
+          FROM ${movementLogs}
+          WHERE ${whereClause} AND ${movementLogs.fromLocationId} IS NOT NULL
+        ) movements
+        JOIN ${locations} loc ON movements.location_id = loc.id
+        GROUP BY loc.id, loc.name, loc.code
+        ORDER BY "movementCount" DESC
+        LIMIT 5
+      `
+    );
+
+    // Recent movements (last 10)
+    const recentLogs = await db
+      .select()
+      .from(movementLogs)
+      .where(whereClause)
+      .orderBy(desc(movementLogs.createdAt))
+      .limit(10);
+
+    const enrichedRecentLogs = await enrichMovementLogs(recentLogs);
+
+    res.json({
+      totalMovements: Number(stats?.totalMovements ?? 0),
+      activeProducts: Number(activeProductsResult?.activeProducts ?? 0),
+      mostUsedLocations: Array.from(mostUsedLocationsResult) as Array<{
+        locationId: string;
+        locationName: string;
+        locationCode: string;
+        movementCount: number;
+      }>,
+      recentMovements: enrichedRecentLogs,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export { router as movementsRouter };
+

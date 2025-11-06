@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Product, UpdateProduct } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
+import { useLocationStore } from '../store/locationStore';
 import { useToast } from '../store/toastStore';
 import { Slider } from './Slider';
 import { SliderTabs } from './SliderTabs';
@@ -16,12 +17,14 @@ type TabType = 'view' | 'edit' | 'delete';
 
 export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: ProductSidebarProps) {
   const { updateProduct, deleteProduct } = useKanbanStore();
+  const { locations, fetchLocations } = useLocationStore();
   const { success, error } = useToast();
   const [activeTab, setActiveTab] = useState<TabType>('view');
   const [formData, setFormData] = useState({
     productDetails: '',
     productLink: '',
     location: '',
+    locationId: '',
     priority: '',
     stockLevel: '',
     productImage: '',
@@ -44,6 +47,7 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
         productDetails: product.productDetails || '',
         productLink: product.productLink || '',
         location: product.location || '',
+        locationId: product.locationId || '',
         priority: product.priority || '',
         stockLevel: product.stockLevel?.toString() || '',
         productImage: product.productImage || '',
@@ -60,6 +64,10 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
     // Reset to view tab when product changes
     setActiveTab('view');
   }, [product]);
+
+  useEffect(() => {
+    fetchLocations();
+  }, [fetchLocations]);
 
   const handleUpdate = async () => {
     if (!product) return;
@@ -327,13 +335,36 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                  <input
-                    type="text"
-                    name="location"
-                    value={formData.location}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
+                  {locations.length > 0 ? (
+                    <select
+                      name="location"
+                      value={formData.locationId}
+                      onChange={(e) => {
+                        const selectedLocation = locations.find(loc => loc.id === e.target.value);
+                        setFormData(prev => ({
+                          ...prev,
+                          locationId: e.target.value,
+                          location: selectedLocation?.name || '',
+                        }));
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select a location</option>
+                      {locations.map(location => (
+                        <option key={location.id} value={location.id}>
+                          {location.name} ({location.code}) - {location.area}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      name="location"
+                      value={formData.location}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  )}
                 </div>
 
                 <div>

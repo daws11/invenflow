@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { InventoryItem } from '@invenflow/shared';
 import {
   CubeIcon,
@@ -7,8 +7,11 @@ import {
   MapPinIcon,
   CalendarIcon,
   ClockIcon,
+  ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline';
 import { ValidationImageDisplay } from './ValidationImageDisplay';
+import { MovementModal } from './MovementModal';
+import { useLocationStore } from '../store/locationStore';
 
 interface InventoryGridProps {
   items: InventoryItem[];
@@ -19,9 +22,27 @@ interface InventoryGridProps {
 
 export function InventoryGrid({ items, loading, viewMode, onProductClick }: InventoryGridProps) {
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  const [selectedProductForMove, setSelectedProductForMove] = useState<InventoryItem | null>(null);
+  const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
+  const { locations, fetchLocations } = useLocationStore();
+
+  useEffect(() => {
+    fetchLocations();
+  }, [fetchLocations]);
 
   const handleImageError = (itemId: string) => {
     setImageErrors(prev => new Set(prev).add(itemId));
+  };
+
+  const handleMoveClick = (e: React.MouseEvent, item: InventoryItem) => {
+    e.stopPropagation(); // Prevent card click
+    setSelectedProductForMove(item);
+    setIsMovementModalOpen(true);
+  };
+
+  const handleMovementSuccess = () => {
+    setSelectedProductForMove(null);
+    // The parent component will refresh the inventory
   };
 
   const getPriorityColor = (priority: string | null) => {
@@ -190,24 +211,43 @@ export function InventoryGrid({ items, loading, viewMode, onProductClick }: Inve
                   )}
 
                   {/* Location */}
-                  {item.location && (
-                    <div className="flex items-center mt-1">
-                      <MapPinIcon className="h-4 w-4 text-gray-400 mr-1" />
-                      <span className="text-sm text-gray-600 truncate">{item.location}</span>
-                    </div>
-                  )}
+                  {item.location && (() => {
+                    const location = locations.find(loc => loc.id === item.locationId);
+                    const isPerson = location?.type === 'person';
+                    return (
+                      <div className="flex items-center mt-1">
+                        {isPerson ? (
+                          <svg className="w-4 h-4 text-purple-600 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        ) : (
+                          <MapPinIcon className="h-4 w-4 text-gray-400 mr-1" />
+                        )}
+                        <span className="text-sm text-gray-600 truncate">{item.location}</span>
+                      </div>
+                    );
+                  })()}
 
                   {/* Stock Level (only for stored items) */}
                   {item.columnStatus === 'Stored' && item.stockLevel !== null && (
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                      <span className="text-sm font-medium text-gray-700">Stock</span>
-                      <span className={`text-sm font-semibold ${
-                        item.stockLevel === 0 ? 'text-red-600' :
-                        item.stockLevel <= 10 ? 'text-orange-600' :
-                        'text-green-600'
-                      }`}>
-                        {item.stockLevel} units
-                      </span>
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Stock</span>
+                        <span className={`text-sm font-semibold ${
+                          item.stockLevel === 0 ? 'text-red-600' :
+                          item.stockLevel <= 10 ? 'text-orange-600' :
+                          'text-green-600'
+                        }`}>
+                          {item.stockLevel} units
+                        </span>
+                      </div>
+                      <button
+                        onClick={(e) => handleMoveClick(e, item)}
+                        className="mt-2 w-full flex items-center justify-center px-3 py-1.5 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                      >
+                        <ArrowsRightLeftIcon className="h-4 w-4 mr-1.5" />
+                        Move Product
+                      </button>
                     </div>
                   )}
 
@@ -349,24 +389,43 @@ export function InventoryGrid({ items, loading, viewMode, onProductClick }: Inve
                       )}
 
                       {/* Location */}
-                      {item.location && (
-                        <div className="flex items-center mt-1">
-                          <MapPinIcon className="h-4 w-4 text-gray-400 mr-1" />
-                          <span className="text-sm text-gray-600 truncate">{item.location}</span>
-                        </div>
-                      )}
+                      {item.location && (() => {
+                        const location = locations.find(loc => loc.id === item.locationId);
+                        const isPerson = location?.type === 'person';
+                        return (
+                          <div className="flex items-center mt-1">
+                            {isPerson ? (
+                              <svg className="w-4 h-4 text-purple-600 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                            ) : (
+                              <MapPinIcon className="h-4 w-4 text-gray-400 mr-1" />
+                            )}
+                            <span className="text-sm text-gray-600 truncate">{item.location}</span>
+                          </div>
+                        );
+                      })()}
 
                       {/* Stock Level (only for stored items) */}
                       {item.columnStatus === 'Stored' && item.stockLevel !== null && (
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                          <span className="text-sm font-medium text-gray-700">Stock</span>
-                          <span className={`text-sm font-semibold ${
-                            item.stockLevel === 0 ? 'text-red-600' :
-                            item.stockLevel <= 10 ? 'text-orange-600' :
-                            'text-green-600'
-                          }`}>
-                            {item.stockLevel} units
-                          </span>
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700">Stock</span>
+                            <span className={`text-sm font-semibold ${
+                              item.stockLevel === 0 ? 'text-red-600' :
+                              item.stockLevel <= 10 ? 'text-orange-600' :
+                              'text-green-600'
+                            }`}>
+                              {item.stockLevel} units
+                            </span>
+                          </div>
+                          <button
+                            onClick={(e) => handleMoveClick(e, item)}
+                            className="mt-2 w-full flex items-center justify-center px-3 py-1.5 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                          >
+                            <ArrowsRightLeftIcon className="h-4 w-4 mr-1.5" />
+                            Move Product
+                          </button>
                         </div>
                       )}
 
@@ -399,6 +458,17 @@ export function InventoryGrid({ items, loading, viewMode, onProductClick }: Inve
           </div>
         );
       })}
+
+      {/* Movement Modal */}
+      <MovementModal
+        isOpen={isMovementModalOpen}
+        onClose={() => {
+          setIsMovementModalOpen(false);
+          setSelectedProductForMove(null);
+        }}
+        preselectedProduct={selectedProductForMove || undefined}
+        onSuccess={handleMovementSuccess}
+      />
     </div>
   );
 }

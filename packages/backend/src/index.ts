@@ -9,6 +9,7 @@ import { healthRouter } from "./routes/health";
 import { inventoryRouter } from "./routes/inventory";
 import { kanbansRouter } from "./routes/kanbans";
 import { locationsRouter } from "./routes/locations";
+import { movementsRouter } from "./routes/movements";
 import { productsRouter } from "./routes/products";
 import { publicRouter } from "./routes/public";
 import { transferLogsRouter } from "./routes/transfer-logs";
@@ -71,6 +72,7 @@ app.use("/api/inventory", inventoryRouter);
 // Protected routes (require authentication)
 app.use("/api/kanbans", kanbansRouter);
 app.use("/api/locations", locationsRouter);
+app.use("/api/movements", movementsRouter);
 app.use("/api/products", productsRouter);
 app.use("/api/transfer-logs", transferLogsRouter);
 app.use("/api/upload", uploadRouter);

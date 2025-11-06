@@ -16,7 +16,12 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
       const token = localStorage.getItem('auth_token');
       if (token) {
         // Try to fetch current user if token exists
-        fetchCurrentUser();
+        // fetchCurrentUser will redirect to /login if token is expired/invalid
+        fetchCurrentUser().catch(() => {
+          // Fallback: if fetchCurrentUser fails, ensure redirect to login
+          // (though fetchCurrentUser already handles redirect internally)
+          navigate('/login');
+        });
       } else {
         // No token, redirect to login
         navigate('/login');

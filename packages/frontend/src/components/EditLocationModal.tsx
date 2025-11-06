@@ -14,6 +14,7 @@ export function EditLocationModal({ isOpen, onClose, location, onUpdate }: EditL
     name: '',
     area: '',
     code: '',
+    type: undefined,
     description: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -25,6 +26,7 @@ export function EditLocationModal({ isOpen, onClose, location, onUpdate }: EditL
         name: location.name,
         area: location.area,
         code: location.code,
+        type: location.type,
         description: location.description || '',
       });
       setErrors({});
@@ -123,6 +125,31 @@ export function EditLocationModal({ isOpen, onClose, location, onUpdate }: EditL
     >
       <form onSubmit={handleSubmit}>
           <div className="space-y-4">
+            {/* Location Type Display (read-only) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Location Type
+              </label>
+              <div className="flex items-center px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg">
+                {location?.type === 'person' ? (
+                  <>
+                    <svg className="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    <span className="text-gray-700">Person Assignment</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    <span className="text-gray-700">Physical Location</span>
+                  </>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Location type cannot be changed after creation</p>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Name <span className="text-red-500">*</span>

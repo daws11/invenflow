@@ -13,18 +13,20 @@ import {
   ClockIcon,
   PencilIcon,
   EyeIcon,
+  ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline';
 import { ValidationImageDisplay } from './ValidationImageDisplay';
 import { ImageGallery } from './ImageGallery';
 import { Slider } from './Slider';
 import { SliderTabs, SliderTab } from './SliderTabs';
+import { ProductMovementHistory } from './ProductMovementHistory';
 
 interface ProductDetailModalProps {
   item: InventoryItem;
   onClose: () => void;
 }
 
-type TabType = 'view' | 'edit';
+type TabType = 'view' | 'edit' | 'movement';
 
 export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
   const { updateProductStock, updateProductLocation } = useInventoryStore();
@@ -236,15 +238,83 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
           </div>
         )}
 
-        {item.location && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-700">Location</h4>
-            <div className="flex items-center mt-1">
-              <MapPinIcon className="h-4 w-4 text-gray-400 mr-1" />
-              <p className="text-sm text-gray-600">{item.location}</p>
+        {item.location && (() => {
+          const location = locations.find(loc => loc.id === item.locationId);
+          const isPerson = location?.type === 'person';
+          
+          return (
+            <div className={`p-4 rounded-lg border-2 ${
+              isPerson 
+                ? 'bg-purple-50 border-purple-200' 
+                : 'bg-blue-50 border-blue-200'
+            }`}>
+              <h4 className={`text-sm font-semibold mb-2 flex items-center ${
+                isPerson ? 'text-purple-900' : 'text-blue-900'
+              }`}>
+                {isPerson ? (
+                  <>
+                    <svg className="w-5 h-5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    👤 Assigned To Person
+                  </>
+                ) : (
+                  <>
+                    <MapPinIcon className="w-5 h-5 mr-1.5" />
+                    📍 Physical Location
+                  </>
+                )}
+              </h4>
+              <div className="space-y-2">
+                <div>
+                  <p className={`font-bold text-base ${
+                    isPerson ? 'text-purple-900' : 'text-blue-900'
+                  }`}>
+                    {item.location}
+                  </p>
+                  {location && (
+                    <p className="text-sm text-gray-600 mt-0.5">
+                      {isPerson ? (
+                        <>
+                          <svg className="w-4 h-4 inline mr-1 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                          Department: {location.area}
+                        </>
+                      ) : (
+                        <>Area: {location.area}</>
+                      )}
+                    </p>
+                  )}
+                </div>
+                {location && (
+                  <div className="flex items-center justify-between pt-2 border-t border-current opacity-30">
+                    <span className="text-xs font-mono text-gray-600">
+                      Code: {location.code}
+                    </span>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                      isPerson 
+                        ? 'bg-purple-200 text-purple-800' 
+                        : 'bg-blue-200 text-blue-800'
+                    }`}>
+                      {isPerson ? 'Person' : 'Physical'}
+                    </span>
+                  </div>
+                )}
+              </div>
+              {isPerson && (
+                <div className="mt-3 pt-3 border-t border-purple-200">
+                  <p className="text-xs text-purple-700 italic flex items-center">
+                    <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    This person is responsible for this asset
+                  </p>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {item.notes && (
           <div>
@@ -361,6 +431,13 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
     </div>
   );
 
+  // Movement History Tab Content
+  const movementContent = (
+    <div className="p-6">
+      <ProductMovementHistory productId={item.id} />
+    </div>
+  );
+
   const tabs: SliderTab[] = [
     {
       id: 'view',
@@ -373,6 +450,12 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
       label: 'Edit',
       content: editContent,
       icon: <PencilIcon className="h-4 w-4" />,
+    },
+    {
+      id: 'movement',
+      label: 'Movement History',
+      content: movementContent,
+      icon: <ArrowsRightLeftIcon className="h-4 w-4" />,
     },
   ];
 

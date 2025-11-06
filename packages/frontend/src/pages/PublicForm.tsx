@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { publicApi } from '../utils/api';
+import { useLocationStore } from '../store/locationStore';
 
 interface KanbanInfo {
   id: string;
@@ -10,6 +11,7 @@ interface KanbanInfo {
 
 export default function PublicForm() {
   const { token } = useParams<{ token: string }>();
+  const { locations, fetchLocations } = useLocationStore();
   const [kanbanInfo, setKanbanInfo] = useState<KanbanInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +22,18 @@ export default function PublicForm() {
     productDetails: '',
     productLink: '',
     location: '',
+    locationId: '',
     priority: '',
+    category: '',
+    supplier: '',
+    sku: '',
+    productImage: '',
+    dimensions: '',
+    weight: '',
+    unitPrice: '',
+    tags: '',
+    notes: '',
+    stockLevel: '',
   });
 
   useEffect(() => {
@@ -28,6 +41,10 @@ export default function PublicForm() {
       fetchKanbanInfo();
     }
   }, [token]);
+
+  useEffect(() => {
+    fetchLocations();
+  }, [fetchLocations]);
 
   const fetchKanbanInfo = async () => {
     try {
@@ -56,7 +73,18 @@ export default function PublicForm() {
         productDetails: formData.productDetails.trim(),
         productLink: formData.productLink.trim() || undefined,
         location: formData.location.trim() || undefined,
+        locationId: formData.locationId || undefined,
         priority: formData.priority || undefined,
+        category: formData.category.trim() || undefined,
+        supplier: formData.supplier.trim() || undefined,
+        sku: formData.sku.trim() || undefined,
+        productImage: formData.productImage.trim() || undefined,
+        dimensions: formData.dimensions.trim() || undefined,
+        weight: formData.weight || undefined,
+        unitPrice: formData.unitPrice || undefined,
+        tags: formData.tags.trim() || undefined,
+        notes: formData.notes.trim() || undefined,
+        stockLevel: formData.stockLevel || undefined,
       });
 
       setSubmitted(true);
@@ -64,7 +92,18 @@ export default function PublicForm() {
         productDetails: '',
         productLink: '',
         location: '',
+        locationId: '',
         priority: '',
+        category: '',
+        supplier: '',
+        sku: '',
+        productImage: '',
+        dimensions: '',
+        weight: '',
+        unitPrice: '',
+        tags: '',
+        notes: '',
+        stockLevel: '',
       });
     } catch (error) {
       alert('Failed to submit request. Please try again.');
@@ -168,30 +207,198 @@ export default function PublicForm() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Location
             </label>
+            {locations.length > 0 ? (
+              <select
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={formData.locationId}
+                onChange={(e) => {
+                  const selectedLocation = locations.find(loc => loc.id === e.target.value);
+                  setFormData({
+                    ...formData,
+                    locationId: e.target.value,
+                    location: selectedLocation?.name || '',
+                  });
+                }}
+              >
+                <option value="">Select a location</option>
+                {locations.map(location => (
+                  <option key={location.id} value={location.id}>
+                    {location.name} ({location.code}) - {location.area}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Storage location"
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              />
+            )}
+          </div>
+
+          {/* SKU and Supplier */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                SKU
+              </label>
+              <input
+                type="text"
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Stock Keeping Unit"
+                value={formData.sku}
+                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Supplier
+              </label>
+              <input
+                type="text"
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Supplier name"
+                value={formData.supplier}
+                onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
+              />
+            </div>
+          </div>
+
+          {/* Category and Priority */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Category
+              </label>
+              <input
+                type="text"
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Product category"
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Priority
+              </label>
+              <select
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={formData.priority}
+                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+              >
+                <option value="">Select priority</option>
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+                <option value="Urgent">Urgent</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Stock Level and Unit Price */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Stock Level
+              </label>
+              <input
+                type="number"
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Quantity"
+                min="0"
+                value={formData.stockLevel}
+                onChange={(e) => setFormData({ ...formData, stockLevel: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Unit Price
+              </label>
+              <input
+                type="number"
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Price per unit"
+                step="0.01"
+                min="0"
+                value={formData.unitPrice}
+                onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
+              />
+            </div>
+          </div>
+
+          {/* Product Image URL */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Product Image URL
+            </label>
             <input
-              type="text"
-              className="w-full border border-gray-300 rounded-md p-3"
-              placeholder="Storage location"
-              value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              type="url"
+              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="https://example.com/image.jpg"
+              value={formData.productImage}
+              onChange={(e) => setFormData({ ...formData, productImage: e.target.value })}
             />
           </div>
 
+          {/* Dimensions and Weight */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Dimensions
+              </label>
+              <input
+                type="text"
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="e.g., 10x20x5 cm"
+                value={formData.dimensions}
+                onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Weight (kg)
+              </label>
+              <input
+                type="number"
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Weight in kg"
+                step="0.01"
+                min="0"
+                value={formData.weight}
+                onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+              />
+            </div>
+          </div>
+
+          {/* Tags */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Priority
+              Tags
             </label>
-            <select
-              className="w-full border border-gray-300 rounded-md p-3"
-              value={formData.priority}
-              onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-            >
-              <option value="">Select priority</option>
-              <option value="Low">Low</option>
-              <option value="Medium">Medium</option>
-              <option value="High">High</option>
-              <option value="Urgent">Urgent</option>
-            </select>
+            <input
+              type="text"
+              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Separate tags with commas"
+              value={formData.tags}
+              onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+            />
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Notes
+            </label>
+            <textarea
+              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Additional notes or comments..."
+              rows={3}
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+            />
           </div>
 
           <button

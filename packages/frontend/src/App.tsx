@@ -12,6 +12,7 @@ const KanbanList = lazy(() => import('./pages/KanbanList'));
 const KanbanBoard = lazy(() => import('./pages/KanbanBoard'));
 const InventoryManager = lazy(() => import('./pages/InventoryManager'));
 const LocationsPage = lazy(() => import('./pages/LocationsPage'));
+const MovementManager = lazy(() => import('./pages/MovementManager'));
 const PublicForm = lazy(() => import('./pages/PublicForm'));
 const LoginForm = lazy(() => import('./components/LoginForm'));
 const UserManagement = lazy(() => import('./components/UserManagement'));
@@ -104,6 +105,15 @@ function App() {
                 <ProtectedRoute>
                   <Suspense fallback={<PageLoader />}>
                     <InventoryManager />
+                  </Suspense>
+                </ProtectedRoute>
+              </Layout>
+            } />
+            <Route path="/movements" element={
+              <Layout>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <MovementManager />
                   </Suspense>
                 </ProtectedRoute>
               </Layout>

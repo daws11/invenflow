@@ -1,5 +1,6 @@
 export * from './kanbans';
 export * from './locations';
+export * from './movement-logs';
 export * from './products';
 export * from './product-validations';
 export * from './transfer-logs';

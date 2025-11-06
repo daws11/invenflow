@@ -18,6 +18,7 @@ import {
   AuthResponse,
   TransferLog
 } from '@invenflow/shared';
+import { useAuthStore } from '../store/authStore';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -47,11 +48,12 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid
-      localStorage.removeItem('auth_token');
-      // Redirect to login page or trigger logout
-      window.location.href = '/login';
+    // Handle both 401 (Unauthorized) and 403 (Forbidden) for token expiration
+    // 401 is standard for expired/invalid tokens, 403 kept for backward compatibility
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      // Get store instance and call logout with redirect
+      const logout = useAuthStore.getState().logout;
+      logout(true); // Clear state and redirect to login
     }
     return Promise.reject(error);
   }
@@ -218,7 +220,18 @@ export const publicApi = {
     productDetails: string;
     productLink?: string;
     location?: string;
+    locationId?: string;
     priority?: string;
+    category?: string;
+    supplier?: string;
+    sku?: string;
+    productImage?: string;
+    dimensions?: string;
+    weight?: string;
+    unitPrice?: string;
+    tags?: string;
+    notes?: string;
+    stockLevel?: string;
   }): Promise<{ message: string; product: Product }> => {
     const response = await api.post(`/api/public/form/${token}`, data);
     return response.data;
@@ -300,5 +313,8 @@ export const healthApi = {
     return response.data;
   },
 };
+
+// Export api instance for direct use
+export { api };
 
 export default api;
