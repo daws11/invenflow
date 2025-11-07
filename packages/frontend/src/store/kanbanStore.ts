@@ -159,25 +159,48 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
   },
 
   moveProduct: async (id: string, columnStatus: string, locationId?: string, skipValidation?: boolean) => {
-    set({ loading: true, error: null });
+    const { currentKanban } = get();
+    if (!currentKanban) return;
+    
+    // Find the product to move
+    const productToMove = currentKanban.products.find(p => p.id === id);
+    if (!productToMove) return;
+    
+    // Store previous state for rollback
+    const previousProducts = currentKanban.products;
+    
+    // OPTIMISTIC UPDATE: Update UI immediately
+    set(state => ({
+      currentKanban: state.currentKanban
+        ? {
+            ...state.currentKanban,
+            products: state.currentKanban.products.map(p =>
+              p.id === id 
+                ? { ...p, columnStatus, columnEnteredAt: new Date().toISOString() }
+                : p
+            )
+          }
+        : null,
+      error: null
+    }));
+    
     try {
+      // Make API call in background
       const updatedProduct = await productApi.move(id, columnStatus, locationId, skipValidation);
-      const { currentKanban } = get();
-
-      // If product moved to a different kanban (auto-transfer), we need to refresh
+      
+      // Update with server response
       if (currentKanban && updatedProduct.kanbanId !== currentKanban.id) {
-        // Product was transferred to another kanban
+        // Product transferred to another kanban
         set(state => ({
           currentKanban: state.currentKanban
             ? {
                 ...state.currentKanban,
                 products: state.currentKanban.products.filter(p => p.id !== id)
               }
-            : null,
-          loading: false
+            : null
         }));
-      } else if (currentKanban) {
-        // Product moved within the same kanban
+      } else {
+        // Update with actual server data
         set(state => ({
           currentKanban: state.currentKanban
             ? {
@@ -186,15 +209,21 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
                   p.id === id ? updatedProduct : p
                 )
               }
-            : null,
-          loading: false
+            : null
         }));
-      } else {
-        set({ loading: false });
       }
     } catch (error) {
-      // Re-throw error to let component handle validation requirements
-      set({ loading: false });
+      // ROLLBACK: Revert to previous state on error
+      set(state => ({
+        currentKanban: state.currentKanban
+          ? {
+              ...state.currentKanban,
+              products: previousProducts
+            }
+          : null
+      }));
+      
+      // Re-throw error for component to handle validation
       throw error;
     }
   },
