@@ -80,21 +80,29 @@ router.get('/', async (req, res, next) => {
       .from(persons)
       .leftJoin(departments, eq(persons.departmentId, departments.id));
     const whereClause = combineSqlClauses(conditions);
-    const queryWithWhere = baseQuery.where(whereClause);
+    const rows = await baseQuery.where(whereClause);
 
-    let orderedQuery = queryWithWhere;
-    const orderField = SORTABLE_PERSON_COLUMNS[sortByValue as keyof typeof SORTABLE_PERSON_COLUMNS];
-    if (orderField) {
-      orderedQuery = queryWithWhere.orderBy(
-        sortOrderValue === 'desc' ? desc(orderField) : asc(orderField)
-      );
-    } else if (sortByValue === 'department') {
-      orderedQuery = queryWithWhere.orderBy(
-        sortOrderValue === 'desc' ? desc(departments.name) : asc(departments.name)
-      );
-    }
-
-    const rows = await orderedQuery;
+    // In-memory sort to avoid query builder type edge cases
+    rows.sort((a, b) => {
+      if (sortByValue === 'department') {
+        const av = (a.departmentName || '').toLowerCase();
+        const bv = (b.departmentName || '').toLowerCase();
+        if (av < bv) return sortOrderValue === 'desc' ? 1 : -1;
+        if (av > bv) return sortOrderValue === 'desc' ? -1 : 1;
+        return 0;
+      }
+      if (sortByValue === 'createdAt' || sortByValue === 'updatedAt') {
+        const av = new Date((a as any)[sortByValue]).getTime();
+        const bv = new Date((b as any)[sortByValue]).getTime();
+        return sortOrderValue === 'desc' ? bv - av : av - bv;
+      }
+      // default by name
+      const av = (a.name || '').toLowerCase();
+      const bv = (b.name || '').toLowerCase();
+      if (av < bv) return sortOrderValue === 'desc' ? 1 : -1;
+      if (av > bv) return sortOrderValue === 'desc' ? -1 : 1;
+      return 0;
+    });
 
     // Normalize response: persons array as schema type, plus department names list
     const personsResponse = rows.map((r) => ({

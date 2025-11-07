@@ -54,12 +54,7 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
 
   const interactiveSelector = 'button, a, [data-no-drag]';
 
-  const handleMouseDown: React.MouseEventHandler<HTMLDivElement> = (event) => {
-    if ((event.target as HTMLElement).closest(interactiveSelector)) {
-      return;
-    }
-    listeners?.onMouseDown?.(event);
-  };
+  // Using pointer events for click vs drag
 
   const handlePointerDown: React.PointerEventHandler<HTMLDivElement> = (event) => {
     if ((event.target as HTMLElement).closest(interactiveSelector)) {
@@ -90,7 +85,7 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
     setIsDragIntent(false);
   };
 
-  const handlePointerMove: React.PointerEventHandler<HTMLDivElement> = (event) => {
+  const handlePointerMove: React.PointerEventHandler<HTMLDivElement> = () => {
     if (clickStartTime && !isDragIntent) {
       setIsDragIntent(true);
     }
@@ -159,7 +154,6 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
   const hasAdditionalInfo = () => {
     return !!(
       product.productLink ||
-      product.location ||
       product.priority ||
       product.productImage ||
       product.category ||
@@ -220,7 +214,7 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
           {/* Product Info */}
           <div className="flex-1 sm:mr-3 space-y-1.5">
             <h4 className="font-medium text-gray-900">{product.productDetails}</h4>
-            {(location || product.location) && (
+            {(location || product.locationId) && (
               <div className="flex items-start sm:items-center text-sm">
                 <svg className="w-4 h-4 mr-2 mt-0.5 sm:mt-0 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -237,7 +231,7 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
                     )}
                   </div>
                 ) : (
-                  <span className="text-gray-600">{product.location}</span>
+                  <span className="text-gray-600">{product.locationId}</span>
                 )}
               </div>
             )}
@@ -363,7 +357,7 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
             </div>
           )}
 
-          {(location || product.location) && (
+          {(location || product.locationId) && (
             <div>
               <span className="font-medium text-gray-700">Location:</span>
               {location ? (
@@ -377,7 +371,7 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
                   )}
                 </div>
               ) : (
-                <span className="ml-2 text-gray-600">{product.location}</span>
+                <span className="ml-2 text-gray-600">{product.locationId}</span>
               )}
             </div>
           )}

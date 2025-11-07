@@ -117,6 +117,7 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
           productDetails: formData.productDetails,
           productLink: formData.productLink || null,
           locationId: formData.locationId,
+          assignedToPersonId: null,
           priority: formData.priority || null,
           // Enhanced fields
           productImage: formData.productImage || null,

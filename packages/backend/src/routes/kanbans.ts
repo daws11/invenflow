@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { nanoid } from 'nanoid';
 import { db } from '../db';
 import { kanbans, products } from '../db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, asc } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
 
@@ -53,7 +53,7 @@ router.get('/:id', async (req, res, next) => {
       .select()
       .from(products)
       .where(eq(products.kanbanId, id))
-      .orderBy(products.createdAt);
+      .orderBy(asc(products.createdAt));
 
     res.json({ ...kanban, products: kanbanProducts });
   } catch (error) {
@@ -109,7 +109,7 @@ router.put('/:id', async (req, res, next) => {
     if (thresholdRules !== undefined) {
       updateData.thresholdRules = thresholdRules;
     }
-    updateData.updatedAt = new Date();
+    updateData.updatedAt = new Date().toISOString();
 
     const [updatedKanban] = await db
       .update(kanbans)
@@ -157,7 +157,7 @@ router.put('/:id/public-form-settings', async (req, res, next) => {
       .update(kanbans)
       .set({
         isPublicFormEnabled,
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
       })
       .where(eq(kanbans.id, id))
       .returning();

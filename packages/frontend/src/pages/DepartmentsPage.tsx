@@ -11,7 +11,6 @@ export default function DepartmentsPage() {
     loading,
     fetchDepartments,
     deleteDepartment,
-    clearError
   } = useDepartmentStore();
 
   const toast = useToast();

@@ -73,8 +73,8 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
         await updateProductStock(item.id, newStockLevel);
       }
 
-      // Update location if changed
-      if (editValues.location !== item.location || editValues.locationId !== item.locationId) {
+      // Update location if changed (by locationId)
+      if (editValues.locationId !== item.locationId) {
         await updateProductLocation(item.id, editValues.location, editValues.locationId || undefined);
       }
 
@@ -89,7 +89,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
   const handleCancel = () => {
     setEditValues({
       stockLevel: item.stockLevel?.toString() || '',
-      location: item.location || '',
+      location: '',
       locationId: item.locationId || '',
       notes: item.notes || '',
     });
@@ -295,7 +295,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
                 {(person || location) && (
                   <div className="flex items-center justify-between pt-2 border-t border-current opacity-30">
                     <span className="text-xs font-mono text-gray-600">
-                      {hasPerson ? `ID: ${person?.employeeId}` : `Code: ${location?.code}`}
+                      {hasPerson ? `ID: ${person?.id}` : `Code: ${location?.code}`}
                     </span>
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                       hasPerson 

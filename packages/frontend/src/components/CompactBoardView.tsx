@@ -76,8 +76,7 @@ export default function CompactBoardView({
       if (product.tags.some(tag => tag.toLowerCase().includes(query))) return true;
     }
 
-    // Search in location (string field)
-    if (product.location?.toLowerCase().includes(query)) return true;
+    // Removed deprecated product.location string search
 
     // Search in location name, code, area (if locationId exists)
     if (location) {

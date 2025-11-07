@@ -54,12 +54,7 @@ export default function CompactProductRow({ product, onView, location, kanban }:
 
   const interactiveSelector = 'button, a, [data-no-drag]';
 
-  const handleMouseDown: React.MouseEventHandler<HTMLDivElement> = (event) => {
-    if ((event.target as HTMLElement).closest(interactiveSelector)) {
-      return;
-    }
-    listeners?.onMouseDown?.(event);
-  };
+  // Using pointer events for click vs drag
 
   const handlePointerDown: React.PointerEventHandler<HTMLDivElement> = (event) => {
     if ((event.target as HTMLElement).closest(interactiveSelector)) {
@@ -90,7 +85,7 @@ export default function CompactProductRow({ product, onView, location, kanban }:
     setIsDragIntent(false);
   };
 
-  const handlePointerMove: React.PointerEventHandler<HTMLDivElement> = (event) => {
+  const handlePointerMove: React.PointerEventHandler<HTMLDivElement> = () => {
     if (clickStartTime && !isDragIntent) {
       setIsDragIntent(true);
     }

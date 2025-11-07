@@ -56,23 +56,22 @@ router.get('/', async (req, res, next) => {
 
     const baseQuery = db.select().from(departments);
     const whereClause = combineSqlClauses(conditions);
-    const queryWithWhere = baseQuery.where(whereClause);
+    const allDepartments = await baseQuery.where(whereClause);
 
-    // Simple sorting
-    let orderedQuery = queryWithWhere;
-    if (sortByValue === 'name') {
-      orderedQuery = queryWithWhere.orderBy(
-        sortOrderValue === 'desc' ? desc(departments.name) : asc(departments.name)
-      );
-    } else if (sortByValue === 'createdAt') {
-      orderedQuery = queryWithWhere.orderBy(
-        sortOrderValue === 'desc' ? desc(departments.createdAt) : asc(departments.createdAt)
-      );
-    } else {
-      orderedQuery = queryWithWhere.orderBy(asc(departments.name));
-    }
-
-    const allDepartments = await orderedQuery;
+    // Sort in memory to avoid type issues with query builder chaining
+    allDepartments.sort((a, b) => {
+      if (sortByValue === 'createdAt') {
+        const av = new Date(a.createdAt).getTime();
+        const bv = new Date(b.createdAt).getTime();
+        return sortOrderValue === 'desc' ? bv - av : av - bv;
+      }
+      // default: name
+      const av = (a.name || '').toLowerCase();
+      const bv = (b.name || '').toLowerCase();
+      if (av < bv) return sortOrderValue === 'desc' ? 1 : -1;
+      if (av > bv) return sortOrderValue === 'desc' ? -1 : 1;
+      return 0;
+    });
 
     // Get person counts for each department
     const departmentsWithCounts = await Promise.all(

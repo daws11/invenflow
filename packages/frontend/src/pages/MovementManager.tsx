@@ -26,7 +26,6 @@ export default function MovementManager() {
   const {
     bulkMovements,
     loading: bulkLoading,
-    error: bulkError,
     fetchBulkMovements,
     cancelBulkMovement,
   } = useBulkMovementStore();

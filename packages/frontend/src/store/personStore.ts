@@ -24,7 +24,7 @@ interface PersonStore {
   clearError: () => void;
 }
 
-export const usePersonStore = create<PersonStore>((set, get) => ({
+export const usePersonStore = create<PersonStore>((set, _get) => ({
   persons: [],
   loading: false,
   error: null,

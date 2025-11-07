@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { usePersonStore } from '../store/personStore';
-import type { Person } from '@invenflow/shared';
 
 interface PersonSelectorProps {
   value: string | null;

@@ -262,7 +262,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     }
   },
 
-  updateProductLocation: async (productId, location, locationId) => {
+  updateProductLocation: async (productId, _location, locationId) => {
     set({ loading: true, error: null });
 
     try {
