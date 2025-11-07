@@ -1,4 +1,6 @@
+export * from './bulk-movements';
 export * from './kanbans';
+export * from './departments';
 export * from './locations';
 export * from './movement-logs';
 export * from './persons';

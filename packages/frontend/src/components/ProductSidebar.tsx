@@ -5,7 +5,7 @@ import { useLocationStore } from '../store/locationStore';
 import { useToast } from '../store/toastStore';
 import { Slider } from './Slider';
 import { SliderTabs } from './SliderTabs';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 
 interface ProductSidebarProps {
   product: Product | null;
@@ -47,7 +47,7 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
       setFormData({
         productDetails: product.productDetails || '',
         productLink: product.productLink || '',
-        location: product.location || '',
+        location: '',
         locationId: product.locationId || '',
         priority: product.priority || '',
         stockLevel: product.stockLevel?.toString() || '',
@@ -76,7 +76,7 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
     const updateData: UpdateProduct = {
       productDetails: formData.productDetails,
       productLink: formData.productLink || undefined,
-      location: formData.location || undefined,
+      locationId: formData.locationId || undefined,
       priority: formData.priority || undefined,
       stockLevel: formData.stockLevel ? parseInt(formData.stockLevel) : undefined,
       productImage: formData.productImage || undefined,
@@ -190,15 +190,18 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
                   {product.supplier && (
                     <p className="text-sm text-gray-600 mb-1">Supplier: {product.supplier}</p>
                   )}
-                  {product.location && (
-                    <div className="flex items-center text-sm text-gray-600 mb-2">
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      {product.location}
-                    </div>
-                  )}
+                  {product.locationId && (() => {
+                    const loc = locations.find(l => l.id === product.locationId);
+                    return loc ? (
+                      <div className="flex items-center text-sm text-gray-600 mb-2">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        {loc.name}
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
 
                 {/* Tags and Categories */}
@@ -280,7 +283,7 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
                 {/* Metadata */}
                 <div className="pt-4 border-t border-gray-200">
                   <p className="text-xs text-gray-500">
-                    Created: {new Date(product.createdAt).toLocaleDateString()}
+                    Created: {formatDateWithTime(product.createdAt)}
                   </p>
                   <p className="text-xs text-gray-500">
                     Updated: {new Date(product.updatedAt).toLocaleDateString()}

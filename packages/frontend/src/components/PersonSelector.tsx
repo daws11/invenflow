@@ -27,18 +27,7 @@ export function PersonSelector({
     fetchPersons({ activeOnly: true });
   }, [fetchPersons]);
 
-  // Group persons by department
-  const groupedPersons = persons
-    .filter(p => p.id !== excludePersonId)
-    .reduce((acc, person) => {
-      if (!acc[person.department]) {
-        acc[person.department] = [];
-      }
-      acc[person.department].push(person);
-      return acc;
-    }, {} as Record<string, Person[]>);
-
-  const departments = Object.keys(groupedPersons).sort();
+  const filteredPersons = persons.filter(p => p.id !== excludePersonId);
 
   return (
     <select
@@ -49,14 +38,10 @@ export function PersonSelector({
       className={`w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed transition-all ${className}`}
     >
       <option value="">{placeholder}</option>
-      {departments.map((department) => (
-        <optgroup key={department} label={department}>
-          {groupedPersons[department].map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.name}
-            </option>
-          ))}
-        </optgroup>
+      {filteredPersons.map((person) => (
+        <option key={person.id} value={person.id}>
+          {person.name}
+        </option>
       ))}
     </select>
   );

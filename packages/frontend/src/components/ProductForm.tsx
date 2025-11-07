@@ -15,7 +15,7 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
   const [formData, setFormData] = useState({
     productDetails: product?.productDetails || '',
     productLink: product?.productLink || '',
-    location: product?.location || '',
+    location: '',
     locationId: product?.locationId || null,
     priority: product?.priority || '',
     stockLevel: product?.stockLevel?.toString() || '',
@@ -89,7 +89,6 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
         const updateData: UpdateProduct = {
           productDetails: formData.productDetails,
           productLink: formData.productLink || null,
-          location: formData.location || null,
           locationId: formData.locationId,
           priority: formData.priority || null,
           // Enhanced fields
@@ -117,7 +116,6 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
           columnStatus: initialColumn,
           productDetails: formData.productDetails,
           productLink: formData.productLink || null,
-          location: formData.location || null,
           locationId: formData.locationId,
           priority: formData.priority || null,
           // Enhanced fields

@@ -361,10 +361,10 @@ export default function InventoryManager() {
                 loading={loading}
               />
             ) : (
-              <InventoryGroupedView
-                items={groupedItems}
-                loading={loading}
-              />
+            <InventoryGroupedView
+              items={groupedItems}
+              loading={loading}
+            />
             )}
           </div>
         ) : viewMode === 'list' ? (

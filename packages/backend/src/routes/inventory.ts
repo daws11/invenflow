@@ -506,10 +506,9 @@ router.get('/grouped', async (req, res, next) => {
           COUNT(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NOT NULL THEN 1 END)::int as used,
           (
             COUNT(CASE WHEN p.column_status = 'Received' THEN 1 END) +
-            COUNT(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NULL THEN 1 END) +
-            COUNT(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NOT NULL THEN 1 END)
+            COALESCE(SUM(CASE WHEN p.column_status = 'Stored' THEN COALESCE(p.stock_level, 1) END), 0)
           )::int as "totalStock",
-          COUNT(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NULL THEN 1 END)::int as available,
+          COALESCE(SUM(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NULL THEN COALESCE(p.stock_level, 1) END), 0)::int as available,
           array_agg(p.id) as "productIds",
           MAX(p.unit_price) as "unitPrice",
           MAX(p.updated_at) as "lastUpdated"

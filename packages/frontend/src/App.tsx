@@ -13,7 +13,10 @@ const KanbanBoard = lazy(() => import('./pages/KanbanBoard'));
 const InventoryManager = lazy(() => import('./pages/InventoryManager'));
 const LocationsPage = lazy(() => import('./pages/LocationsPage'));
 const PersonsPage = lazy(() => import('./pages/PersonsPage'));
+const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage'));
 const MovementManager = lazy(() => import('./pages/MovementManager'));
+const BulkMovementPage = lazy(() => import('./pages/BulkMovementPage'));
+const PublicBulkMovementConfirmation = lazy(() => import('./pages/PublicBulkMovementConfirmation'));
 const PublicForm = lazy(() => import('./pages/PublicForm'));
 const LoginForm = lazy(() => import('./components/LoginForm'));
 const UserManagement = lazy(() => import('./components/UserManagement'));
@@ -56,6 +59,15 @@ function App() {
               <div className="min-h-screen bg-gray-50">
                 <Suspense fallback={<PageLoader />}>
                   <PublicForm />
+                </Suspense>
+              </div>
+            } />
+
+            {/* Public bulk movement confirmation route - accessible to everyone, no Layout */}
+            <Route path="/bulk-movement/confirm/:token" element={
+              <div className="min-h-screen bg-gray-50">
+                <Suspense fallback={<PageLoader />}>
+                  <PublicBulkMovementConfirmation />
                 </Suspense>
               </div>
             } />
@@ -110,6 +122,15 @@ function App() {
                 </ProtectedRoute>
               </Layout>
             } />
+            <Route path="/departments" element={
+              <Layout>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <DepartmentsPage />
+                  </Suspense>
+                </ProtectedRoute>
+              </Layout>
+            } />
             <Route path="/inventory" element={
               <Layout>
                 <ProtectedRoute>
@@ -124,6 +145,15 @@ function App() {
                 <ProtectedRoute>
                   <Suspense fallback={<PageLoader />}>
                     <MovementManager />
+                  </Suspense>
+                </ProtectedRoute>
+              </Layout>
+            } />
+            <Route path="/bulk-movements" element={
+              <Layout>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <BulkMovementPage />
                   </Suspense>
                 </ProtectedRoute>
               </Layout>

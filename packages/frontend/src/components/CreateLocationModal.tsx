@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { CreateLocation, DEFAULT_AREAS } from '@invenflow/shared';
-import { Slider } from './Slider';
 
 interface CreateLocationModalProps {
   isOpen: boolean;
@@ -175,7 +174,7 @@ export function CreateLocationModal({ isOpen, onClose, onCreate }: CreateLocatio
               />
               <div className="mt-2">
                 <p className="text-xs text-gray-500 mb-1.5">
-                  📍 Quick select from common areas:
+                   Quick select from common areas:
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {availableAreas.map((area) => (

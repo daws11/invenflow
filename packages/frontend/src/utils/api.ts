@@ -17,7 +17,14 @@ import {
   UpdateUser,
   Login,
   AuthResponse,
-  TransferLog
+  TransferLog,
+  CreateBulkMovement,
+  UpdateBulkMovement,
+  ConfirmBulkMovement,
+  BulkMovementFilters,
+  BulkMovementListResponse,
+  BulkMovementWithDetails,
+  PublicBulkMovementResponse
 } from '@invenflow/shared';
 import { useAuthStore } from '../store/authStore';
 
@@ -79,6 +86,11 @@ export const kanbanApi = {
 
   update: async (id: string, data: Partial<Kanban>): Promise<Kanban> => {
     const response = await api.put(`/api/kanbans/${id}`, data);
+    return response.data;
+  },
+
+  updatePublicFormSettings: async (id: string, isPublicFormEnabled: boolean): Promise<Kanban> => {
+    const response = await api.put(`/api/kanbans/${id}/public-form-settings`, { isPublicFormEnabled });
     return response.data;
   },
 
@@ -211,27 +223,54 @@ export const transferLogApi = {
 };
 
 // Public Form API calls
+export interface ProductSearchResult {
+  id: string;
+  productDetails: string;
+  sku: string | null;
+  category: string | null;
+  supplier: string | null;
+  unitPrice: string | null;
+}
+
 export const publicApi = {
   getKanbanInfo: async (token: string): Promise<{ id: string; name: string; type: string }> => {
     const response = await api.get(`/api/public/form/${token}`);
     return response.data;
   },
 
+  getDepartments: async (): Promise<{ id: string; name: string }[]> => {
+    const response = await api.get('/api/public/departments');
+    return response.data;
+  },
+
+  getAreas: async (): Promise<string[]> => {
+    const response = await api.get('/api/public/areas');
+    return response.data;
+  },
+
+  searchProducts: async (query: string): Promise<ProductSearchResult[]> => {
+    const response = await api.get('/api/public/products/search', {
+      params: { q: query }
+    });
+    return response.data;
+  },
+
   submitForm: async (token: string, data: {
-    productDetails: string;
-    productLink?: string;
-    location?: string;
-    locationId?: string;
-    priority?: string;
+    requesterName: string;
+    departmentId: string;
+    area?: string;
+    itemName: string;
+    itemUrl?: string;
+    quantity: number;
+    details?: string;
+    priority: string;
+    notes?: string;
+    // Optional fields from existing product selection
+    productId?: string;
     category?: string;
     supplier?: string;
-    productImage?: string;
-    dimensions?: string;
-    weight?: string;
+    sku?: string;
     unitPrice?: string;
-    tags?: string;
-    notes?: string;
-    stockLevel?: string;
   }): Promise<{ message: string; product: Product }> => {
     const response = await api.post(`/api/public/form/${token}`, data);
     return response.data;
@@ -252,6 +291,50 @@ export const inventoryApi = {
 
   getStats: async (): Promise<InventoryStats> => {
     const response = await api.get('/api/inventory/stats');
+    return response.data;
+  },
+};
+
+// Bulk Movement API calls
+export const bulkMovementApi = {
+  getAll: async (filters?: Partial<BulkMovementFilters>): Promise<BulkMovementListResponse> => {
+    const response = await api.get('/api/bulk-movements', { params: filters });
+    return response.data;
+  },
+
+  getById: async (id: string): Promise<BulkMovementWithDetails> => {
+    const response = await api.get(`/api/bulk-movements/${id}`);
+    return response.data;
+  },
+
+  create: async (data: CreateBulkMovement): Promise<BulkMovementWithDetails & { publicUrl: string }> => {
+    const response = await api.post('/api/bulk-movements', data);
+    return response.data;
+  },
+
+  update: async (id: string, data: UpdateBulkMovement): Promise<BulkMovementWithDetails> => {
+    const response = await api.patch(`/api/bulk-movements/${id}`, data);
+    return response.data;
+  },
+
+  cancel: async (id: string): Promise<{ message: string }> => {
+    const response = await api.post(`/api/bulk-movements/${id}/cancel`);
+    return response.data;
+  },
+
+  checkExpired: async (): Promise<{ expiredCount: number }> => {
+    const response = await api.post('/api/bulk-movements/check-expired');
+    return response.data;
+  },
+
+  // Public endpoints (no authentication required)
+  getByToken: async (token: string): Promise<PublicBulkMovementResponse> => {
+    const response = await axios.get(`${API_BASE_URL}/api/public/bulk-movements/${token}`);
+    return response.data;
+  },
+
+  confirm: async (token: string, data: ConfirmBulkMovement): Promise<{ message: string; bulkMovementId: string; createdProductsCount: number; confirmedItemsCount: number }> => {
+    const response = await axios.post(`${API_BASE_URL}/api/public/bulk-movements/${token}/confirm`, data);
     return response.data;
   },
 };

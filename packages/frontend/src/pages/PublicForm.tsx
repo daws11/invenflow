@@ -1,8 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { publicApi } from '../utils/api';
-import { useLocationStore } from '../store/locationStore';
-import { PRODUCT_CATEGORIES } from '@invenflow/shared';
+import { publicApi, ProductSearchResult } from '../utils/api';
 
 interface KanbanInfo {
   id: string;
@@ -10,99 +8,223 @@ interface KanbanInfo {
   type: string;
 }
 
+interface Department {
+  id: string;
+  name: string;
+}
+
 export default function PublicForm() {
   const { token } = useParams<{ token: string }>();
-  const { locations, fetchLocations } = useLocationStore();
-  const [kanbanInfo, setKanbanInfo] = useState<KanbanInfo | null>(null);
+  
+  // Loading states
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  // Data states
+  const [kanbanInfo, setKanbanInfo] = useState<KanbanInfo | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [areas, setAreas] = useState<string[]>([]);
+
+  // Product search states
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [productSearchResults, setProductSearchResults] = useState<ProductSearchResult[]>([]);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Form data
   const [formData, setFormData] = useState({
-    productDetails: '',
-    productLink: '',
-    location: '',
-    locationId: '',
+    requesterName: '',
+    departmentId: '',
+    area: '',
+    itemName: '',
+    itemUrl: '',
+    quantity: '1',
+    details: '',
     priority: '',
+    notes: '',
+    // Optional fields from product selection
+    selectedProductId: '',
     category: '',
     supplier: '',
-    productImage: '',
-    dimensions: '',
-    weight: '',
+    sku: '',
     unitPrice: '',
-    tags: '',
-    notes: '',
-    stockLevel: '',
   });
 
+  // Fetch initial data
   useEffect(() => {
     if (token) {
-      fetchKanbanInfo();
+      fetchInitialData();
     }
   }, [token]);
 
+  // Close dropdown when clicking outside
   useEffect(() => {
-    fetchLocations();
-  }, [fetchLocations]);
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowProductDropdown(false);
+      }
+    }
 
-  const fetchKanbanInfo = async () => {
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const info = await publicApi.getKanbanInfo(token!);
-      setKanbanInfo(info);
+      const [kanbanData, departmentsData, areasData] = await Promise.all([
+        publicApi.getKanbanInfo(token!),
+        publicApi.getDepartments(),
+        publicApi.getAreas(),
+      ]);
+
+      setKanbanInfo(kanbanData);
+      setDepartments(departmentsData);
+      setAreas(areasData);
       setError(null);
-    } catch (error) {
-      setError('Public form not found or has been disabled');
+    } catch (error: any) {
+      // Check if it's a 403 error (form disabled)
+      if (error?.response?.status === 403) {
+        setError('This form has been disabled by the administrator');
+      } else {
+        setError('Public form not found or has been disabled');
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  // Debounced product search
+  const searchProducts = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setProductSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const results = await publicApi.searchProducts(query);
+      setProductSearchResults(results);
+    } catch (error) {
+      console.error('Product search failed:', error);
+      setProductSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  const handleProductSearchChange = (value: string) => {
+    setProductSearchQuery(value);
+    setFormData({ ...formData, itemName: value });
+    setShowProductDropdown(true);
+
+    // Clear existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Set new timeout for debounced search
+    searchTimeoutRef.current = setTimeout(() => {
+      searchProducts(value);
+    }, 300);
+  };
+
+  const handleSelectProduct = (product: ProductSearchResult) => {
+    setFormData({
+      ...formData,
+      itemName: product.productDetails,
+      selectedProductId: product.id,
+      category: product.category || '',
+      supplier: product.supplier || '',
+      sku: product.sku || '',
+      unitPrice: product.unitPrice || '',
+    });
+    setProductSearchQuery(product.productDetails);
+    setShowProductDropdown(false);
+  };
+
+  const handleSelectNewProduct = () => {
+    setFormData({
+      ...formData,
+      selectedProductId: '',
+      category: '',
+      supplier: '',
+      sku: '',
+      unitPrice: '',
+    });
+    setShowProductDropdown(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.productDetails.trim()) {
-      alert('Product details are required');
+    // Validate required fields
+    if (!formData.requesterName.trim()) {
+      alert('Requester name is required');
+      return;
+    }
+
+    if (!formData.departmentId) {
+      alert('Department is required');
+      return;
+    }
+
+    if (!formData.itemName.trim()) {
+      alert('Item name is required');
+      return;
+    }
+
+    if (!formData.quantity || parseInt(formData.quantity) < 1) {
+      alert('Quantity must be at least 1');
+      return;
+    }
+
+    if (!formData.priority) {
+      alert('Priority is required');
       return;
     }
 
     try {
       setSubmitting(true);
       await publicApi.submitForm(token!, {
-        productDetails: formData.productDetails.trim(),
-        productLink: formData.productLink.trim() || undefined,
-        location: formData.location.trim() || undefined,
-        locationId: formData.locationId || undefined,
-        priority: formData.priority || undefined,
-        category: formData.category || undefined,
-        supplier: formData.supplier.trim() || undefined,
-        productImage: formData.productImage.trim() || undefined,
-        dimensions: formData.dimensions.trim() || undefined,
-        weight: formData.weight || undefined,
-        unitPrice: formData.unitPrice || undefined,
-        tags: formData.tags.trim() || undefined,
+        requesterName: formData.requesterName.trim(),
+        departmentId: formData.departmentId,
+        area: formData.area || undefined,
+        itemName: formData.itemName.trim(),
+        itemUrl: formData.itemUrl.trim() || undefined,
+        quantity: parseInt(formData.quantity),
+        details: formData.details.trim() || undefined,
+        priority: formData.priority,
         notes: formData.notes.trim() || undefined,
-        stockLevel: formData.stockLevel || undefined,
+        productId: formData.selectedProductId || undefined,
+        category: formData.category || undefined,
+        supplier: formData.supplier || undefined,
+        sku: formData.sku || undefined,
+        unitPrice: formData.unitPrice || undefined,
       });
 
       setSubmitted(true);
       setFormData({
-        productDetails: '',
-        productLink: '',
-        location: '',
-        locationId: '',
+        requesterName: '',
+        departmentId: '',
+        area: '',
+        itemName: '',
+        itemUrl: '',
+        quantity: '1',
+        details: '',
         priority: '',
+        notes: '',
+        selectedProductId: '',
         category: '',
         supplier: '',
-        productImage: '',
-        dimensions: '',
-        weight: '',
+        sku: '',
         unitPrice: '',
-        tags: '',
-        notes: '',
-        stockLevel: '',
       });
+      setProductSearchQuery('');
     } catch (error) {
       alert('Failed to submit request. Please try again.');
     } finally {
@@ -123,14 +245,47 @@ export default function PublicForm() {
   if (error) {
     return (
       <div className="max-w-2xl mx-auto">
-        <div className="text-center py-12">
-          <div className="text-red-600 text-lg mb-4">{error}</div>
-          <button
-            onClick={() => window.history.back()}
-            className="btn-secondary"
-          >
-            Go Back
-          </button>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+          <div className="text-center py-8">
+            {/* Error Icon */}
+            <div className="mb-4">
+              <svg 
+                className="w-16 h-16 text-red-500 mx-auto" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                />
+              </svg>
+            </div>
+            
+            {/* Error Message */}
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              {error.includes('disabled') ? 'Form Disabled' : 'Form Not Available'}
+            </h2>
+            <p className="text-red-600 text-lg mb-6">{error}</p>
+            
+            {/* Additional Info */}
+            {error.includes('disabled') && (
+              <p className="text-gray-600 text-sm mb-6">
+                The administrator has temporarily disabled this form. 
+                Please contact them if you need to submit a request.
+              </p>
+            )}
+            
+            {/* Actions */}
+            <button
+              onClick={() => window.history.back()}
+              className="btn-secondary"
+            >
+              Go Back
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -175,108 +330,156 @@ export default function PublicForm() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Requester Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Product Details *
-            </label>
-            <textarea
-              className="w-full border border-gray-300 rounded-md p-3 h-32"
-              placeholder="Enter product details..."
-              value={formData.productDetails}
-              onChange={(e) => setFormData({ ...formData, productDetails: e.target.value })}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Product Link
-            </label>
-            <input
-              type="url"
-              className="w-full border border-gray-300 rounded-md p-3"
-              placeholder="https://example.com/product"
-              value={formData.productLink}
-              onChange={(e) => setFormData({ ...formData, productLink: e.target.value })}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Location
-            </label>
-            {locations.length > 0 ? (
-              <select
-                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                value={formData.locationId}
-                onChange={(e) => {
-                  const selectedLocation = locations.find(loc => loc.id === e.target.value);
-                  setFormData({
-                    ...formData,
-                    locationId: e.target.value,
-                    location: selectedLocation?.name || '',
-                  });
-                }}
-              >
-                <option value="">Select a location</option>
-                {locations.map(location => (
-                  <option key={location.id} value={location.id}>
-                    {location.name} ({location.code}) - {location.area}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type="text"
-                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Storage location"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              />
-            )}
-          </div>
-
-          {/* Supplier */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Supplier
+              Requester Name *
             </label>
             <input
               type="text"
               className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Supplier name"
-              value={formData.supplier}
-              onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
+              placeholder="Your name"
+              value={formData.requesterName}
+              onChange={(e) => setFormData({ ...formData, requesterName: e.target.value })}
+              required
             />
           </div>
 
-          {/* Category and Priority */}
+          {/* Department */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Department *
+            </label>
+            <select
+              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              value={formData.departmentId}
+              onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
+              required
+            >
+              <option value="">Select department</option>
+              {departments.map(dept => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Location (Area) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Location
+            </label>
+            <select
+              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              value={formData.area}
+              onChange={(e) => setFormData({ ...formData, area: e.target.value })}
+            >
+              <option value="">Select location</option>
+              {areas.map(area => (
+                <option key={area} value={area}>
+                  {area}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Item Name with Autocomplete */}
+          <div className="relative" ref={dropdownRef}>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Item Name *
+            </label>
+            <input
+              type="text"
+              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Search for existing product or enter new item name"
+              value={productSearchQuery}
+              onChange={(e) => handleProductSearchChange(e.target.value)}
+              onFocus={() => setShowProductDropdown(true)}
+              required
+            />
+            
+            {/* Autocomplete Dropdown */}
+            {showProductDropdown && (productSearchQuery.length >= 2) && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                {isSearching ? (
+                  <div className="p-3 text-gray-500 text-center">Searching...</div>
+                ) : productSearchResults.length > 0 ? (
+                  <>
+                    {productSearchResults.map(product => (
+                      <button
+                        key={product.id}
+                        type="button"
+                        className="w-full text-left p-3 hover:bg-gray-100 border-b border-gray-200 last:border-b-0"
+                        onClick={() => handleSelectProduct(product)}
+                      >
+                        <div className="font-medium text-gray-900">{product.productDetails}</div>
+                        <div className="text-sm text-gray-500">
+                          {product.sku && `SKU: ${product.sku}`}
+                          {product.category && ` | Category: ${product.category}`}
+                        </div>
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className="w-full text-left p-3 hover:bg-gray-100 text-blue-600 font-medium"
+                      onClick={handleSelectNewProduct}
+                    >
+                      + Add new product: "{productSearchQuery}"
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="w-full text-left p-3 hover:bg-gray-100 text-blue-600 font-medium"
+                    onClick={handleSelectNewProduct}
+                  >
+                    + Add new product: "{productSearchQuery}"
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Item URL */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Item URL
+            </label>
+            <input
+              type="url"
+              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="https://example.com/product"
+              value={formData.itemUrl}
+              onChange={(e) => setFormData({ ...formData, itemUrl: e.target.value })}
+            />
+          </div>
+
+          {/* Quantity and Priority */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Category
+                Quantity *
               </label>
-              <select
+              <input
+                type="number"
                 className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              >
-                <option value="">Select category</option>
-                {PRODUCT_CATEGORIES.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
+                placeholder="Quantity"
+                min="1"
+                value={formData.quantity}
+                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                required
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Priority
+                Priority *
               </label>
               <select
                 className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 value={formData.priority}
                 onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                required
               >
                 <option value="">Select priority</option>
                 <option value="Low">Low</option>
@@ -287,92 +490,17 @@ export default function PublicForm() {
             </div>
           </div>
 
-          {/* Stock Level and Unit Price */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Stock Level
-              </label>
-              <input
-                type="number"
-                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Quantity"
-                min="0"
-                value={formData.stockLevel}
-                onChange={(e) => setFormData({ ...formData, stockLevel: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Unit Price
-              </label>
-              <input
-                type="number"
-                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Price per unit"
-                step="0.01"
-                min="0"
-                value={formData.unitPrice}
-                onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
-              />
-            </div>
-          </div>
-
-          {/* Product Image URL */}
+          {/* Details */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Product Image URL
+              Details
             </label>
-            <input
-              type="url"
+            <textarea
               className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="https://example.com/image.jpg"
-              value={formData.productImage}
-              onChange={(e) => setFormData({ ...formData, productImage: e.target.value })}
-            />
-          </div>
-
-          {/* Dimensions and Weight */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Dimensions
-              </label>
-              <input
-                type="text"
-                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="e.g., 10x20x5 cm"
-                value={formData.dimensions}
-                onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Weight (kg)
-              </label>
-              <input
-                type="number"
-                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Weight in kg"
-                step="0.01"
-                min="0"
-                value={formData.weight}
-                onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
-              />
-            </div>
-          </div>
-
-          {/* Tags */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tags
-            </label>
-            <input
-              type="text"
-              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Separate tags with commas"
-              value={formData.tags}
-              onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+              placeholder="Additional product description or specifications..."
+              rows={3}
+              value={formData.details}
+              onChange={(e) => setFormData({ ...formData, details: e.target.value })}
             />
           </div>
 
@@ -383,7 +511,7 @@ export default function PublicForm() {
             </label>
             <textarea
               className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Additional notes or comments..."
+              placeholder="Any additional comments or special instructions..."
               rows={3}
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -400,5 +528,5 @@ export default function PublicForm() {
         </form>
       </div>
     </div>
-  )
+  );
 }

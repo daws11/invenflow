@@ -13,6 +13,7 @@ interface KanbanState {
   fetchKanbanById: (id: string) => Promise<void>;
   createKanban: (data: CreateKanban) => Promise<Kanban>;
   updateKanban: (id: string, data: Partial<Kanban>) => Promise<void>;
+  togglePublicForm: (id: string, enabled: boolean) => Promise<void>;
   deleteKanban: (id: string) => Promise<void>;
 
   createProduct: (data: CreateProduct) => Promise<Product>;
@@ -90,6 +91,26 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to update kanban',
         loading: false
       });
+    }
+  },
+
+  togglePublicForm: async (id: string, enabled: boolean) => {
+    set({ loading: true, error: null });
+    try {
+      const updatedKanban = await kanbanApi.updatePublicFormSettings(id, enabled);
+      set(state => ({
+        kanbans: state.kanbans.map(k => k.id === id ? updatedKanban : k),
+        currentKanban: state.currentKanban?.id === id
+          ? { ...state.currentKanban, isPublicFormEnabled: enabled }
+          : state.currentKanban,
+        loading: false
+      }));
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to update public form settings',
+        loading: false
+      });
+      throw error;
     }
   },
 
@@ -174,9 +195,9 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
       currentKanban: state.currentKanban
         ? {
             ...state.currentKanban,
-            products: state.currentKanban.products.map(p =>
-              p.id === id 
-                ? { ...p, columnStatus, columnEnteredAt: new Date().toISOString() }
+              products: state.currentKanban.products.map(p =>
+                p.id === id 
+                ? { ...p, columnStatus, columnEnteredAt: new Date() as unknown as Date }
                 : p
             )
           }

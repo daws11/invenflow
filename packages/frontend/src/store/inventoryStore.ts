@@ -268,15 +268,15 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     try {
       // Use productApi to update the location
       const { productApi } = await import('../utils/api');
-      await productApi.update(productId, { location, locationId: locationId ?? null });
+      await productApi.update(productId, { locationId: locationId ?? null });
 
       // Update local state
       set(state => ({
         items: state.items.map(item =>
-          item.id === productId ? { ...item, location, locationId: locationId ?? null } : item
+          item.id === productId ? { ...item, locationId: locationId ?? null } : item
         ),
         selectedItem: state.selectedItem?.id === productId
-          ? { ...state.selectedItem, location, locationId: locationId ?? null }
+          ? { ...state.selectedItem, locationId: locationId ?? null }
           : state.selectedItem,
         loading: false,
       }));

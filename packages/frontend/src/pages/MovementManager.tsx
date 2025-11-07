@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMovementStore } from '../store/movementStore';
+import { useBulkMovementStore } from '../store/bulkMovementStore';
 import { MovementModal } from '../components/MovementModal';
+import { BulkMovementDetailModal } from '../components/BulkMovementDetailModal';
+import { BulkMovementEditModal } from '../components/BulkMovementEditModal';
 import {
   ArrowPathIcon,
   PlusIcon,
@@ -20,16 +23,30 @@ export default function MovementManager() {
     clearError,
   } = useMovementStore();
 
+  const {
+    bulkMovements,
+    loading: bulkLoading,
+    error: bulkError,
+    fetchBulkMovements,
+    cancelBulkMovement,
+  } = useBulkMovementStore();
+
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
+  const [selectedBulkId, setSelectedBulkId] = useState<string | null>(null);
+  const selectedBulk = useMemo(() => bulkMovements.find(b => b.id === selectedBulkId) || null, [bulkMovements, selectedBulkId]);
+  const [isBulkDetailOpen, setIsBulkDetailOpen] = useState(false);
+  const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
 
   useEffect(() => {
     fetchMovements();
     fetchStats();
-  }, [fetchMovements, fetchStats]);
+    fetchBulkMovements();
+  }, [fetchMovements, fetchStats, fetchBulkMovements]);
 
   const handleRefresh = () => {
     fetchMovements();
     fetchStats();
+    fetchBulkMovements();
   };
 
   const handleMovementSuccess = () => {
@@ -47,6 +64,46 @@ export default function MovementManager() {
       minute: '2-digit',
     }).format(date);
   };
+
+  const combinedRows = useMemo(() => {
+    // Map movement logs to unified shape
+    const singleRows = movements.map((movement) => ({
+      kind: 'single' as const,
+      id: movement.id,
+      date: movement.createdAt.toString(),
+      productLabel: movement.product?.productDetails || 'Unknown Product',
+      fromLocation: movement.fromLocation?.name || movement.fromPerson?.name || null,
+      toLocation: movement.toLocation?.name || movement.toPerson?.name || null,
+      stockChange: `${movement.fromStockLevel || 0} → ${movement.toStockLevel}`,
+      movedBy: movement.movedBy || 'System',
+    }));
+
+    // Map bulk movements to unified shape
+    const bulkRows = bulkMovements.map((bm) => {
+      const isConfirmed = bm.status === 'received' || !!bm.confirmedAt;
+      const isCancelled = !!(bm as any).cancelledAt; // included from API if present
+      const statusLabel = isCancelled
+        ? 'Cancelled'
+        : isConfirmed
+        ? 'Confirmed'
+        : 'Pending';
+
+      return {
+        kind: 'bulk' as const,
+        id: bm.id,
+        date: bm.createdAt.toString(),
+        productLabel: `Bulk items (${bm.items.length})`,
+        fromLocation: bm.fromLocation?.name || null,
+        toLocation: bm.toLocation?.name || null,
+        stockChange: `${bm.items.reduce((sum, i) => sum + (i.quantitySent || 0), 0)} items`,
+        movedBy: bm.createdBy,
+        statusLabel,
+        editable: !isConfirmed && !isCancelled,
+      };
+    });
+
+    return [...bulkRows, ...singleRows].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [movements, bulkMovements]);
 
   if (error) {
     return (
@@ -218,12 +275,12 @@ export default function MovementManager() {
           <h2 className="text-lg font-medium text-gray-900">Movement History</h2>
         </div>
 
-        {loading && movements.length === 0 ? (
+        {(loading || bulkLoading) && combinedRows.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
             <p className="mt-2">Loading movements...</p>
           </div>
-        ) : movements.length === 0 ? (
+        ) : combinedRows.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <MapPinIcon className="mx-auto h-12 w-12 text-gray-400" />
             <p className="mt-2">No movements recorded yet</p>
@@ -240,6 +297,9 @@ export default function MovementManager() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Date
                   </th>
@@ -258,60 +318,55 @@ export default function MovementManager() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Moved By
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {movements.map((movement) => (
-                  <tr key={movement.id} className="hover:bg-gray-50 transition-colors">
+                {combinedRows.map((row) => (
+                  <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 whitespace-nowrap text-xs font-medium text-gray-700">
+                      {row.kind === 'bulk' ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">Bulk</span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">Single</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex items-center">
                         <CalendarIcon className="h-4 w-4 text-gray-400 mr-2" />
-                        {formatDate(movement.createdAt.toString())}
+                        {formatDate(row.date)}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
                       <div className="flex items-center space-x-2">
                         <div className="flex-1">
                           <div className="max-w-xs truncate">
-                            {movement.product?.productDetails || 'Unknown Product'}
+                            {row.productLabel}
                           </div>
-                          {movement.product?.sku && (
-                            <div className="text-xs text-gray-500">SKU: {movement.product.sku}</div>
-                          )}
                         </div>
-                        {(movement.notes?.includes('Batch distribution') || movement.product?.sourceProductId) && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 flex-shrink-0">
-                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                            </svg>
-                            Batch
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
-                      {movement.fromPerson ? (
+                      {row.kind === 'single' && (movements.find(m => m.id === row.id)?.fromPerson) ? (
                         <div className="flex items-start space-x-2">
                           <svg className="w-4 h-4 mt-0.5 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                           </svg>
                           <div>
-                            <div className="font-medium text-purple-900">{movement.fromPerson.name}</div>
-                            <div className="text-xs text-gray-500">
-                              {movement.fromPerson.department}
-                            </div>
+                            <div className="font-medium text-purple-900">{movements.find(m => m.id === row.id)?.fromPerson?.name}</div>
+                            
                           </div>
                         </div>
-                      ) : movement.fromLocation ? (
+                      ) : row.fromLocation ? (
                         <div className="flex items-start space-x-2">
                           <MapPinIcon className="w-4 h-4 mt-0.5 text-blue-500 flex-shrink-0" />
                           <div>
-                            <div className="font-medium text-blue-900">{movement.fromLocation.name}</div>
-                            <div className="text-xs text-gray-500 flex items-center space-x-1">
-                              <span>{movement.fromLocation.area}</span>
-                              <span>•</span>
-                              <span>{movement.fromLocation.code}</span>
-                            </div>
+                            <div className="font-medium text-blue-900">{row.fromLocation}</div>
                           </div>
                         </div>
                       ) : (
@@ -319,28 +374,21 @@ export default function MovementManager() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
-                      {movement.toPerson ? (
+                      {row.kind === 'single' && (movements.find(m => m.id === row.id)?.toPerson) ? (
                         <div className="flex items-start space-x-2">
                           <svg className="w-4 h-4 mt-0.5 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                           </svg>
                           <div>
-                            <div className="font-medium text-purple-900">{movement.toPerson.name}</div>
-                            <div className="text-xs text-gray-500">
-                              {movement.toPerson.department}
-                            </div>
+                            <div className="font-medium text-purple-900">{movements.find(m => m.id === row.id)?.toPerson?.name}</div>
+                            
                           </div>
                         </div>
-                      ) : movement.toLocation ? (
+                      ) : row.toLocation ? (
                         <div className="flex items-start space-x-2">
                           <MapPinIcon className="w-4 h-4 mt-0.5 text-blue-500 flex-shrink-0" />
                           <div>
-                            <div className="font-medium text-blue-900">{movement.toLocation.name}</div>
-                            <div className="text-xs text-gray-500 flex items-center space-x-1">
-                              <span>{movement.toLocation.area}</span>
-                              <span>•</span>
-                              <span>{movement.toLocation.code}</span>
-                            </div>
+                            <div className="font-medium text-blue-900">{row.toLocation}</div>
                           </div>
                         </div>
                       ) : (
@@ -348,32 +396,81 @@ export default function MovementManager() {
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-gray-600">{movement.fromStockLevel || 0}</span>
-                        <ArrowRightIcon className="h-3 w-3 text-gray-400" />
-                        <span className="font-medium text-gray-900">{movement.toStockLevel}</span>
-                        {movement.toStockLevel !== (movement.fromStockLevel || 0) && (
-                          <span className={`text-xs ${
-                            movement.toStockLevel > (movement.fromStockLevel || 0)
-                              ? 'text-green-600'
-                              : 'text-red-600'
-                          }`}>
-                            ({movement.toStockLevel > (movement.fromStockLevel || 0) ? '+' : ''}
-                            {movement.toStockLevel - (movement.fromStockLevel || 0)})
-                          </span>
-                        )}
-                      </div>
+                      {row.kind === 'single' ? (
+                        <div className="flex items-center space-x-2">
+                          <span className="text-gray-600">{movements.find(m => m.id === row.id)?.fromStockLevel || 0}</span>
+                          <ArrowRightIcon className="h-3 w-3 text-gray-400" />
+                          <span className="font-medium text-gray-900">{movements.find(m => m.id === row.id)?.toStockLevel}</span>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-900">{row.stockChange}</div>
+                      )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm">
-                      {movement.movedBy ? (
+                      {row.movedBy ? (
                         <div className="flex items-center space-x-1.5">
                           <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                           </svg>
-                          <span className="text-gray-900 font-medium">{movement.movedBy}</span>
+                          <span className="text-gray-900 font-medium">{row.movedBy}</span>
                         </div>
                       ) : (
                         <span className="text-gray-400 italic text-xs">System</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm">
+                      {row.kind === 'bulk' ? (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${
+                          row.statusLabel === 'Pending'
+                            ? 'bg-yellow-100 text-yellow-700 border-yellow-300'
+                            : row.statusLabel === 'Confirmed'
+                            ? 'bg-green-100 text-green-700 border-green-300'
+                            : 'bg-red-100 text-red-700 border-red-300'
+                        }`}>
+                          {row.statusLabel}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm">
+                      {row.kind === 'bulk' ? (
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              setSelectedBulkId(row.id);
+                              setIsBulkDetailOpen(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                          >
+                            View
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedBulkId(row.id);
+                              setIsBulkEditOpen(true);
+                            }}
+                            disabled={!('editable' in row && row.editable)}
+                            className="text-indigo-600 hover:text-indigo-800 text-xs font-medium disabled:text-gray-300 disabled:cursor-not-allowed"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!('editable' in row && row.editable)) return;
+                              if (confirm('Cancel this bulk movement? This will restore stock.')) {
+                                await cancelBulkMovement(row.id);
+                                handleRefresh();
+                              }
+                            }}
+                            disabled={!('editable' in row && row.editable)}
+                            className="text-red-600 hover:text-red-800 text-xs font-medium disabled:text-gray-300 disabled:cursor-not-allowed"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
                       )}
                     </td>
                   </tr>
@@ -390,6 +487,25 @@ export default function MovementManager() {
         onClose={() => setIsMovementModalOpen(false)}
         onSuccess={handleMovementSuccess}
       />
+
+      {/* Bulk Movement Modals */}
+      {selectedBulk && (
+        <BulkMovementDetailModal
+          isOpen={isBulkDetailOpen}
+          onClose={() => setIsBulkDetailOpen(false)}
+          bulkMovement={selectedBulk}
+        />
+      )}
+      {selectedBulk && (
+        <BulkMovementEditModal
+          isOpen={isBulkEditOpen}
+          onClose={() => {
+            setIsBulkEditOpen(false);
+            handleRefresh();
+          }}
+          bulkMovement={selectedBulk}
+        />
+      )}
     </div>
   );
 }

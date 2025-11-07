@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { InventoryItem } from '@invenflow/shared';
 import { useInventoryStore } from '../store/inventoryStore';
 import { useLocationStore } from '../store/locationStore';
+import { usePersonStore } from '../store/personStore';
 import {
   PhotoIcon,
   TagIcon,
@@ -20,7 +21,7 @@ import { ImageGallery } from './ImageGallery';
 import { Slider } from './Slider';
 import { SliderTabs, SliderTab } from './SliderTabs';
 import { ProductMovementHistory } from './ProductMovementHistory';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 
 interface ProductDetailModalProps {
   item: InventoryItem;
@@ -32,11 +33,12 @@ type TabType = 'view' | 'edit' | 'movement';
 export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
   const { updateProductStock, updateProductLocation } = useInventoryStore();
   const { locations, fetchLocations } = useLocationStore();
+  const { persons, fetchPersons } = usePersonStore();
 
   const [activeTab, setActiveTab] = useState<TabType>('view');
   const [editValues, setEditValues] = useState({
     stockLevel: item.stockLevel?.toString() || '',
-    location: item.location || '',
+    location: '',
     locationId: item.locationId || '',
     notes: item.notes || '',
   });
@@ -48,12 +50,13 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
 
   useEffect(() => {
     fetchLocations();
+    fetchPersons({ activeOnly: true });
   }, [fetchLocations]);
 
   useEffect(() => {
     setEditValues({
       stockLevel: item.stockLevel?.toString() || '',
-      location: item.location || '',
+      location: '',
       locationId: item.locationId || '',
       notes: item.notes || '',
     });
@@ -281,7 +284,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
                           <svg className="w-4 h-4 inline mr-1 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                           </svg>
-                          Department: {person?.department}
+                          
                         </>
                       ) : (
                         <>Area: {location?.area}</>
@@ -330,7 +333,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
       <div className="pt-4 border-t border-gray-200">
         <div className="flex items-center text-xs text-gray-500">
           <CalendarIcon className="h-3 w-3 mr-1" />
-          Created: {new Date(item.createdAt).toLocaleDateString()}
+          Created: {formatDateWithTime(item.createdAt)}
         </div>
         <div className="flex items-center text-xs text-gray-500 mt-1">
           <ClockIcon className="h-3 w-3 mr-1" />

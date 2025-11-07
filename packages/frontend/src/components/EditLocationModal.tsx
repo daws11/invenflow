@@ -14,7 +14,6 @@ export function EditLocationModal({ isOpen, onClose, location, onUpdate }: EditL
     name: '',
     area: '',
     code: '',
-    type: undefined,
     description: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,7 +25,6 @@ export function EditLocationModal({ isOpen, onClose, location, onUpdate }: EditL
         name: location.name,
         area: location.area,
         code: location.code,
-        type: location.type,
         description: location.description || '',
       });
       setErrors({});

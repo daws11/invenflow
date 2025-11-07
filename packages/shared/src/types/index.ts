@@ -1,4 +1,6 @@
+export * from './bulk-movement';
 export * from './category';
+export * from './department';
 export * from './inventory';
 export * from './kanban';
 export * from './location';

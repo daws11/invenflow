@@ -20,7 +20,7 @@ import {
   ArrowsUpDownIcon,
   ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 import { MovementModal } from './MovementModal';
 
 interface InventoryListProps {
@@ -46,7 +46,7 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
 
   useEffect(() => {
-    fetchLocations({ activeOnly: true });
+    fetchLocations();
     fetchPersons({ activeOnly: true });
   }, [fetchLocations, fetchPersons]);
 
@@ -77,9 +77,9 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
       return {
         type: 'person' as const,
         name: person.name,
-        area: person.department,
+        area: '',
         code: '',
-        display: `👤 ${person.name} (${person.department})`
+        display: `👤 ${person.name}`
       };
     }
     
@@ -504,7 +504,7 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
                           <div className="space-y-1">
                             <div className="flex items-center text-gray-600">
                               <CalendarIcon className="h-4 w-4 text-gray-400 mr-2" />
-                              <span>Created: {new Date(item.createdAt).toLocaleDateString()}</span>
+                              <span>Created: {formatDateWithTime(item.createdAt)}</span>
                             </div>
                             <div className="flex items-center text-gray-600">
                               <CalendarIcon className="h-4 w-4 text-gray-400 mr-2" />

@@ -4,7 +4,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import TransferHistoryViewer from './TransferHistoryViewer';
 import { getAppliedThreshold, calculateTimeInColumn, formatTimeDuration, formatThresholdRule } from '../utils/thresholdCalculator';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 
 interface CompactProductRowProps {
   product: Product;
@@ -17,6 +17,8 @@ export default function CompactProductRow({ product, onView, location, kanban }:
   const [isExpanded, setIsExpanded] = useState(false);
   const [showTransferHistory, setShowTransferHistory] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const [clickStartTime, setClickStartTime] = useState<number | null>(null);
+  const [isDragIntent, setIsDragIntent] = useState(false);
 
   // Update current time every 30 seconds for threshold recalculation
   useEffect(() => {
@@ -63,7 +65,35 @@ export default function CompactProductRow({ product, onView, location, kanban }:
     if ((event.target as HTMLElement).closest(interactiveSelector)) {
       return;
     }
+    
+    // Track click start time
+    setClickStartTime(Date.now());
+    setIsDragIntent(false);
+    
     listeners?.onPointerDown?.(event);
+  };
+
+  const handlePointerUp: React.PointerEventHandler<HTMLDivElement> = (event) => {
+    if ((event.target as HTMLElement).closest(interactiveSelector)) {
+      return;
+    }
+    
+    const clickEndTime = Date.now();
+    const clickDuration = clickStartTime ? clickEndTime - clickStartTime : 0;
+    
+    // If click duration is less than 200ms and no drag happened, treat as click
+    if (clickDuration < 200 && !isDragging && !isDragIntent) {
+      onView?.();
+    }
+    
+    setClickStartTime(null);
+    setIsDragIntent(false);
+  };
+
+  const handlePointerMove: React.PointerEventHandler<HTMLDivElement> = (event) => {
+    if (clickStartTime && !isDragIntent) {
+      setIsDragIntent(true);
+    }
   };
 
   const handleTouchStart: React.TouchEventHandler<HTMLDivElement> = (event) => {
@@ -126,13 +156,14 @@ export default function CompactProductRow({ product, onView, location, kanban }:
     <div
       ref={setNodeRef}
       style={combinedStyle}
-      className={`compact-product-row group relative transition-all duration-200 cursor-grab active:cursor-grabbing ${
-        isDragging ? 'opacity-50' : ''
+      className={`compact-product-row group relative transition-all duration-200 ${
+        isDragging ? 'opacity-50 cursor-grabbing' : 'cursor-pointer hover:cursor-grab'
       } ${appliedThreshold ? 'border-l-4' : ''}`}
       {...attributes}
       data-dragging={isDragging ? 'true' : 'false'}
-      onMouseDown={handleMouseDown}
       onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerMove={handlePointerMove}
       onTouchStart={handleTouchStart}
       onKeyDown={handleKeyDown}
       title={appliedThreshold ? `In column for ${timeInColumn} - ${formatThresholdRule(appliedThreshold)}` : undefined}
@@ -169,14 +200,6 @@ export default function CompactProductRow({ product, onView, location, kanban }:
           {/* Product Name */}
           <div className="flex-1 min-w-0">
             <h4 className="font-medium text-gray-900 truncate">{product.productDetails}</h4>
-            {timeInColumn && (
-              <div className="flex items-center text-xs text-gray-500 mt-0.5">
-                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>In column: {timeInColumn}</span>
-              </div>
-            )}
           </div>
 
           {/* SKU */}
@@ -208,14 +231,14 @@ export default function CompactProductRow({ product, onView, location, kanban }:
           )}
 
           {/* Location */}
-          {(location || product.location) && (
+          {(location || product.locationId) && (
             <div className="hidden lg:flex items-center text-sm text-gray-600 w-40 truncate">
               <svg className="w-4 h-4 mr-1 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               <span className="truncate">
-                {location ? location.name : product.location}
+                {location ? location.name : product.locationId}
               </span>
             </div>
           )}
@@ -267,13 +290,13 @@ export default function CompactProductRow({ product, onView, location, kanban }:
               </div>
             )}
 
-            {(location || product.location) && (
+            {(location || product.locationId) && (
               <div>
                 <span className="font-medium text-gray-700">Location:</span>
                 {location ? (
                   <span className="ml-2 text-gray-600">{location.name} ({location.code})</span>
                 ) : (
-                  <span className="ml-2 text-gray-600">{product.location}</span>
+                  <span className="ml-2 text-gray-600">{product.locationId}</span>
                 )}
               </div>
             )}
@@ -309,16 +332,10 @@ export default function CompactProductRow({ product, onView, location, kanban }:
             {product.createdAt && (
               <div>
                 <span className="font-medium text-gray-700">Created:</span>
-                <span className="ml-2 text-gray-600">{new Date(product.createdAt).toLocaleDateString()}</span>
+                <span className="ml-2 text-gray-600">{formatDateWithTime(product.createdAt)}</span>
               </div>
             )}
 
-            {timeInColumn && (
-              <div>
-                <span className="font-medium text-gray-700">In Column:</span>
-                <span className="ml-2 text-gray-600">{timeInColumn}</span>
-              </div>
-            )}
           </div>
 
           {product.tags && Array.isArray(product.tags) && product.tags.length > 0 && (

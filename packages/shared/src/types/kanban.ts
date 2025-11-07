@@ -28,6 +28,7 @@ export const KanbanSchema = z.object({
   description: z.string().max(1000).nullable(),
   linkedKanbanId: z.string().uuid().nullable(),
   publicFormToken: z.string().nullable(),
+  isPublicFormEnabled: z.boolean(),
   thresholdRules: z.array(ThresholdRuleSchema).nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -43,6 +44,7 @@ export const UpdateKanbanSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().max(1000).optional().nullable(),
   linkedKanbanId: z.string().uuid().nullable().optional(),
+  isPublicFormEnabled: z.boolean().optional(),
   thresholdRules: z.array(ThresholdRuleSchema).nullable().optional(),
 });
 

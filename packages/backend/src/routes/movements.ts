@@ -270,11 +270,22 @@ router.post('/batch-distribute', async (req, res, next) => {
     // Validate total quantity doesn't exceed available stock
     const totalQuantity = distributions.reduce((sum, dist) => sum + dist.quantity, 0);
 
-    // Check for duplicate locations
-    const locationIds = distributions.map(d => d.toLocationId);
-    const uniqueLocationIds = new Set(locationIds);
-    if (locationIds.length !== uniqueLocationIds.size) {
-      throw createError('Cannot distribute to the same location multiple times in one batch', 400);
+    // Check for duplicate destinations (location + person combination)
+    // Valid: Same location with different persons
+    // Invalid: Same location without person (multiple times), or same location + person combination
+    const destinationKeys = distributions.map(d => {
+      // Create unique key based on location and person combination
+      if (d.toPersonId) {
+        return `person:${d.toPersonId}`;
+      } else if (d.toLocationId) {
+        return `location:${d.toLocationId}`;
+      }
+      return 'unknown';
+    });
+    
+    const uniqueDestinations = new Set(destinationKeys);
+    if (destinationKeys.length !== uniqueDestinations.size) {
+      throw createError('Cannot distribute to the same destination (location or person) multiple times in one batch', 400);
     }
 
     // Use transaction to ensure data consistency
@@ -489,14 +500,15 @@ router.get('/stats', async (req, res, next) => {
         SELECT 
           mr.recipient_id as "recipientId",
           COALESCE(loc.name, per.name) as "recipientName",
-          COALESCE(loc.code, per.department) as "recipientCode",
+          COALESCE(loc.code, dep.name) as "recipientCode",
           mr.recipient_type as "recipientType",
           count(*)::int as "movementCount"
         FROM movement_recipients mr
         LEFT JOIN locations loc ON mr.recipient_id = loc.id AND mr.recipient_type = 'location'
         LEFT JOIN persons per ON mr.recipient_id = per.id AND mr.recipient_type = 'person'
+        LEFT JOIN departments dep ON per.department_id = dep.id
         WHERE mr.recipient_id IS NOT NULL
-        GROUP BY mr.recipient_id, mr.recipient_type, loc.name, loc.code, per.name, per.department
+        GROUP BY mr.recipient_id, mr.recipient_type, loc.name, loc.code, per.name, dep.name
         ORDER BY "movementCount" DESC
         LIMIT 5
       `

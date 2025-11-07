@@ -127,6 +127,47 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
+// Update public form settings
+router.put('/:id/public-form-settings', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { isPublicFormEnabled } = req.body;
+
+    if (typeof isPublicFormEnabled !== 'boolean') {
+      throw createError('isPublicFormEnabled must be a boolean', 400);
+    }
+
+    // Check if kanban exists and is an order kanban
+    const [kanban] = await db
+      .select()
+      .from(kanbans)
+      .where(eq(kanbans.id, id))
+      .limit(1);
+
+    if (!kanban) {
+      throw createError('Kanban not found', 404);
+    }
+
+    if (kanban.type !== 'order') {
+      throw createError('Public form settings are only available for Order kanbans', 400);
+    }
+
+    // Update the setting
+    const [updatedKanban] = await db
+      .update(kanbans)
+      .set({
+        isPublicFormEnabled,
+        updatedAt: new Date(),
+      })
+      .where(eq(kanbans.id, id))
+      .returning();
+
+    res.json(updatedKanban);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Delete kanban
 router.delete('/:id', async (req, res, next) => {
   try {

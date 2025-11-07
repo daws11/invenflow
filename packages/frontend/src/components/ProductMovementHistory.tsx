@@ -83,7 +83,6 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
         <ul className="-mb-8">
           {movements.map((movement, idx) => {
             const hasToPerson = !!movement.toPerson;
-            const hasFromPerson = !!movement.fromPerson;
             const isPersonMovement = hasToPerson;
             
             return (
@@ -164,9 +163,7 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
                                 </svg>
                                 <span className="font-medium text-sm text-purple-900">{movement.fromPerson.name}</span>
                               </div>
-                              <div className="text-xs text-gray-500 mt-0.5 ml-5">
-                                {movement.fromPerson.department}
-                              </div>
+                              
                             </div>
                           ) : movement.fromLocation ? (
                             <div>
@@ -200,9 +197,7 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
                                 </svg>
                                 <span className="font-medium text-sm text-purple-900">{movement.toPerson.name}</span>
                               </div>
-                              <div className="text-xs text-gray-500 mt-0.5 ml-5">
-                                {movement.toPerson.department}
-                              </div>
+                              
                             </div>
                           ) : movement.toLocation ? (
                             <div>

@@ -5,6 +5,7 @@ import express from "express";
 import { env } from "./config/env";
 import { corsMiddleware } from "./middleware/cors";
 import { errorHandler } from "./middleware/errorHandler";
+import { departmentsRouter } from "./routes/departments";
 import { healthRouter } from "./routes/health";
 import { inventoryRouter } from "./routes/inventory";
 import { kanbansRouter } from "./routes/kanbans";
@@ -18,6 +19,8 @@ import { uploadRouter } from "./routes/upload";
 import { validationsRouter } from "./routes/validations";
 import { authRouter } from "./routes/auth";
 import { usersRouter } from "./routes/users";
+import { bulkMovementsRouter } from "./routes/bulk-movements";
+import { publicBulkMovementsRouter } from "./routes/public-bulk-movements";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -71,7 +74,9 @@ app.use("/api/users", usersRouter);
 app.use("/api/inventory", inventoryRouter);
 
 // Protected routes (require authentication)
+app.use("/api/bulk-movements", bulkMovementsRouter);
 app.use("/api/kanbans", kanbansRouter);
+app.use("/api/departments", departmentsRouter);
 app.use("/api/locations", locationsRouter);
 app.use("/api/movements", movementsRouter);
 app.use("/api/persons", personsRouter);
@@ -82,6 +87,7 @@ app.use("/api/validations", validationsRouter);
 
 // Public routes (no authentication required)
 app.use("/api/public", publicRouter);
+app.use("/api/public/bulk-movements", publicBulkMovementsRouter);
 
 // Health check endpoint
 app.get("/", (req, res) => {

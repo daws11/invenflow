@@ -46,16 +46,12 @@ export default function PersonsPage() {
   };
 
   // Group persons by department
-  const groupedPersons = persons.reduce((acc, person) => {
-    if (!acc[person.department]) {
-      acc[person.department] = [];
-    }
-    acc[person.department].push(person);
-    return acc;
-  }, {} as Record<string, Person[]>);
+  const groupedPersons = {
+    All: persons,
+  } as Record<string, Person[]>;
 
   const departments = Object.keys(groupedPersons).sort();
-  const uniqueDepartments = [...new Set(persons.map(p => p.department))].sort();
+  const uniqueDepartments: string[] = [];
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">

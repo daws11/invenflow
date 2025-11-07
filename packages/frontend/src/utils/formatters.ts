@@ -53,5 +53,34 @@ export function formatWeight(
   return formatted !== null ? `${formatted} kg` : null;
 }
 
+/**
+ * Format date with time in format: "M/D/YYYY at HH:MM"
+ * Example: "11/6/2025 at 16:09"
+ * 
+ * @param date - Date string, Date object, or timestamp
+ * @returns Formatted date string with time
+ */
+export function formatDateWithTime(date: string | Date | number | null | undefined): string {
+  if (!date) return '';
+
+  const dateObj = typeof date === 'string' || typeof date === 'number' 
+    ? new Date(date) 
+    : date;
+
+  if (isNaN(dateObj.getTime())) return '';
+
+  const month = dateObj.getMonth() + 1; // getMonth() returns 0-11
+  const day = dateObj.getDate();
+  const year = dateObj.getFullYear();
+  
+  const hours = dateObj.getHours();
+  const minutes = dateObj.getMinutes();
+  
+  // Format time with leading zeros
+  const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  
+  return `${month}/${day}/${year} at ${formattedTime}`;
+}
+
 
 

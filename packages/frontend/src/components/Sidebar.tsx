@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { X, Menu, Layout, MapPin, Users, UserCircle, LogOut, Package, ArrowRightLeft } from 'lucide-react';
+import { X, Menu, Layout, MapPin, Users, UserCircle, LogOut, Package, ArrowRightLeft, Settings, ChevronDown, Building2 } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -14,6 +14,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
   const { user, logout } = useAuthStore();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isManageOpen, setIsManageOpen] = useState(false);
   const previousPathRef = useRef(location.pathname);
 
   // Auto-collapse based on screen size
@@ -62,6 +63,21 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
     onCollapseChange?.(isCollapsed);
   }, [isCollapsed, onCollapseChange]);
 
+  // Auto-open manage dropdown if current route is in manage section
+  useEffect(() => {
+    const managePaths = ['/departments', '/locations', '/persons', '/users'];
+    if (managePaths.includes(location.pathname)) {
+      setIsManageOpen(true);
+    }
+  }, [location.pathname]);
+
+  // Close manage dropdown when sidebar is collapsed
+  useEffect(() => {
+    if (isCollapsed) {
+      setIsManageOpen(false);
+    }
+  }, [isCollapsed]);
+
   const menuItems = [
     {
       name: 'Kanbans',
@@ -77,6 +93,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
       name: 'Movements',
       path: '/movements',
       icon: ArrowRightLeft,
+    },
+  ];
+
+  const manageItems = [
+    {
+      name: 'Departments',
+      path: '/departments',
+      icon: Building2,
     },
     {
       name: 'Locations',
@@ -184,7 +208,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-2">
+          <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+            {/* Main Menu Items */}
             {menuItems.map((item) => {
               const isActive = location.pathname === item.path;
               const Icon = item.icon;
@@ -209,6 +234,93 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
                 </Link>
               );
             })}
+
+            {/* Manage Dropdown */}
+            {!isCollapsed ? (
+              <div className="space-y-1">
+                <button
+                  onClick={() => setIsManageOpen(!isManageOpen)}
+                  className={`
+                    flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                    ${isManageOpen || manageItems.some(item => location.pathname === item.path)
+                      ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-700'
+                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                    }
+                  `}
+                >
+                  <div className="flex items-center">
+                    <Settings className="w-5 h-5 flex-shrink-0" />
+                    <span className="ml-3 truncate">Manage</span>
+                  </div>
+                  <ChevronDown 
+                    className={`w-4 h-4 flex-shrink-0 ml-2 transition-transform duration-300 ease-in-out ${
+                      isManageOpen ? 'rotate-0' : '-rotate-90'
+                    }`}
+                  />
+                </button>
+
+                {/* Dropdown Menu Items with Animation */}
+                <div
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                    isManageOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                  }`}
+                >
+                  <div className="ml-8 mt-1 space-y-1">
+                    {manageItems.map((item, index) => {
+                      const isActive = location.pathname === item.path;
+                      const Icon = item.icon;
+
+                      return (
+                        <Link
+                          key={item.path}
+                          to={item.path}
+                          className={`
+                            flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                            ${isActive
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }
+                            ${isManageOpen 
+                              ? 'translate-x-0 opacity-100' 
+                              : '-translate-x-2 opacity-0'
+                            }
+                          `}
+                          style={{
+                            transitionDelay: isManageOpen ? `${index * 30}ms` : `${(manageItems.length - index - 1) * 20}ms`,
+                          }}
+                        >
+                          <Icon className="w-4 h-4 flex-shrink-0" />
+                          <span className="ml-3 truncate">{item.name}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // Collapsed state: show individual icons
+              manageItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                const Icon = item.icon;
+
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`
+                      flex items-center justify-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                      ${isActive
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                      }
+                    `}
+                    title={item.name}
+                  >
+                    <Icon className="w-5 h-5 flex-shrink-0" />
+                  </Link>
+                );
+              })
+            )}
           </nav>
 
           {/* User Section */}

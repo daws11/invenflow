@@ -13,6 +13,7 @@ import {
   EyeIcon,
   ClockIcon,
   InformationCircleIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import { Slider } from './Slider';
 import { SliderTabs, SliderTab } from './SliderTabs';
@@ -26,7 +27,7 @@ interface KanbanSettingsModalProps {
   productCount?: number;
 }
 
-type TabType = 'overview' | 'edit' | 'linking' | 'threshold';
+type TabType = 'overview' | 'edit' | 'linking' | 'publicForm' | 'threshold';
 
 export function KanbanSettingsModal({
   isOpen,
@@ -37,7 +38,7 @@ export function KanbanSettingsModal({
   productCount = 0,
 }: KanbanSettingsModalProps) {
   const toast = useToast();
-  const { kanbans, updateKanban } = useKanbanStore();
+  const { kanbans, updateKanban, togglePublicForm } = useKanbanStore();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   
@@ -51,6 +52,10 @@ export function KanbanSettingsModal({
   const [selectedKanbanId, setSelectedKanbanId] = useState<string>('');
   const [isLinking, setIsLinking] = useState(false);
 
+  // Public form state
+  const [isTogglingPublicForm, setIsTogglingPublicForm] = useState(false);
+  const [optimisticPublicFormEnabled, setOptimisticPublicFormEnabled] = useState(kanban?.isPublicFormEnabled ?? true);
+
   // Threshold state
   const [thresholdRules, setThresholdRules] = useState<ThresholdRule[]>(kanban?.thresholdRules || []);
   const [isSavingThreshold, setIsSavingThreshold] = useState(false);
@@ -61,6 +66,7 @@ export function KanbanSettingsModal({
       setEditName(kanban.name);
       setEditDescription(kanban.description ?? '');
       setThresholdRules(kanban.thresholdRules || []);
+      setOptimisticPublicFormEnabled(kanban.isPublicFormEnabled);
     }
   });
 
@@ -77,6 +83,32 @@ export function KanbanSettingsModal({
     if (!kanban?.publicFormToken) return;
     const url = `${window.location.origin}/form/${kanban.publicFormToken}`;
     window.open(url, '_blank');
+  };
+
+  const handleTogglePublicForm = async () => {
+    if (!kanban) return;
+    
+    const newValue = !optimisticPublicFormEnabled;
+    const previousValue = optimisticPublicFormEnabled;
+    
+    // Optimistic update - change UI immediately
+    setOptimisticPublicFormEnabled(newValue);
+    setIsTogglingPublicForm(true);
+    
+    try {
+      await togglePublicForm(kanban.id, newValue);
+      toast.success(
+        newValue 
+          ? 'Public form enabled successfully' 
+          : 'Public form disabled successfully'
+      );
+    } catch (error) {
+      // Revert on error
+      setOptimisticPublicFormEnabled(previousValue);
+      toast.error('Failed to update public form settings');
+    } finally {
+      setIsTogglingPublicForm(false);
+    }
   };
 
   // Edit functionality
@@ -512,6 +544,111 @@ export function KanbanSettingsModal({
     </div>
   );
 
+  // Public Form content
+  const publicFormContent = (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Public Form Access</h3>
+        <p className="text-sm text-gray-600 mb-6">
+          Control whether external users can submit product requests through the public form.
+        </p>
+      </div>
+
+      {/* Toggle Switch */}
+      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <div className="flex-1">
+          <label className="block text-sm font-medium text-gray-900 mb-1">
+            Enable Public Form
+          </label>
+          <p className="text-xs text-gray-600">
+            Allow external users to submit requests via a public URL
+          </p>
+        </div>
+        <button
+          onClick={handleTogglePublicForm}
+          disabled={isTogglingPublicForm}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 ${
+            optimisticPublicFormEnabled ? 'bg-blue-600' : 'bg-gray-300'
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              optimisticPublicFormEnabled ? 'translate-x-6' : 'translate-x-1'
+            }`}
+          />
+        </button>
+      </div>
+
+      {/* Status Indicator */}
+      <div className={`p-4 rounded-lg border ${
+        optimisticPublicFormEnabled 
+          ? 'bg-emerald-50 border-emerald-200' 
+          : 'bg-amber-50 border-amber-200'
+      }`}>
+        <div className="flex items-center space-x-2">
+          <div className={`w-2 h-2 rounded-full ${
+            optimisticPublicFormEnabled ? 'bg-emerald-500' : 'bg-amber-500'
+          }`} />
+          <span className={`text-sm font-medium ${
+            optimisticPublicFormEnabled ? 'text-emerald-900' : 'text-amber-900'
+          }`}>
+            {optimisticPublicFormEnabled ? 'Form is Active' : 'Form is Disabled'}
+          </span>
+        </div>
+        <p className={`text-xs mt-1 ${
+          optimisticPublicFormEnabled ? 'text-emerald-700' : 'text-amber-700'
+        }`}>
+          {optimisticPublicFormEnabled
+            ? 'Users can access the form and submit product requests'
+            : 'The form is currently disabled and cannot be accessed by external users'}
+        </p>
+      </div>
+
+      {/* Form URL Section */}
+      {optimisticPublicFormEnabled && kanban.publicFormToken && (
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-gray-900">
+            Public Form URL
+          </label>
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              readOnly
+              value={`${window.location.origin}/form/${kanban.publicFormToken}`}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-700 font-mono"
+            />
+            <button
+              onClick={handleCopyUrl}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
+            >
+              <DocumentDuplicateIcon className="h-4 w-4" />
+              <span>Copy</span>
+            </button>
+            <button
+              onClick={handleViewUrl}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center space-x-2"
+            >
+              <EyeIcon className="h-4 w-4" />
+              <span>View</span>
+            </button>
+          </div>
+          <p className="text-xs text-gray-600">
+            Share this URL with external users to allow them to submit product requests.
+          </p>
+        </div>
+      )}
+
+      {/* Warning when disabled */}
+      {!optimisticPublicFormEnabled && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-sm text-red-800">
+            <strong>Note:</strong> When the form is disabled, users who try to access the public URL will see an error message stating that the form has been disabled by the administrator.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+
   const tabs: SliderTab[] = [
     {
       id: 'overview',
@@ -531,6 +668,12 @@ export function KanbanSettingsModal({
       content: linkingContent,
       icon: <LinkIcon className="h-4 w-4" />,
     },
+    ...(kanban.type === 'order' ? [{
+      id: 'publicForm' as const,
+      label: 'Public Form',
+      content: publicFormContent,
+      icon: <DocumentTextIcon className="h-4 w-4" />,
+    }] : []),
     {
       id: 'threshold',
       label: 'Threshold',

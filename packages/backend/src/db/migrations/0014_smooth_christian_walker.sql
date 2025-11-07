@@ -1,0 +1,2 @@
+ALTER TABLE "kanbans" ADD COLUMN "is_public_form_enabled" boolean DEFAULT true NOT NULL;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "kanbans_is_public_form_enabled_idx" ON "kanbans" ("is_public_form_enabled");

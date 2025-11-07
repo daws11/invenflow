@@ -52,7 +52,7 @@ export function PersonCard({ person, onEdit }: PersonCardProps) {
               </h3>
               <div className="flex items-center mt-1 text-sm text-gray-600">
                 <BriefcaseIcon className="w-4 h-4 mr-1" />
-                {person.department}
+                {person.departmentId}
               </div>
             </div>
           </div>

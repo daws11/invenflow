@@ -11,7 +11,7 @@ import {
   DragEndEvent,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { Product, Kanban, ORDER_COLUMNS, RECEIVE_COLUMNS } from '@invenflow/shared';
+import { Product, Kanban, ORDER_COLUMNS, RECEIVE_COLUMNS, Location } from '@invenflow/shared';
 import CompactKanbanColumn from './CompactKanbanColumn';
 
 interface CompactBoardViewProps {
@@ -19,6 +19,8 @@ interface CompactBoardViewProps {
   onProductView: (product: Product) => void;
   onMoveProduct: (productId: string, newColumn: string) => Promise<void>;
   selectedLocationId: string | null;
+  searchQuery: string;
+  locations: Location[];
 }
 
 export default function CompactBoardView({
@@ -26,13 +28,16 @@ export default function CompactBoardView({
   onProductView,
   onMoveProduct,
   selectedLocationId,
+  searchQuery,
+  locations,
 }: CompactBoardViewProps) {
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        delay: 250, // 250ms hold before drag starts
+        tolerance: 5, // Allow 5px movement during delay
       },
     }),
     useSensor(KeyboardSensor, {
@@ -44,10 +49,70 @@ export default function CompactBoardView({
     return kanban.type === 'order' ? ORDER_COLUMNS : RECEIVE_COLUMNS;
   };
 
+  // Filter products by search query (same logic as KanbanBoard)
+  const filterProductBySearch = (product: Product): boolean => {
+    if (!searchQuery.trim()) return true;
+
+    const query = searchQuery.toLowerCase().trim();
+    const location = product.locationId ? locations.find(l => l.id === product.locationId) : null;
+
+    // Search in productDetails (name)
+    if (product.productDetails?.toLowerCase().includes(query)) return true;
+
+    // Search in SKU
+    if (product.sku?.toLowerCase().includes(query)) return true;
+
+    // Search in supplier
+    if (product.supplier?.toLowerCase().includes(query)) return true;
+
+    // Search in priority
+    if (product.priority?.toLowerCase().includes(query)) return true;
+
+    // Search in category
+    if (product.category?.toLowerCase().includes(query)) return true;
+
+    // Search in tags
+    if (product.tags && Array.isArray(product.tags)) {
+      if (product.tags.some(tag => tag.toLowerCase().includes(query))) return true;
+    }
+
+    // Search in location (string field)
+    if (product.location?.toLowerCase().includes(query)) return true;
+
+    // Search in location name, code, area (if locationId exists)
+    if (location) {
+      if (location.name?.toLowerCase().includes(query)) return true;
+      if (location.code?.toLowerCase().includes(query)) return true;
+      if (location.area?.toLowerCase().includes(query)) return true;
+      if (location.description?.toLowerCase().includes(query)) return true;
+    }
+
+    // Search in notes
+    if (product.notes?.toLowerCase().includes(query)) return true;
+
+    // Search in dimensions
+    if (product.dimensions?.toLowerCase().includes(query)) return true;
+
+    // Search in weight (as string)
+    if (product.weight !== null && product.weight.toString().includes(query)) return true;
+
+    // Search in unitPrice (as string)
+    if (product.unitPrice !== null && product.unitPrice.toString().includes(query)) return true;
+
+    // Search in stockLevel (as string)
+    if (product.stockLevel !== null && product.stockLevel.toString().includes(query)) return true;
+
+    // Search in productLink
+    if (product.productLink?.toLowerCase().includes(query)) return true;
+
+    return false;
+  };
+
   const getProductsByColumn = (column: string) => {
     return kanban.products.filter(product =>
       product.columnStatus === column &&
-      (!selectedLocationId || product.locationId === selectedLocationId)
+      (!selectedLocationId || product.locationId === selectedLocationId) &&
+      filterProductBySearch(product)
     );
   };
 

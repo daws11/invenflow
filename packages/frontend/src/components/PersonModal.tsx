@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import type { Person, CreatePerson } from '@invenflow/shared';
 import { usePersonStore } from '../store/personStore';
+import { useDepartmentStore } from '../store/departmentStore';
 import { useToastStore } from '../store/toastStore';
 
 interface PersonModalProps {
@@ -11,47 +12,36 @@ interface PersonModalProps {
   onSuccess?: () => void;
 }
 
-const DEPARTMENTS = [
-  'Operations',
-  'Finance',
-  'HR',
-  'IT',
-  'Sales',
-  'Marketing',
-  'Engineering',
-  'Support',
-  'Management',
-  'Warehouse',
-  'Logistics',
-  'Quality Assurance',
-  'Research & Development',
-  'Administration',
-  'Other'
-];
-
 export function PersonModal({ isOpen, onClose, person, onSuccess }: PersonModalProps) {
   const { createPerson, updatePerson, loading } = usePersonStore();
+  const { activeDepartments, fetchActiveDepartments } = useDepartmentStore();
   const { addSuccessToast, addErrorToast } = useToastStore();
 
   const [formData, setFormData] = useState<CreatePerson>({
     name: '',
-    department: '',
+    departmentId: '' as unknown as string, // initialize empty
     isActive: true,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    if (isOpen) {
+      fetchActiveDepartments();
+    }
+  }, [isOpen, fetchActiveDepartments]);
+
+  useEffect(() => {
     if (person) {
       setFormData({
         name: person.name,
-        department: person.department,
+        departmentId: person.departmentId,
         isActive: person.isActive,
       });
     } else {
       setFormData({
         name: '',
-        department: '',
+        departmentId: '' as unknown as string,
         isActive: true,
       });
     }
@@ -67,10 +57,8 @@ export function PersonModal({ isOpen, onClose, person, onSuccess }: PersonModalP
       newErrors.name = 'Name must be less than 255 characters';
     }
 
-    if (!formData.department.trim()) {
-      newErrors.department = 'Department is required';
-    } else if (formData.department.length > 255) {
-      newErrors.department = 'Department must be less than 255 characters';
+    if (!String(formData.departmentId || '').trim()) {
+      newErrors.departmentId = 'Department is required';
     }
 
     setErrors(newErrors);
@@ -179,21 +167,26 @@ export function PersonModal({ isOpen, onClose, person, onSuccess }: PersonModalP
                     Department <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={formData.department}
-                    onChange={(e) => handleChange('department', e.target.value)}
+                    value={formData.departmentId as unknown as string}
+                    onChange={(e) => handleChange('departmentId', e.target.value)}
                     className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                      errors.department ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                      errors.departmentId ? 'border-red-300 bg-red-50' : 'border-gray-300'
                     }`}
                   >
                     <option value="">Select department</option>
-                    {DEPARTMENTS.map((dept) => (
-                      <option key={dept} value={dept}>
-                        {dept}
+                    {activeDepartments.map((dept) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.name}
                       </option>
                     ))}
                   </select>
-                  {errors.department && (
-                    <p className="mt-1 text-sm text-red-600">{errors.department}</p>
+                  {errors.departmentId && (
+                    <p className="mt-1 text-sm text-red-600">{errors.departmentId}</p>
+                  )}
+                  {activeDepartments.length === 0 && (
+                    <p className="mt-1 text-sm text-amber-600">
+                      No active departments found. Please create a department first.
+                    </p>
                   )}
                 </div>
 

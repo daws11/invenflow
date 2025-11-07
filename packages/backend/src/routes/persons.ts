@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { persons, products } from '../db/schema';
+import { persons, products, departments } from '../db/schema';
 import { eq, desc, asc, or, ilike, SQL, ne, sql } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import {
@@ -17,7 +17,6 @@ router.use(authenticateToken);
 
 const SORTABLE_PERSON_COLUMNS = {
   name: persons.name,
-  department: persons.department,
   createdAt: persons.createdAt,
   updatedAt: persons.updatedAt,
 } as const;
@@ -48,10 +47,11 @@ router.get('/', async (req, res, next) => {
 
     const conditions: SQL<unknown>[] = [];
 
+    // join departments to allow search/filter by department name
     if (searchValue) {
       const searchCondition = or(
         ilike(persons.name, `%${searchValue}%`),
-        ilike(persons.department, `%${searchValue}%`)
+        ilike(departments.name, `%${searchValue}%`)
       );
       if (searchCondition) {
         conditions.push(searchCondition);
@@ -59,41 +59,59 @@ router.get('/', async (req, res, next) => {
     }
 
     if (departmentValue) {
-      conditions.push(eq(persons.department, departmentValue));
+      conditions.push(ilike(departments.name, departmentValue));
     }
 
     if (activeOnlyValue) {
       conditions.push(eq(persons.isActive, true));
     }
 
-    const baseQuery = db.select().from(persons);
+    // base query with join to departments
+    const baseQuery = db
+      .select({
+        id: persons.id,
+        name: persons.name,
+        departmentId: persons.departmentId,
+        isActive: persons.isActive,
+        createdAt: persons.createdAt,
+        updatedAt: persons.updatedAt,
+        departmentName: departments.name,
+      })
+      .from(persons)
+      .leftJoin(departments, eq(persons.departmentId, departments.id));
     const whereClause = combineSqlClauses(conditions);
     const queryWithWhere = baseQuery.where(whereClause);
 
-    const orderField =
-      SORTABLE_PERSON_COLUMNS[sortByValue as keyof typeof SORTABLE_PERSON_COLUMNS];
-    const orderedQuery =
-      orderField !== undefined
-        ? queryWithWhere.orderBy(
-            sortOrderValue === 'desc' ? desc(orderField) : asc(orderField)
-          )
-        : queryWithWhere;
+    let orderedQuery = queryWithWhere;
+    const orderField = SORTABLE_PERSON_COLUMNS[sortByValue as keyof typeof SORTABLE_PERSON_COLUMNS];
+    if (orderField) {
+      orderedQuery = queryWithWhere.orderBy(
+        sortOrderValue === 'desc' ? desc(orderField) : asc(orderField)
+      );
+    } else if (sortByValue === 'department') {
+      orderedQuery = queryWithWhere.orderBy(
+        sortOrderValue === 'desc' ? desc(departments.name) : asc(departments.name)
+      );
+    }
 
-    const allPersons = await orderedQuery;
+    const rows = await orderedQuery;
 
-    // Group persons by department for frontend convenience
-    const groupedPersons = allPersons.reduce((acc, person) => {
-      if (!acc[person.department]) {
-        acc[person.department] = [];
-      }
-      acc[person.department].push(person);
-      return acc;
-    }, {} as Record<string, typeof allPersons>);
+    // Normalize response: persons array as schema type, plus department names list
+    const personsResponse = rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      departmentId: r.departmentId,
+      isActive: r.isActive,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    }));
+
+    const departmentsList = Array.from(new Set(rows.map((r) => r.departmentName).filter(Boolean))).sort() as string[];
 
     res.json({
-      persons: allPersons,
-      groupedByDepartment: groupedPersons,
-      departments: [...new Set(allPersons.map(p => p.department))].sort(),
+      persons: personsResponse,
+      groupedByDepartment: {},
+      departments: departmentsList,
     });
   } catch (error) {
     next(error);
@@ -158,17 +176,17 @@ router.get('/:id/products', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const validatedData = CreatePersonSchema.parse(req.body);
-    const { name, department, isActive = true } = validatedData;
+    const { name, departmentId, isActive = true } = validatedData;
 
-    const newPerson = {
-      name,
-      department,
-      isActive,
-    };
+    // Verify department exists
+    const [dep] = await db.select().from(departments).where(eq(departments.id, departmentId)).limit(1);
+    if (!dep) {
+      throw createError('Department not found', 404);
+    }
 
     const [createdPerson] = await db
       .insert(persons)
-      .values(newPerson)
+      .values({ name, departmentId, isActive })
       .returning();
 
     res.status(201).json(createdPerson);
@@ -182,7 +200,7 @@ router.put('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
     const validatedData = UpdatePersonSchema.parse(req.body);
-    const { name, department, isActive } = validatedData;
+    const { name, departmentId, isActive } = validatedData;
 
     // Check if person exists
     const [existingPerson] = await db
@@ -200,7 +218,14 @@ router.put('/:id', async (req, res, next) => {
     };
 
     if (name !== undefined) updateData.name = name;
-    if (department !== undefined) updateData.department = department;
+    if (departmentId !== undefined) {
+      // verify department exists
+      const [dep] = await db.select().from(departments).where(eq(departments.id, departmentId)).limit(1);
+      if (!dep) {
+        throw createError('Department not found', 404);
+      }
+      updateData.departmentId = departmentId;
+    }
     if (isActive !== undefined) updateData.isActive = isActive;
 
     const [updatedPerson] = await db
@@ -256,14 +281,13 @@ router.delete('/:id', async (req, res, next) => {
 // Get unique departments
 router.get('/departments/list', async (req, res, next) => {
   try {
-    const allPersons = await db
-      .select({ department: persons.department })
-      .from(persons)
-      .orderBy(asc(persons.department));
+    const rows = await db
+      .select({ id: departments.id, name: departments.name })
+      .from(departments)
+      .where(eq(departments.isActive, true))
+      .orderBy(asc(departments.name));
 
-    const departments = [...new Set(allPersons.map(p => p.department))];
-
-    res.json(departments);
+    res.json(rows);
   } catch (error) {
     next(error);
   }

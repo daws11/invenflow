@@ -3,7 +3,7 @@ import { Product, Location, Kanban } from '@invenflow/shared';
 import { useDraggable } from '@dnd-kit/core';
 import TransferHistoryViewer from './TransferHistoryViewer';
 import { getAppliedThreshold, calculateTimeInColumn, formatTimeDuration, formatThresholdRule } from '../utils/thresholdCalculator';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 
 interface ProductCardProps {
   product: Product;
@@ -17,6 +17,8 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
   const [imageError, setImageError] = useState(false);
   const [showTransferHistory, setShowTransferHistory] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const [clickStartTime, setClickStartTime] = useState<number | null>(null);
+  const [isDragIntent, setIsDragIntent] = useState(false);
 
   // Update current time every 30 seconds for threshold recalculation
   useEffect(() => {
@@ -63,7 +65,35 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
     if ((event.target as HTMLElement).closest(interactiveSelector)) {
       return;
     }
+    
+    // Track click start time
+    setClickStartTime(Date.now());
+    setIsDragIntent(false);
+    
     listeners?.onPointerDown?.(event);
+  };
+
+  const handlePointerUp: React.PointerEventHandler<HTMLDivElement> = (event) => {
+    if ((event.target as HTMLElement).closest(interactiveSelector)) {
+      return;
+    }
+    
+    const clickEndTime = Date.now();
+    const clickDuration = clickStartTime ? clickEndTime - clickStartTime : 0;
+    
+    // If click duration is less than 200ms and no drag happened, treat as click
+    if (clickDuration < 200 && !isDragging && !isDragIntent) {
+      onView?.();
+    }
+    
+    setClickStartTime(null);
+    setIsDragIntent(false);
+  };
+
+  const handlePointerMove: React.PointerEventHandler<HTMLDivElement> = (event) => {
+    if (clickStartTime && !isDragIntent) {
+      setIsDragIntent(true);
+    }
   };
 
   const handleTouchStart: React.TouchEventHandler<HTMLDivElement> = (event) => {
@@ -148,15 +178,16 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
     <div
       ref={setNodeRef}
       style={style}
-      className={`product-card group relative transition-all duration-200 cursor-grab active:cursor-grabbing ${
+      className={`product-card group relative transition-all duration-200 ${
         isDragging
-          ? 'shadow-2xl scale-105 opacity-95 border-blue-400'
-          : 'hover:shadow-lg'
+          ? 'shadow-2xl scale-105 opacity-95 border-blue-400 cursor-grabbing'
+          : 'hover:shadow-lg cursor-pointer hover:cursor-grab'
       }`}
       {...attributes}
       data-dragging={isDragging ? 'true' : 'false'}
-      onMouseDown={handleMouseDown}
       onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerMove={handlePointerMove}
       onTouchStart={handleTouchStart}
       onKeyDown={handleKeyDown}
       title={appliedThreshold ? `In column for ${timeInColumn} - ${formatThresholdRule(appliedThreshold)}` : undefined}
@@ -216,14 +247,6 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
             {product.supplier && (
               <div className="hidden sm:block text-xs text-gray-600">Supplier: {product.supplier}</div>
             )}
-            {timeInColumn && (
-              <div className="hidden sm:flex items-center text-xs text-gray-500">
-                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>In column for {timeInColumn}</span>
-              </div>
-            )}
           </div>
 
           {/* Enhanced Action Buttons */}
@@ -276,14 +299,6 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
             {formatCurrency(product.unitPrice)}
           </span>
         )}
-        {timeInColumn && (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
-            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            In column: {timeInColumn}
-          </span>
-        )}
       </div>
 
       {/* Product Tags */}
@@ -303,27 +318,8 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
         </div>
       )}
 
-      {product.productLink && (
-        <div className="hidden sm:block">
-          <a
-            href={product.productLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-blue-600 hover:text-blue-800 truncate block flex items-center"
-            onClick={(e) => e.stopPropagation()}
-            data-no-drag
-            onDragStart={(e) => e.preventDefault()}
-          >
-            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-            {product.productLink}
-          </a>
-        </div>
-      )}
-
       <div className="hidden sm:block text-xs text-gray-500">
-        Created: {new Date(product.createdAt).toLocaleDateString()}
+        Created: {formatDateWithTime(product.createdAt)}
       </div>
 
       {/* Expandable Details Section */}

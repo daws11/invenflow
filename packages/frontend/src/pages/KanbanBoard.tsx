@@ -16,11 +16,13 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { Squares2X2Icon, ListBulletIcon } from '@heroicons/react/24/outline';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
+import { useLocationStore } from '../store/locationStore';
 import { ORDER_COLUMNS, RECEIVE_COLUMNS, Product, ValidationStatus, Kanban } from '@invenflow/shared';
 import KanbanColumn from '../components/KanbanColumn';
 import CompactBoardView from '../components/CompactBoardView';
 import ProductForm from '../components/ProductForm';
 import LocationFilter from '../components/LocationFilter';
+import KanbanSearchBar from '../components/KanbanSearchBar';
 import ProductSidebar from '../components/ProductSidebar';
 import ValidationModal from '../components/ValidationModal';
 import { KanbanSettingsModal } from '../components/KanbanSettingsModal';
@@ -30,6 +32,7 @@ export default function KanbanBoard() {
   const { id } = useParams<{ id: string }>();
   const { currentKanban, loading, error, fetchKanbanById, moveProduct, updateKanban, deleteKanban } = useKanbanStore();
   const { kanbanBoardViewMode, setKanbanBoardViewMode } = useViewPreferencesStore();
+  const { locations, fetchLocations } = useLocationStore();
   const toast = useToast();
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -38,6 +41,7 @@ export default function KanbanBoard() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Validation modal state
   const [showValidationModal, setShowValidationModal] = useState(false);
@@ -50,7 +54,8 @@ export default function KanbanBoard() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // 8px movement before drag starts
+        delay: 250, // 250ms hold before drag starts
+        tolerance: 5, // Allow 5px movement during delay
       },
     }),
     useSensor(KeyboardSensor, {
@@ -64,16 +69,80 @@ export default function KanbanBoard() {
     }
   }, [id, fetchKanbanById]);
 
+  useEffect(() => {
+    fetchLocations();
+  }, [fetchLocations]);
+
   const getColumns = () => {
     if (!currentKanban) return [];
     return currentKanban.type === 'order' ? ORDER_COLUMNS : RECEIVE_COLUMNS;
+  };
+
+  // Filter products by search query
+  const filterProductBySearch = (product: Product): boolean => {
+    if (!searchQuery.trim()) return true;
+
+    const query = searchQuery.toLowerCase().trim();
+    const location = product.locationId ? locations.find(l => l.id === product.locationId) : null;
+
+    // Search in productDetails (name)
+    if (product.productDetails?.toLowerCase().includes(query)) return true;
+
+    // Search in SKU
+    if (product.sku?.toLowerCase().includes(query)) return true;
+
+    // Search in supplier
+    if (product.supplier?.toLowerCase().includes(query)) return true;
+
+    // Search in priority
+    if (product.priority?.toLowerCase().includes(query)) return true;
+
+    // Search in category
+    if (product.category?.toLowerCase().includes(query)) return true;
+
+    // Search in tags
+    if (product.tags && Array.isArray(product.tags)) {
+      if (product.tags.some(tag => tag.toLowerCase().includes(query))) return true;
+    }
+
+    // Search in location (string field)
+    if (product.location?.toLowerCase().includes(query)) return true;
+
+    // Search in location name, code, area (if locationId exists)
+    if (location) {
+      if (location.name?.toLowerCase().includes(query)) return true;
+      if (location.code?.toLowerCase().includes(query)) return true;
+      if (location.area?.toLowerCase().includes(query)) return true;
+      if (location.description?.toLowerCase().includes(query)) return true;
+    }
+
+    // Search in notes
+    if (product.notes?.toLowerCase().includes(query)) return true;
+
+    // Search in dimensions
+    if (product.dimensions?.toLowerCase().includes(query)) return true;
+
+    // Search in weight (as string)
+    if (product.weight !== null && product.weight.toString().includes(query)) return true;
+
+    // Search in unitPrice (as string)
+    if (product.unitPrice !== null && product.unitPrice.toString().includes(query)) return true;
+
+    // Search in stockLevel (as string)
+    if (product.stockLevel !== null && product.stockLevel.toString().includes(query)) return true;
+
+    // Search in productLink
+    if (product.productLink?.toLowerCase().includes(query)) return true;
+
+    return false;
   };
 
   const getProductsByColumn = (column: string) => {
     if (!currentKanban) return [];
     return currentKanban.products.filter(product =>
       product.columnStatus === column &&
-      (!selectedLocationId || product.locationId === selectedLocationId)
+      (!selectedLocationId || product.locationId === selectedLocationId) &&
+      filterProductBySearch(product)
     );
   };
 
@@ -339,24 +408,44 @@ export default function KanbanBoard() {
           </div>
         </div>
 
-        {/* Location Filter */}
-        <div className="mb-3 md:mb-4">
+        {/* Search Bar and Location Filter */}
+        <div className="mb-3 md:mb-4 space-y-3">
+          <KanbanSearchBar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            className="max-w-2xl"
+          />
+          <div className="flex items-center gap-4 flex-wrap">
           <LocationFilter
             selectedLocationId={selectedLocationId}
             onLocationChange={setSelectedLocationId}
             className="max-w-xs"
           />
+            {(selectedLocationId || searchQuery) && (
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                {(selectedLocationId || searchQuery) && (
+                  <span className="text-gray-500">Active filters:</span>
+                )}
           {selectedLocationId && (
-            <div className="mt-2 flex items-center text-sm text-gray-600">
-              <span>Filtering by location</span>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-800 text-xs">
+                    Location
               <button
                 onClick={() => setSelectedLocationId(null)}
-                className="ml-2 text-blue-600 hover:text-blue-800"
+                      className="ml-1.5 text-blue-600 hover:text-blue-800"
+                      aria-label="Clear location filter"
               >
-                Clear filter
+                      ×
               </button>
+                  </span>
+                )}
+                {searchQuery && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full bg-green-100 text-green-800 text-xs">
+                    Search: "{searchQuery}"
+                  </span>
+                )}
             </div>
           )}
+          </div>
         </div>
 
         {/* Render Board or Compact View */}
@@ -379,6 +468,8 @@ export default function KanbanBoard() {
             onProductView={handleViewProduct}
             onMoveProduct={handleMoveProduct}
             selectedLocationId={selectedLocationId}
+            searchQuery={searchQuery}
+            locations={locations}
           />
         )}
 
