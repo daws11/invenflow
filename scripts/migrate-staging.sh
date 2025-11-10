@@ -25,8 +25,11 @@ cd "$PROJECT_ROOT" || {
 # Configuration
 LOG_FILE="$PROJECT_ROOT/logs/migrate-staging.log"
 LOGS_DIR="$PROJECT_ROOT/logs"
-MIGRATIONS_DIR="packages/backend/src/db/migrations"
+MIGRATIONS_DIR="$PROJECT_ROOT/packages/backend/src/db/migrations"
 BACKUP_DIR="/var/backups/invenflow-staging"
+DRIZZLE_CONFIG="$PROJECT_ROOT/packages/backend/drizzle.config.ts"
+ENV_STAGING="$PROJECT_ROOT/.env.staging"
+PACKAGE_JSON="$PROJECT_ROOT/package.json"
 
 # Create logs directory if it doesn't exist (MUST be before any log() calls)
 mkdir -p "$LOGS_DIR" || {
@@ -74,14 +77,14 @@ warning() {
 if [ "$1" = "rollback" ]; then
     log "🔄 Rolling back last migration..."
 
-    if [ ! -f "packages/backend/drizzle.config.ts" ]; then
-        error "Drizzle config not found"
+    if [ ! -f "$DRIZZLE_CONFIG" ]; then
+        error "Drizzle config not found at $DRIZZLE_CONFIG"
     fi
 
-    cd packages/backend
+    cd "$PROJECT_ROOT/packages/backend" || error "Failed to change to backend directory"
 
     # Get the last migration file
-    LAST_MIGRATION=$(ls -t $MIGRATIONS_DIR/*.sql 2>/dev/null | head -1)
+    LAST_MIGRATION=$(ls -t "$MIGRATIONS_DIR"/*.sql 2>/dev/null | head -1)
 
     if [ -z "$LAST_MIGRATION" ]; then
         error "No migration files found to rollback"
@@ -102,8 +105,8 @@ if [ "$1" = "rollback" ]; then
     fi
 
     # Load environment variables
-    if [ -f "../../.env.staging" ]; then
-        source ../../.env.staging
+    if [ -f "$ENV_STAGING" ]; then
+        source "$ENV_STAGING"
     fi
 
     # Drop and recreate database (staging only!)
@@ -113,14 +116,14 @@ if [ "$1" = "rollback" ]; then
     log "Running migrations except $MIGRATION_NAME..."
 
     # Find all migration files except the last one
-    MIGRATION_FILES=$(ls $MIGRATIONS_DIR/*.sql 2>/dev/null | grep -v "$LAST_MIGRATION" | sort)
+    MIGRATION_FILES=$(ls "$MIGRATIONS_DIR"/*.sql 2>/dev/null | grep -v "$LAST_MIGRATION" | sort)
 
     for migration in $MIGRATION_FILES; do
         log "Applying migration: $(basename $migration)"
         psql "$DATABASE_URL" -f "$migration" || error "Failed to apply $(basename $migration)"
     done
 
-    cd ../..
+    cd "$PROJECT_ROOT" || error "Failed to return to project root"
     success "Rollback completed successfully"
     exit 0
 fi
@@ -128,21 +131,21 @@ fi
 log "🗄️  Starting InvenFlow staging database migration..."
 
 # Check if we're in the right directory
-if [ ! -f "package.json" ]; then
-    error "Please run this script from the project root directory"
+if [ ! -f "$PACKAGE_JSON" ]; then
+    error "Cannot find package.json at $PACKAGE_JSON"
 fi
 
 # Check if Drizzle config exists
-if [ ! -f "packages/backend/drizzle.config.ts" ]; then
-    error "Drizzle config not found at packages/backend/drizzle.config.ts"
+if [ ! -f "$DRIZZLE_CONFIG" ]; then
+    error "Drizzle config not found at $DRIZZLE_CONFIG"
 fi
 
 # Load staging environment variables
-if [ -f ".env.staging" ]; then
+if [ -f "$ENV_STAGING" ]; then
     log "Loading staging environment variables..."
-    export $(cat .env.staging | grep -v '^#' | xargs)
+    export $(cat "$ENV_STAGING" | grep -v '^#' | xargs)
 else
-    error "No .env.staging file found. Please create it first."
+    error "No .env.staging file found at $ENV_STAGING. Please create it first."
 fi
 
 # Validate DATABASE_URL
@@ -166,7 +169,7 @@ fi
 
 # Step 2: Check database connection
 log "🔗 Step 2: Checking database connection..."
-cd packages/backend
+cd "$PROJECT_ROOT/packages/backend" || error "Failed to change to backend directory"
 
 if ! psql "$DATABASE_URL" -c "SELECT 1;" > /dev/null 2>&1; then
     error "Cannot connect to database. Please check DATABASE_URL and ensure PostgreSQL is running."
@@ -194,13 +197,13 @@ else
     error "Failed to apply database migrations"
 fi
 
-cd ../..
+cd "$PROJECT_ROOT" || error "Failed to return to project root"
 
 # Step 5: Verify migration success
 log "✅ Step 5: Verifying migration success..."
 
 # Check if all expected tables exist
-cd packages/backend
+cd "$PROJECT_ROOT/packages/backend" || error "Failed to change to backend directory"
 
 REQUIRED_TABLES=("kanbans" "products" "users" "locations" "transfer_logs" "product_validations")
 
@@ -211,7 +214,7 @@ for table in "${REQUIRED_TABLES[@]}"; do
     log "✓ Table '$table' verified"
 done
 
-cd ../..
+cd "$PROJECT_ROOT" || error "Failed to return to project root"
 
 # Step 6: Migration summary
 log "📋 Step 6: Migration summary..."
@@ -222,7 +225,7 @@ if [ -f "$BACKUP_FILE" ]; then
 fi
 
 # Count total migrations
-MIGRATION_COUNT=$(ls $MIGRATIONS_DIR/*.sql 2>/dev/null | wc -l)
+MIGRATION_COUNT=$(ls "$MIGRATIONS_DIR"/*.sql 2>/dev/null | wc -l)
 log "Total migrations: $MIGRATION_COUNT"
 
 success "🎉 Database migration completed successfully!"

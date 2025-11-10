@@ -129,12 +129,13 @@ if ! command -v pm2 &> /dev/null; then
 fi
 
 # Check if we're in the right directory
-if [ ! -f "package.json" ]; then
-    error "Please run this script from the project root directory"
+if [ ! -f "$PROJECT_ROOT/package.json" ]; then
+    error "Cannot find package.json at $PROJECT_ROOT/package.json"
 fi
 
 # Save current version for potential rollback
-if command -v git &> /dev/null && [ -d ".git" ]; then
+if command -v git &> /dev/null && [ -d "$PROJECT_ROOT/.git" ]; then
+    cd "$PROJECT_ROOT" || error "Failed to change to project root"
     CURRENT_VERSION=$(git rev-parse HEAD)
     echo "$CURRENT_VERSION" > "$ROLLBACK_VERSION_FILE"
     log "Current version saved: $CURRENT_VERSION"
@@ -151,8 +152,8 @@ log "🔨 Step 2: Building application..."
 
 # Step 3: Database backup (if needed)
 log "💾 Step 3: Creating database backup..."
-if [ -f ".env.staging" ]; then
-    source .env.staging
+if [ -f "$PROJECT_ROOT/.env.staging" ]; then
+    source "$PROJECT_ROOT/.env.staging"
     BACKUP_FILE="$BACKUP_DIR/invenflow_staging_$(date +%Y%m%d_%H%M%S).sql"
 
     if command -v pg_dump &> /dev/null; then
