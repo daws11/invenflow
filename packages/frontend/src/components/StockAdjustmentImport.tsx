@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { inventoryApi, kanbanApi } from '../utils/api';
 import type { Kanban } from '@invenflow/shared';
-import { XMarkIcon, ArrowUpTrayIcon, DocumentArrowDownIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { ArrowUpTrayIcon, DocumentArrowDownIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 type PreviewRow = {
   sku?: string;
@@ -24,7 +24,7 @@ function parseCsv(text: string): PreviewRow[] {
   const header = lines[0]!.split(',').map(h => h.trim());
   const rows: PreviewRow[] = [];
   for (let i = 1; i < lines.length; i++) {
-    const cols = [];
+    const cols: string[] = [];
     let current = '';
     let inQuotes = false;
     const line = lines[i]!;

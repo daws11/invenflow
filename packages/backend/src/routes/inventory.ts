@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { products, kanbans, productValidations, locations, persons, movementLogs, skuAliases, importBatches } from '../db/schema';
+import { products, kanbans, productValidations, locations, persons, departments, movementLogs, skuAliases, importBatches } from '../db/schema';
 import type { ProductValidation } from '@invenflow/shared';
 import {
   eq,
@@ -804,12 +804,21 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
     const personIds = productsList.map(p => p.assignedToPersonId).filter(Boolean) as string[];
     const kanbanIds = [...new Set(productsList.map(p => p.kanbanId))];
 
-    const [locationsList, personsList, kanbansList] = await Promise.all([
+    const [locationsList, personsWithDepts, kanbansList] = await Promise.all([
       locationIds.length > 0 
         ? db.select().from(locations).where(inArray(locations.id, locationIds))
         : Promise.resolve([]),
       personIds.length > 0
-        ? db.select().from(persons).where(inArray(persons.id, personIds))
+        ? db.select({
+          id: persons.id,
+          name: persons.name,
+          departmentId: persons.departmentId,
+          isActive: persons.isActive,
+          departmentName: departments.name,
+        })
+        .from(persons)
+        .leftJoin(departments, eq(persons.departmentId, departments.id))
+        .where(inArray(persons.id, personIds))
         : Promise.resolve([]),
       db.select().from(kanbans).where(inArray(kanbans.id, kanbanIds))
     ]);
@@ -817,7 +826,7 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
     // Map to create the response structure
     const items = productsList.map(product => {
       const location = locationsList.find(l => l.id === product.locationId) || null;
-      const person = personsList.find(p => p.id === product.assignedToPersonId) || null;
+      const person = personsWithDepts.find(p => p.id === product.assignedToPersonId) || null;
       const kanban = kanbansList.find(k => k.id === product.kanbanId);
 
       return {
@@ -839,8 +848,7 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
         person: person ? {
           id: person.id,
           name: person.name,
-          code: person.code,
-          department: person.department,
+          department: person.departmentName || null,
         } : null,
         kanban: kanban ? {
           id: kanban.id,
@@ -1088,7 +1096,7 @@ router.post('/import/stored', authorizeRoles('admin', 'manager'), async (req, re
           if (
             productRecord.importBatchId === batchId &&
             productRecord.stockLevel === newStock &&
-            productRecord.locationId === locationId &&
+            productRecord.locationId === resolvedLocationId &&
             productRecord.updatedAt &&
             batchCreatedAt &&
             new Date(productRecord.updatedAt) >= new Date(batchCreatedAt)

@@ -9,10 +9,9 @@ import {
   CalendarIcon,
   DocumentTextIcon
 } from '@heroicons/react/24/outline';
-import { movementApi } from '../utils/api';
+import { movementApi, type MovementLog } from '../utils/api';
 import { useLocationStore } from '../store/locationStore';
 import { usePersonStore } from '../store/personStore';
-import type { MovementLog } from '@invenflow/shared';
 
 type UIMovement = MovementLog & {
   movementType?: string;
@@ -82,16 +81,16 @@ export function StockAuditViewer({ productId, locationId, onClose }: StockAuditV
       const response = await movementApi.getAll(params);
       
       // Filter by additional criteria that aren't supported by the API
-      let filteredMovements = response;
+      let filteredMovements: UIMovement[] = response as UIMovement[];
       
       if (filters.movedBy) {
-        filteredMovements = filteredMovements.filter(m => 
+        filteredMovements = filteredMovements.filter((m) => 
           m.movedBy?.toLowerCase().includes(filters.movedBy!.toLowerCase())
         );
       }
 
       if (filters.movementType) {
-        filteredMovements = filteredMovements.filter(m => 
+        filteredMovements = filteredMovements.filter((m) => 
           m.movementType === filters.movementType
         );
       }

@@ -7,6 +7,7 @@ export * from './movement-logs';
 export * from './persons';
 export * from './products';
 export * from './product-validations';
+export * from './stock-analytics';
 export * from './transfer-logs';
 export * from './users';
 export * from './import-batches';

@@ -252,6 +252,48 @@ export const transferLogApi = {
   },
 };
 
+// Movement log API calls
+export interface MovementLog {
+  id: string;
+  productId: string;
+  fromLocationId: string | null;
+  toLocationId: string | null;
+  fromPersonId: string | null;
+  toPersonId: string | null;
+  fromStockLevel: number | null;
+  toStockLevel: number;
+  notes: string | null;
+  movedBy: string | null;
+  createdAt: string;
+  product?: Product | null;
+  fromLocation?: Location | null;
+  toLocation?: Location | null;
+  fromPerson?: { id: string; name: string } | null;
+  toPerson?: { id: string; name: string } | null;
+}
+
+export const movementApi = {
+  getAll: async (params?: {
+    productId?: string;
+    locationId?: string;
+    limit?: number;
+    offset?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<MovementLog[]> => {
+    const response = await api.get('/api/movements', { params });
+    return response.data;
+  },
+
+  getByProduct: async (
+    productId: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<MovementLog[]> => {
+    const response = await api.get(`/api/movements/product/${productId}`, { params });
+    return response.data;
+  },
+};
+
 // Public Form API calls
 export interface ProductSearchResult {
   id: string;

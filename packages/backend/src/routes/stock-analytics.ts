@@ -112,7 +112,6 @@ router.get('/movement-trends', async (req, res, next) => {
     const { 
       days = '30',
       locationId,
-      movementType,
       groupBy = 'day' // 'day', 'week', 'month'
     } = req.query;
 
@@ -128,10 +127,6 @@ router.get('/movement-trends', async (req, res, next) => {
       whereConditions.push(
         sql`(${movementLogs.fromLocationId} = ${locationId} OR ${movementLogs.toLocationId} = ${locationId})`
       );
-    }
-
-    if (movementType && typeof movementType === 'string') {
-      whereConditions.push(eq(movementLogs.movementType, movementType));
     }
 
     let dateGrouping: SQL<unknown>;
@@ -152,35 +147,11 @@ router.get('/movement-trends', async (req, res, next) => {
         totalMovements: sql<number>`count(*)`.as('total_movements'),
         totalStockMoved: sql<number>`sum(${movementLogs.toStockLevel} - coalesce(${movementLogs.fromStockLevel}, 0))`.as('total_stock_moved'),
         avgStockPerMovement: sql<number>`avg(${movementLogs.toStockLevel})`.as('avg_stock_per_movement'),
-        totalValue: sql<number>`coalesce(sum(${movementLogs.totalValue}), 0)`.as('total_value'),
       })
       .from(movementLogs)
       .where(and(...whereConditions))
       .groupBy(dateGrouping)
       .orderBy(asc(dateGrouping));
-
-    // Get movement types breakdown
-    const movementsByType = await db
-      .select({
-        movementType: movementLogs.movementType,
-        count: sql<number>`count(*)`.as('count'),
-      })
-      .from(movementLogs)
-      .where(and(...whereConditions))
-      .groupBy(movementLogs.movementType)
-      .orderBy(desc(sql`count(${movementLogs.movementType})`));
-
-    // Get top reasons breakdown
-    const topReasons = await db
-      .select({
-        reasonCode: movementLogs.reasonCode,
-        count: sql<number>`count(*)`.as('count'),
-      })
-      .from(movementLogs)
-      .where(and(...whereConditions, isNotNull(movementLogs.reasonCode)))
-      .groupBy(movementLogs.reasonCode)
-      .orderBy(desc(sql`count(${movementLogs.reasonCode})`))
-      .limit(10);
 
     // Get location-based movement summary
     const locationMovements = await db
@@ -206,16 +177,6 @@ router.get('/movement-trends', async (req, res, next) => {
 
     res.json({
       trends: movementTrends,
-      movementsByType: movementsByType.reduce((acc, item) => {
-        acc[item.movementType] = Number(item.count);
-        return acc;
-      }, {} as Record<string, number>),
-      topReasons: topReasons.reduce((acc, item) => {
-        if (item.reasonCode) {
-          acc[item.reasonCode] = Number(item.count);
-        }
-        return acc;
-      }, {} as Record<string, number>),
       locationSummary: locationMovements,
       period: {
         startDate,
