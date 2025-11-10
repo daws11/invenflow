@@ -83,25 +83,25 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
               <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-purple-600 uppercase tracking-wider bg-purple-50">
                 <div className="flex items-center justify-center space-x-1">
                   <ClockIcon className="h-4 w-4" />
-                  <span>Incoming</span>
+                  <span>Incoming Stock</span>
                 </div>
               </th>
               <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-yellow-600 uppercase tracking-wider bg-yellow-50">
                 <div className="flex items-center justify-center space-x-1">
                   <CheckCircleIcon className="h-4 w-4" />
-                  <span>Received</span>
+                  <span>Received Stock</span>
                 </div>
               </th>
               <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-green-600 uppercase tracking-wider bg-green-50">
                 <div className="flex items-center justify-center space-x-1">
                   <ArchiveBoxIcon className="h-4 w-4" />
-                  <span>Stored</span>
+                  <span>Stored Stock</span>
                 </div>
               </th>
               <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-blue-600 uppercase tracking-wider bg-blue-50">
                 <div className="flex items-center justify-center space-x-1">
                   <UserIcon className="h-4 w-4" />
-                  <span>Used</span>
+                  <span>Used Stock</span>
                 </div>
               </th>
               <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -187,7 +187,7 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
                             ? 'bg-purple-100 text-purple-700 hover:bg-purple-200 cursor-pointer shadow-sm hover:shadow'
                             : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         }`}
-                        title={item.statusBreakdown.incoming > 0 ? 'Click to view details' : 'No items'}
+                        title={item.statusBreakdown.incoming > 0 ? 'Click to view details' : 'No stock'}
                       >
                         {item.statusBreakdown.incoming}
                       </button>
@@ -207,7 +207,7 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
                             ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 cursor-pointer shadow-sm hover:shadow'
                             : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         }`}
-                        title={item.statusBreakdown.received > 0 ? 'Click to view details' : 'No items'}
+                        title={item.statusBreakdown.received > 0 ? 'Click to view details' : 'No stock'}
                       >
                         {item.statusBreakdown.received}
                       </button>
@@ -227,7 +227,7 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
                             ? 'bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer shadow-sm hover:shadow'
                             : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         }`}
-                        title={item.statusBreakdown.stored > 0 ? 'Click to view details' : 'No items'}
+                        title={item.statusBreakdown.stored > 0 ? 'Click to view details' : 'No stock'}
                       >
                         {item.statusBreakdown.stored}
                       </button>
@@ -247,7 +247,7 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
                             ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-pointer shadow-sm hover:shadow'
                             : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         }`}
-                        title={item.statusBreakdown.used > 0 ? 'Click to view details' : 'No items'}
+                        title={item.statusBreakdown.used > 0 ? 'Click to view details' : 'No stock'}
                       >
                         {item.statusBreakdown.used}
                       </button>

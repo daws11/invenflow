@@ -90,7 +90,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   filters: defaultFilters,
   viewMode: 'list',
   displayMode: 'grouped', // Default to grouped view
-  groupedViewMode: 'grid', // Default grouped view as grid
+  groupedViewMode: 'list', // Default grouped view as list
   selectedItem: null,
   showDetailModal: false,
 

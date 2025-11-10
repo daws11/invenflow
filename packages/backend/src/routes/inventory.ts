@@ -500,15 +500,31 @@ router.get('/grouped', async (req, res, next) => {
           MAX(p.category) as category,
           MAX(p.supplier) as supplier,
           MAX(p.product_image) as "productImage",
-          COUNT(CASE WHEN p.column_status = 'Purchased' THEN 1 END)::int as incoming,
-          COUNT(CASE WHEN p.column_status = 'Received' THEN 1 END)::int as received,
-          COUNT(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NULL THEN 1 END)::int as stored,
-          COUNT(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NOT NULL THEN 1 END)::int as used,
+          COALESCE(SUM(CASE 
+            WHEN p.column_status = 'Purchased' 
+            THEN COALESCE(p.stock_level, 1) 
+            ELSE 0 
+          END), 0)::int as incoming,
+          COALESCE(SUM(CASE 
+            WHEN p.column_status = 'Received' 
+            THEN COALESCE(p.stock_level, 1) 
+            ELSE 0 
+          END), 0)::int as received,
+          COALESCE(SUM(CASE 
+            WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NULL 
+            THEN COALESCE(p.stock_level, 1) 
+            ELSE 0 
+          END), 0)::int as stored,
+          COALESCE(SUM(CASE 
+            WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NOT NULL 
+            THEN COALESCE(p.stock_level, 1) 
+            ELSE 0 
+          END), 0)::int as used,
           (
-            COUNT(CASE WHEN p.column_status = 'Received' THEN 1 END) +
-            COALESCE(SUM(CASE WHEN p.column_status = 'Stored' THEN COALESCE(p.stock_level, 1) END), 0)
+            COALESCE(SUM(CASE WHEN p.column_status = 'Received' THEN COALESCE(p.stock_level, 1) ELSE 0 END), 0) +
+            COALESCE(SUM(CASE WHEN p.column_status = 'Stored' THEN COALESCE(p.stock_level, 1) ELSE 0 END), 0)
           )::int as "totalStock",
-          COALESCE(SUM(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NULL THEN COALESCE(p.stock_level, 1) END), 0)::int as available,
+          COALESCE(SUM(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NULL THEN COALESCE(p.stock_level, 1) ELSE 0 END), 0)::int as available,
           array_agg(p.id) as "productIds",
           MAX(p.unit_price) as "unitPrice",
           MAX(p.updated_at) as "lastUpdated"

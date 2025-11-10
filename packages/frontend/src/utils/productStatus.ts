@@ -36,10 +36,10 @@ export function calculateProductStatus(product: {
  */
 export function getStatusLabel(status: ProductStatus): string {
   const labels: Record<ProductStatus, string> = {
-    incoming: 'Incoming',
-    received: 'Received',
-    stored: 'Stored',
-    used: 'Used',
+    incoming: 'Incoming Stock',
+    received: 'Received Stock',
+    stored: 'Stored Stock',
+    used: 'Used Stock',
   };
   
   return labels[status];
