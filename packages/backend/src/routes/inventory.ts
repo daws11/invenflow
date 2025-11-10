@@ -574,7 +574,10 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
   try {
     const { sku } = req.params;
     
-    const items = await db
+    console.log('Fetching location details for SKU:', sku);
+    
+    // First get products with basic info
+    const productsList = await db
       .select({
         id: products.id,
         productDetails: products.productDetails,
@@ -584,28 +587,9 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
         assignedToPersonId: products.assignedToPersonId,
         kanbanId: products.kanbanId,
         updatedAt: products.updatedAt,
-        location: {
-          id: locations.id,
-          name: locations.name,
-          code: locations.code,
-          area: locations.area,
-          building: locations.building,
-        },
-        person: {
-          id: persons.id,
-          name: persons.name,
-          code: persons.code,
-          department: persons.department,
-        },
-        kanban: {
-          id: kanbans.id,
-          name: kanbans.name,
-        }
       })
       .from(products)
       .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
-      .leftJoin(locations, eq(products.locationId, locations.id))
-      .leftJoin(persons, eq(products.assignedToPersonId, persons.id))
       .where(
         and(
           eq(products.sku, sku),
@@ -615,8 +599,61 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
       )
       .orderBy(desc(products.updatedAt));
 
+    console.log(`Found ${productsList.length} products for SKU ${sku}`);
+
+    // Then fetch related data separately
+    const locationIds = productsList.map(p => p.locationId).filter(Boolean) as string[];
+    const personIds = productsList.map(p => p.assignedToPersonId).filter(Boolean) as string[];
+    const kanbanIds = [...new Set(productsList.map(p => p.kanbanId))];
+
+    const [locationsList, personsList, kanbansList] = await Promise.all([
+      locationIds.length > 0 
+        ? db.select().from(locations).where(inArray(locations.id, locationIds))
+        : Promise.resolve([]),
+      personIds.length > 0
+        ? db.select().from(persons).where(inArray(persons.id, personIds))
+        : Promise.resolve([]),
+      db.select().from(kanbans).where(inArray(kanbans.id, kanbanIds))
+    ]);
+
+    // Map to create the response structure
+    const items = productsList.map(product => {
+      const location = locationsList.find(l => l.id === product.locationId) || null;
+      const person = personsList.find(p => p.id === product.assignedToPersonId) || null;
+      const kanban = kanbansList.find(k => k.id === product.kanbanId);
+
+      return {
+        id: product.id,
+        productDetails: product.productDetails,
+        columnStatus: product.columnStatus,
+        stockLevel: product.stockLevel,
+        locationId: product.locationId,
+        assignedToPersonId: product.assignedToPersonId,
+        kanbanId: product.kanbanId,
+        updatedAt: product.updatedAt,
+        location: location ? {
+          id: location.id,
+          name: location.name,
+          code: location.code,
+          area: location.area,
+          building: location.building,
+        } : null,
+        person: person ? {
+          id: person.id,
+          name: person.name,
+          code: person.code,
+          department: person.department,
+        } : null,
+        kanban: kanban ? {
+          id: kanban.id,
+          name: kanban.name,
+        } : null,
+      };
+    });
+
     res.json({ items });
   } catch (error) {
+    console.error('Error fetching location details:', error);
     next(error);
   }
 });
