@@ -56,6 +56,17 @@ async function fixImports(filePath) {
     /(?:from\s+|import\s+)(['"])(\.\.?\/[^'"]+)\1/g,
     (match, quote, importPath) => {
       if (needsFix(importPath)) {
+        // Special handling for directory imports that should resolve to index.js
+        // e.g., '../db' -> '../db/index.js'
+        // Check if this import path might be a directory (common patterns)
+        const dirImports = ['db', 'schema', 'config', 'middleware', 'routes', 'utils'];
+        const pathParts = importPath.split('/');
+        const lastPart = pathParts[pathParts.length - 1];
+        
+        if (dirImports.includes(lastPart) && !importPath.endsWith('.js')) {
+          return match.replace(importPath, `${importPath}/index.js`);
+        }
+        
         return match.replace(importPath, `${importPath}.js`);
       }
       return match;
