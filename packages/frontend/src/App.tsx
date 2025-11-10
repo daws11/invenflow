@@ -8,7 +8,8 @@ import ErrorBoundary from './components/ui/ErrorBoundary';
 import { useAuthStore } from './store/authStore';
 
 // Lazy load components for better performance
-const KanbanList = lazy(() => import('./pages/KanbanList'));
+const KanbanPurchasingPage = lazy(() => import('./pages/KanbanPurchasingPage'));
+const KanbanReceivingPage = lazy(() => import('./pages/KanbanReceivingPage'));
 const KanbanBoard = lazy(() => import('./pages/KanbanBoard'));
 const InventoryManager = lazy(() => import('./pages/InventoryManager'));
 const LocationsPage = lazy(() => import('./pages/LocationsPage'));
@@ -87,10 +88,22 @@ function App() {
 
             {/* Protected routes - require authentication, use Layout */}
             <Route path="/" element={
+              <Navigate to="/kanbans/purchasing" replace />
+            } />
+            <Route path="/kanbans/purchasing" element={
               <Layout>
                 <ProtectedRoute>
                   <Suspense fallback={<PageLoader />}>
-                    <KanbanList />
+                    <KanbanPurchasingPage />
+                  </Suspense>
+                </ProtectedRoute>
+              </Layout>
+            } />
+            <Route path="/kanbans/receiving" element={
+              <Layout>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <KanbanReceivingPage />
                   </Suspense>
                 </ProtectedRoute>
               </Layout>
