@@ -12,34 +12,65 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Get script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Change to project root directory to ensure relative paths work correctly
+cd "$PROJECT_ROOT" || {
+    echo "Failed to change to project root: $PROJECT_ROOT" >&2
+    exit 1
+}
+
 # Configuration
 APP_NAME="invenflow-staging"
 PROJECT_DIR="/var/www/invenflow-staging"
 BACKUP_DIR="/var/backups/invenflow-staging"
-LOG_FILE="./logs/deploy-staging.log"
+LOG_FILE="$PROJECT_ROOT/logs/deploy-staging.log"
 HEALTH_CHECK_URL="http://localhost:3001/api/health"
 MAX_RETRIES=3
-ROLLBACK_VERSION_FILE="./logs/last_successful_version"
+ROLLBACK_VERSION_FILE="$PROJECT_ROOT/logs/last_successful_version"
 
 # Create logs directory if it doesn't exist (MUST be before any log() calls)
-mkdir -p logs
+mkdir -p "$PROJECT_ROOT/logs" || {
+    echo "Failed to create logs directory: $PROJECT_ROOT/logs" >&2
+    exit 1
+}
 
-# Logging function
+# Ensure log file directory exists (double-check)
+if [ ! -d "$(dirname "$LOG_FILE")" ]; then
+    mkdir -p "$(dirname "$LOG_FILE")" || {
+        echo "Failed to create log file directory: $(dirname "$LOG_FILE")" >&2
+        exit 1
+    }
+fi
+
+# Logging function with robust error handling
 log() {
-    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
+    local log_dir=$(dirname "$LOG_FILE")
+    [ -d "$log_dir" ] || mkdir -p "$log_dir" 2>/dev/null || true
+    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE" 2>/dev/null || {
+        echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
+    }
 }
 
 error() {
-    echo -e "${RED}[ERROR]${NC} $1" | tee -a "$LOG_FILE"
+    local log_dir=$(dirname "$LOG_FILE")
+    [ -d "$log_dir" ] || mkdir -p "$log_dir" 2>/dev/null || true
+    echo -e "${RED}[ERROR]${NC} $1" | tee -a "$LOG_FILE" 2>/dev/null || echo -e "${RED}[ERROR]${NC} $1" >&2
     exit 1
 }
 
 success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1" | tee -a "$LOG_FILE"
+    local log_dir=$(dirname "$LOG_FILE")
+    [ -d "$log_dir" ] || mkdir -p "$log_dir" 2>/dev/null || true
+    echo -e "${GREEN}[SUCCESS]${NC} $1" | tee -a "$LOG_FILE" 2>/dev/null || echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
 warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1" | tee -a "$LOG_FILE"
+    local log_dir=$(dirname "$LOG_FILE")
+    [ -d "$log_dir" ] || mkdir -p "$log_dir" 2>/dev/null || true
+    echo -e "${YELLOW}[WARNING]${NC} $1" | tee -a "$LOG_FILE" 2>/dev/null || echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
 # Check if we're rolling back
@@ -57,7 +88,7 @@ if [ "$1" = "rollback" ]; then
     git checkout "$PREVIOUS_VERSION" || error "Failed to checkout previous version"
 
     log "Rebuilding previous version..."
-    ./scripts/build-staging.sh || error "Build failed during rollback"
+    "$PROJECT_ROOT/scripts/build-staging.sh" || error "Build failed during rollback"
 
     log "Restarting PM2 with previous version..."
     pm2 reload ecosystem.config.cjs --env staging || error "PM2 reload failed"
@@ -116,7 +147,7 @@ pnpm install || error "Failed to install dependencies"
 
 # Step 2: Build application
 log "🔨 Step 2: Building application..."
-./scripts/build-staging.sh || error "Build failed"
+"$PROJECT_ROOT/scripts/build-staging.sh" || error "Build failed"
 
 # Step 3: Database backup (if needed)
 log "💾 Step 3: Creating database backup..."
@@ -134,7 +165,7 @@ fi
 
 # Step 4: Run database migrations
 log "🗄️  Step 4: Running database migrations..."
-./scripts/migrate-staging.sh || error "Database migration failed"
+"$PROJECT_ROOT/scripts/migrate-staging.sh" || error "Database migration failed"
 
 # Step 5: Stop existing processes (if any)
 log "🛑 Step 5: Stopping existing PM2 processes..."
@@ -144,7 +175,7 @@ fi
 
 # Step 6: Start application
 log "🚀 Step 6: Starting application with PM2..."
-pm2 start pm2/ecosystem.config.cjs --env staging || error "Failed to start application"
+pm2 start "$PROJECT_ROOT/pm2/ecosystem.config.cjs" --env staging || error "Failed to start application"
 
 # Step 7: Health check
 log "🏥 Step 7: Performing health checks..."

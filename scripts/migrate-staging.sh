@@ -12,30 +12,62 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Get script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Change to project root directory to ensure relative paths work correctly
+cd "$PROJECT_ROOT" || {
+    echo "Failed to change to project root: $PROJECT_ROOT" >&2
+    exit 1
+}
+
 # Configuration
-LOG_FILE="./logs/migrate-staging.log"
+LOG_FILE="$PROJECT_ROOT/logs/migrate-staging.log"
+LOGS_DIR="$PROJECT_ROOT/logs"
 MIGRATIONS_DIR="packages/backend/src/db/migrations"
 BACKUP_DIR="/var/backups/invenflow-staging"
 
 # Create logs directory if it doesn't exist (MUST be before any log() calls)
-mkdir -p logs
+mkdir -p "$LOGS_DIR" || {
+    echo "Failed to create logs directory: $LOGS_DIR" >&2
+    exit 1
+}
 
-# Logging function
+# Ensure log file directory exists (double-check)
+if [ ! -d "$(dirname "$LOG_FILE")" ]; then
+    mkdir -p "$(dirname "$LOG_FILE")" || {
+        echo "Failed to create log file directory: $(dirname "$LOG_FILE")" >&2
+        exit 1
+    }
+fi
+
+# Logging function with robust error handling
 log() {
-    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
+    local log_dir=$(dirname "$LOG_FILE")
+    [ -d "$log_dir" ] || mkdir -p "$log_dir" 2>/dev/null || true
+    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE" 2>/dev/null || {
+        echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
+    }
 }
 
 error() {
-    echo -e "${RED}[ERROR]${NC} $1" | tee -a "$LOG_FILE"
+    local log_dir=$(dirname "$LOG_FILE")
+    [ -d "$log_dir" ] || mkdir -p "$log_dir" 2>/dev/null || true
+    echo -e "${RED}[ERROR]${NC} $1" | tee -a "$LOG_FILE" 2>/dev/null || echo -e "${RED}[ERROR]${NC} $1" >&2
     exit 1
 }
 
 success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1" | tee -a "$LOG_FILE"
+    local log_dir=$(dirname "$LOG_FILE")
+    [ -d "$log_dir" ] || mkdir -p "$log_dir" 2>/dev/null || true
+    echo -e "${GREEN}[SUCCESS]${NC} $1" | tee -a "$LOG_FILE" 2>/dev/null || echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
 warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1" | tee -a "$LOG_FILE"
+    local log_dir=$(dirname "$LOG_FILE")
+    [ -d "$log_dir" ] || mkdir -p "$log_dir" 2>/dev/null || true
+    echo -e "${YELLOW}[WARNING]${NC} $1" | tee -a "$LOG_FILE" 2>/dev/null || echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
 # Check if we're rolling back migrations
