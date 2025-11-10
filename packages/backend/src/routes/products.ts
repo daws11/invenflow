@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { products, kanbans, transferLogs, locations, productValidations } from '../db/schema';
+import { products, kanbans, transferLogs, locations, productValidations, kanbanLinks } from '../db/schema';
 import { eq, and, desc, getTableColumns } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import type { NewProduct } from '../db/schema';
@@ -332,38 +332,8 @@ router.put('/:id/move', async (req, res, next) => {
       updateData.stockLevel = 0; // Initialize stock level
     }
 
-    // Handle automatic transfer for Order -> Receive kanbans
-    if (
-      currentProduct.kanbanType === 'order' &&
-      columnStatus === 'Purchased' &&
-      currentProduct.linkedKanbanId
-    ) {
-      // Create transfer log
-      await db.insert(transferLogs).values({
-        productId: id,
-        fromKanbanId: currentProduct.kanbanId,
-        toKanbanId: currentProduct.linkedKanbanId,
-        fromColumn: currentProduct.columnStatus,
-        toColumn: 'Purchased',
-        transferType: 'automatic',
-        notes: 'Automatic transfer when product moved to Purchased column',
-        transferredBy: 'system',
-      });
-
-      // Move product to linked receive kanban
-      const [transferredProduct] = await db
-        .update(products)
-        .set({
-          kanbanId: currentProduct.linkedKanbanId,
-          columnStatus: 'Purchased',
-          columnEnteredAt: new Date(), // Reset timer for new kanban
-          updatedAt: new Date(),
-        })
-        .where(eq(products.id, id))
-        .returning();
-
-      return res.json(transferredProduct);
-    }
+    // NOTE: Automatic transfer removed - now requires explicit confirmation via /transfer endpoint
+    // When order kanban product moves to "Purchased", frontend will show confirmation slider
 
     const [updatedProduct] = await db
       .update(products)
@@ -388,6 +358,111 @@ router.put('/:id/move', async (req, res, next) => {
     }
 
     res.json(updatedProduct);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Transfer product from order kanban to receive kanban
+router.post('/:id/transfer', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { targetKanbanId } = req.body;
+
+    if (!targetKanbanId) {
+      throw createError('targetKanbanId is required', 400);
+    }
+
+    // Get current product with kanban info
+    const [currentProduct] = await db
+      .select({
+        id: products.id,
+        kanbanId: products.kanbanId,
+        columnStatus: products.columnStatus,
+        productDetails: products.productDetails,
+        kanbanType: kanbans.type,
+      })
+      .from(products)
+      .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
+      .where(eq(products.id, id))
+      .limit(1);
+
+    if (!currentProduct) {
+      throw createError('Product not found', 404);
+    }
+
+    // Verify source is an order kanban
+    if (currentProduct.kanbanType !== 'order') {
+      throw createError('Can only transfer from order kanbans', 400);
+    }
+
+    // Verify product is in "Purchased" column
+    if (currentProduct.columnStatus !== 'Purchased') {
+      throw createError('Product must be in Purchased column to transfer', 400);
+    }
+
+    // Get target kanban and verify it's linked and is receive type
+    const [targetKanban] = await db
+      .select({
+        id: kanbans.id,
+        type: kanbans.type,
+        locationId: kanbans.locationId,
+      })
+      .from(kanbans)
+      .where(eq(kanbans.id, targetKanbanId))
+      .limit(1);
+
+    if (!targetKanban) {
+      throw createError('Target kanban not found', 404);
+    }
+
+    if (targetKanban.type !== 'receive') {
+      throw createError('Target must be a receive kanban', 400);
+    }
+
+    // Verify the link exists
+    const [linkExists] = await db
+      .select()
+      .from(kanbanLinks)
+      .where(
+        and(
+          eq(kanbanLinks.orderKanbanId, currentProduct.kanbanId),
+          eq(kanbanLinks.receiveKanbanId, targetKanbanId)
+        )
+      )
+      .limit(1);
+
+    if (!linkExists) {
+      throw createError('Target kanban is not linked to this order kanban', 400);
+    }
+
+    // Transfer the product
+    const [transferredProduct] = await db
+      .update(products)
+      .set({
+        kanbanId: targetKanbanId,
+        columnStatus: 'Purchased',
+        locationId: targetKanban.locationId, // Set location from target kanban
+        columnEnteredAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(products.id, id))
+      .returning();
+
+    // Create transfer log
+    await db.insert(transferLogs).values({
+      productId: id,
+      fromKanbanId: currentProduct.kanbanId,
+      toKanbanId: targetKanbanId,
+      fromColumn: currentProduct.columnStatus,
+      toColumn: 'Purchased',
+      toLocationId: targetKanban.locationId,
+      transferType: 'manual',
+      notes: `Product transferred to receive kanban with location automatically set`,
+      transferredBy: 'user', // TODO: Get actual user from auth
+    });
+
+    res.json(transferredProduct);
   } catch (error) {
     next(error);
   }

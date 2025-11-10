@@ -233,7 +233,7 @@ export default function CompactProductRow({ product, onView, location, kanban }:
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               <span className="truncate">
-                {location ? location.name : product.locationId}
+                {location ? `${location.name} - ${location.area}` : product.locationId}
               </span>
             </div>
           )}
@@ -289,7 +289,7 @@ export default function CompactProductRow({ product, onView, location, kanban }:
               <div>
                 <span className="font-medium text-gray-700">Location:</span>
                 {location ? (
-                  <span className="ml-2 text-gray-600">{location.name} ({location.code})</span>
+                  <span className="ml-2 text-gray-600">{location.name} - {location.area}</span>
                 ) : (
                   <span className="ml-2 text-gray-600">{product.locationId}</span>
                 )}

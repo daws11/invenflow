@@ -54,7 +54,7 @@ export default function LocationSelector({
   };
 
   const displayText = selectedLocation
-    ? `${selectedLocation.area} - ${selectedLocation.name} (${selectedLocation.code})`
+    ? `${selectedLocation.name} - ${selectedLocation.area} (${selectedLocation.code})`
     : placeholder;
 
   return (
@@ -152,11 +152,8 @@ export default function LocationSelector({
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <div className="font-medium">{location.name}</div>
+                        <div className="font-medium">{location.name} - {location.area}</div>
                         <div className="text-sm text-gray-500">{location.code}</div>
-                      </div>
-                      <div className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded ml-2">
-                        {location.area}
                       </div>
                     </div>
                     {location.description && (
@@ -247,8 +244,8 @@ export function CompactLocationSelector({
 
   const displayText = selectedLocation
     ? showCode
-      ? `${selectedLocation.name} (${selectedLocation.code})`
-      : selectedLocation.name
+      ? `${selectedLocation.name} - ${selectedLocation.area} (${selectedLocation.code})`
+      : `${selectedLocation.name} - ${selectedLocation.area}`
     : placeholder;
 
   return (

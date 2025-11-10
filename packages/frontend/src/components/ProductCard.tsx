@@ -4,6 +4,7 @@ import { useDraggable } from '@dnd-kit/core';
 import TransferHistoryViewer from './TransferHistoryViewer';
 import { getAppliedThreshold, calculateTimeInColumn, formatTimeDuration, formatThresholdRule } from '../utils/thresholdCalculator';
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
+import { useLocationStore } from '../store/locationStore';
 
 interface ProductCardProps {
   product: Product;
@@ -19,6 +20,13 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [clickStartTime, setClickStartTime] = useState<number | null>(null);
   const [isDragIntent, setIsDragIntent] = useState(false);
+  const { locations } = useLocationStore();
+
+  const resolvedLocation: Location | null = useMemo(() => {
+    if (location) return location;
+    if (!product.locationId) return null;
+    return locations.find(l => l.id === product.locationId) || null;
+  }, [location, product.locationId, locations]);
 
   // Update current time every 30 seconds for threshold recalculation
   useEffect(() => {
@@ -214,24 +222,27 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
           {/* Product Info */}
           <div className="flex-1 sm:mr-3 space-y-1.5">
             <h4 className="font-medium text-gray-900">{product.productDetails}</h4>
-            {(location || product.locationId) && (
+            {(resolvedLocation || product.locationId) && (
               <div className="flex items-start sm:items-center text-sm">
                 <svg className="w-4 h-4 mr-2 mt-0.5 sm:mt-0 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                {location ? (
+                {resolvedLocation ? (
                   <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
-                    <span className="font-medium text-gray-900">{location.name}</span>
-                    <span className="hidden sm:inline-flex bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium">
-                      {location.code}
+                    <span className="font-medium text-gray-900">
+                      {resolvedLocation.name}
+                      {resolvedLocation.area && ` - ${resolvedLocation.area}`}
                     </span>
-                    {location.area && (
-                      <span className="hidden sm:inline text-gray-500">• {location.area}</span>
-                    )}
+                    <span className="hidden sm:inline-flex items-center bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                      <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {timeInColumn || '0m'}
+                    </span>
                   </div>
                 ) : (
-                  <span className="text-gray-600">{product.locationId}</span>
+                  <span className="text-gray-600">Unknown location</span>
                 )}
               </div>
             )}
@@ -362,9 +373,11 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
               <span className="font-medium text-gray-700">Location:</span>
               {location ? (
                 <div className="ml-2">
-                  <div className="text-gray-900 font-medium">{location.name}</div>
+                  <div className="text-gray-900 font-medium">
+                    {location.name}{location.area ? ` - ${location.area}` : ''}
+                  </div>
                   <div className="text-sm text-gray-600">
-                    {location.code} • {location.area}
+                    {location.code}
                   </div>
                   {location.description && (
                     <div className="text-xs text-gray-500 mt-1">{location.description}</div>

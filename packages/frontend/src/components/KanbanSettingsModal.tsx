@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Kanban, ThresholdRule, FormFieldSettings, DEFAULT_FORM_FIELD_SETTINGS } from '@invenflow/shared';
+import { useState, useEffect } from 'react';
+import { Kanban, ThresholdRule, FormFieldSettings, DEFAULT_FORM_FIELD_SETTINGS, LinkedReceiveKanban } from '@invenflow/shared';
 import { DeleteKanbanModal } from './DeleteKanbanModal';
 import { ThresholdSettingsSection } from './ThresholdSettingsSection';
 import { FormFieldConfiguration } from './FormFieldConfiguration';
+import { KanbanLinkingSection } from './KanbanLinkingSection';
 import { useToast } from '../store/toastStore';
 import { useKanbanStore } from '../store/kanbanStore';
 import api from '../utils/api';
@@ -15,6 +16,8 @@ import {
   ClockIcon,
   InformationCircleIcon,
   DocumentTextIcon,
+  MapPinIcon,
+  CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 import { Slider } from './Slider';
 import { SliderTabs, SliderTab } from './SliderTabs';
@@ -39,7 +42,7 @@ export function KanbanSettingsModal({
   productCount = 0,
 }: KanbanSettingsModalProps) {
   const toast = useToast();
-  const { kanbans, updateKanban, togglePublicForm } = useKanbanStore();
+  const { togglePublicForm, currentKanban } = useKanbanStore();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   
@@ -49,9 +52,9 @@ export function KanbanSettingsModal({
   const [editError, setEditError] = useState<string | null>(null);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
 
-  // Linking state
-  const [selectedKanbanId, setSelectedKanbanId] = useState<string>('');
-  const [isLinking, setIsLinking] = useState(false);
+  // Linking state (kept for backward compatibility if needed)
+  // const [selectedKanbanId, setSelectedKanbanId] = useState<string>('');
+  // const [isLinking, setIsLinking] = useState(false);
 
   // Public form state
   const [isTogglingPublicForm, setIsTogglingPublicForm] = useState(false);
@@ -66,7 +69,7 @@ export function KanbanSettingsModal({
   const [isSavingThreshold, setIsSavingThreshold] = useState(false);
 
   // Initialize edit form when kanban changes
-  useState(() => {
+  useEffect(() => {
     if (kanban) {
       setEditName(kanban.name);
       setEditDescription(kanban.description ?? '');
@@ -74,7 +77,7 @@ export function KanbanSettingsModal({
       setOptimisticPublicFormEnabled(kanban.isPublicFormEnabled);
       setFormFieldSettings(kanban.formFieldSettings || DEFAULT_FORM_FIELD_SETTINGS);
     }
-  });
+  }, [kanban]);
 
   if (!isOpen || !kanban) return null;
 
@@ -181,50 +184,7 @@ export function KanbanSettingsModal({
     }
   };
 
-  // Linking functionality
-  const availableKanbans = kanbans.filter(k => {
-    if (k.id === kanban.id) return false;
-    if (k.type === kanban.type) return false;
-    if (k.linkedKanbanId) return false;
-    return true;
-  });
-
-  const linkedKanban = kanban.linkedKanbanId
-    ? kanbans.find(k => k.id === kanban.linkedKanbanId)
-    : null;
-
-  const handleLink = async () => {
-    if (!selectedKanbanId) return;
-
-    setIsLinking(true);
-    try {
-      await updateKanban(kanban.id, { linkedKanbanId: selectedKanbanId });
-      await updateKanban(selectedKanbanId, { linkedKanbanId: kanban.id });
-      toast.success('Boards linked successfully');
-      setActiveTab('overview');
-    } catch (error) {
-      console.error('Failed to link kanbans:', error);
-      toast.error('Failed to link kanbans');
-    } finally {
-      setIsLinking(false);
-    }
-  };
-
-  const handleUnlink = async () => {
-    if (!kanban.linkedKanbanId) return;
-
-    setIsLinking(true);
-    try {
-      await updateKanban(kanban.id, { linkedKanbanId: null });
-      await updateKanban(kanban.linkedKanbanId, { linkedKanbanId: null });
-      toast.success('Boards unlinked successfully');
-    } catch (error) {
-      console.error('Failed to unlink kanbans:', error);
-      toast.error('Failed to unlink kanbans');
-    } finally {
-      setIsLinking(false);
-    }
-  };
+  // Old linking functionality removed - now handled in KanbanLinkingSection component
 
   // Threshold functionality
   const handleSaveThresholdRules = async () => {
@@ -242,6 +202,10 @@ export function KanbanSettingsModal({
       setIsSavingThreshold(false);
     }
   };
+
+  // Get linked info from currentKanban if available
+  const activeKanban = currentKanban?.id === kanban.id ? currentKanban : kanban;
+  const linkedKanbans = (activeKanban as any)?.linkedKanbans as LinkedReceiveKanban[] || [];
 
   // Tab Contents
   const overviewContent = (
@@ -267,6 +231,58 @@ export function KanbanSettingsModal({
           </p>
         )}
       </div>
+
+      {/* Linking Status */}
+      {kanban.type === 'order' && (
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+          <div className="flex items-center mb-2">
+            <LinkIcon className="w-5 h-5 text-purple-600 mr-2" />
+            <h5 className="font-medium text-purple-900">Linked Receive Kanbans</h5>
+          </div>
+          {linkedKanbans.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm text-purple-700 mb-2">
+                This order kanban is linked to {linkedKanbans.length} receive kanban{linkedKanbans.length > 1 ? 's' : ''}:
+              </p>
+              {linkedKanbans.map((link) => (
+                <div key={link.linkId} className="flex items-start bg-white rounded p-2">
+                  <CheckCircleIcon className="w-4 h-4 text-purple-600 mr-2 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900">{link.name}</p>
+                    {link.locationName && (
+                      <p className="text-xs text-gray-600 flex items-center mt-0.5">
+                        <MapPinIcon className="w-3 h-3 mr-1" />
+                        {link.locationName}
+                        {link.locationArea && ` - ${link.locationArea}`}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <p className="text-xs text-purple-600 mt-2">
+                {linkedKanbans.length < 5 ? `You can add up to ${5 - linkedKanbans.length} more link${5 - linkedKanbans.length > 1 ? 's' : ''}.` : 'Maximum links reached (5/5)'}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-purple-700">
+              No receive kanbans linked. Click "Link Board" below to add connections.
+            </p>
+          )}
+        </div>
+      )}
+
+      {kanban.type === 'receive' && kanban.locationId && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+          <div className="flex items-center mb-2">
+            <MapPinIcon className="w-5 h-5 text-indigo-600 mr-2" />
+            <h5 className="font-medium text-indigo-900">Location Configuration</h5>
+          </div>
+          <p className="text-sm text-indigo-700">
+            <CheckCircleIcon className="w-4 h-4 inline mr-1" />
+            This receive kanban has a default location configured and is ready to receive products from linked order kanbans.
+          </p>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="space-y-3">
@@ -461,86 +477,8 @@ export function KanbanSettingsModal({
         </div>
       </div>
 
-      {/* Linked Board or Selection */}
-      {linkedKanban ? (
-        <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Linked Board</h4>
-          <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="font-medium text-gray-900">{linkedKanban.name}</p>
-                <p className="text-sm text-gray-600">
-                  {linkedKanban.type === 'order' ? 'Order Board' : 'Receive Board'}
-                </p>
-              </div>
-            </div>
-            <p className="text-xs text-green-700">
-              ✓ Products automatically transfer when moved to "Purchased" column
-            </p>
-          </div>
-          
-          <button
-            type="button"
-            onClick={handleUnlink}
-            disabled={isLinking}
-            className="w-full mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
-          >
-            {isLinking ? 'Unlinking...' : 'Unlink Boards'}
-          </button>
-        </div>
-      ) : (
-        <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">
-            Available {kanban.type === 'order' ? 'Receive' : 'Order'} Boards
-          </h4>
-
-          {availableKanbans.length === 0 ? (
-            <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg text-center">
-              <p className="text-gray-600 text-sm">
-                No {kanban.type === 'order' ? 'Receive' : 'Order'} boards available for linking.
-              </p>
-              <p className="text-gray-500 text-xs mt-1">
-                Create a {kanban.type === 'order' ? 'Receive' : 'Order'} board first.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="space-y-2 mb-4">
-                {availableKanbans.map(k => (
-                  <label
-                    key={k.id}
-                    className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
-                  >
-                    <input
-                      type="radio"
-                      name="kanban-selection"
-                      value={k.id}
-                      checked={selectedKanbanId === k.id}
-                      onChange={(e) => setSelectedKanbanId(e.target.value)}
-                      className="mr-3"
-                    />
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">{k.name}</p>
-                      <p className="text-sm text-gray-600">
-                        {k.type === 'order' ? 'Order Board' : 'Receive Board'}
-                      </p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-              
-              <button
-                type="button"
-                onClick={handleLink}
-                disabled={isLinking || !selectedKanbanId}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
-                {isLinking ? 'Linking...' : 'Link Boards'}
-              </button>
-            </>
-          )}
-        </div>
-      )}
+      {/* Linking/Location Management Section */}
+      <KanbanLinkingSection kanban={kanban} />
     </div>
   );
 

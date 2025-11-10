@@ -164,8 +164,8 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
           publicUrl,
           totalItems,
           totalQuantity,
-          fromLocationName: fromLocation?.name || 'Unknown',
-          toLocationName: toLocation?.name || 'Unknown',
+          fromLocationName: fromLocation ? `${fromLocation.name}${fromLocation.area ? ` - ${fromLocation.area}` : ''}` : 'Unknown',
+          toLocationName: toLocation ? `${toLocation.name}${toLocation.area ? ` - ${toLocation.area}` : ''}` : 'Unknown',
         });
         
         // Auto copy to clipboard
@@ -306,7 +306,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                     <option value="">Select source location...</option>
                     {locations.map((loc) => (
                       <option key={loc.id} value={loc.id}>
-                        {loc.name} • {loc.area} ({loc.code})
+                        {loc.name} - {loc.area} ({loc.code})
                       </option>
                     ))}
                   </select>
@@ -339,7 +339,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                     <option value="">Select destination location...</option>
                     {locations.filter(l => l.id !== fromLocationId).map((loc) => (
                       <option key={loc.id} value={loc.id}>
-                        {loc.name} • {loc.area} ({loc.code})
+                        {loc.name} - {loc.area} ({loc.code})
                       </option>
                     ))}
                   </select>

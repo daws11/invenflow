@@ -122,7 +122,7 @@ export function StockAuditViewer({ productId, locationId, onClose }: StockAuditV
   const getLocationName = (locationId: string | null) => {
     if (!locationId) return 'Unknown Location';
     const location = locations.find(l => l.id === locationId);
-    return location ? `${location.name} (${location.area})` : 'Unknown Location';
+    return location ? `${location.name} - ${location.area}` : 'Unknown Location';
   };
 
   const getPersonName = (personId: string | null) => {

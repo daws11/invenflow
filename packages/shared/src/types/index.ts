@@ -3,6 +3,7 @@ export * from './category';
 export * from './department';
 export * from './inventory';
 export * from './kanban';
+export * from './kanban-links';
 export * from './location';
 export * from './movement';
 export * from './person';

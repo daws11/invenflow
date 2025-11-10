@@ -108,7 +108,7 @@ export default function KanbanList() {
     return kanban.description?.trim() || 'No description';
   };
 
-  const handleCreateKanban = async (name: string, type: KanbanType, description?: string | null) => {
+  const handleCreateKanban = async (name: string, type: KanbanType, description?: string | null, locationId?: string) => {
     try {
       const payload: CreateKanban = {
         name,
@@ -116,6 +116,7 @@ export default function KanbanList() {
         ...(description !== undefined && description !== null
           ? { description: description }
           : {}),
+        ...(locationId ? { locationId } : {}),
       };
       await createKanban(payload);
       toast.success(`${type === 'order' ? 'Order' : 'Receive'} kanban created successfully`);

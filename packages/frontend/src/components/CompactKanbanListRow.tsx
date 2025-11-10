@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom';
-import { Kanban, ORDER_COLUMNS, RECEIVE_COLUMNS } from '@invenflow/shared';
-import { ChevronDownIcon, ChevronRightIcon, Cog6ToothIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline';
+import { Kanban, ORDER_COLUMNS, RECEIVE_COLUMNS, LinkedReceiveKanban } from '@invenflow/shared';
+import { ChevronDownIcon, ChevronRightIcon, Cog6ToothIcon, DocumentDuplicateIcon, LinkIcon } from '@heroicons/react/24/outline';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
 
 interface CompactKanbanListRowProps {
-  kanban: Kanban & { products?: any[]; productCount?: number };
+  kanban: Kanban & { products?: any[]; productCount?: number; linkedKanbans?: LinkedReceiveKanban[] };
   onSettings: (kanban: Kanban) => void;
   onCopyUrl: (kanban: Kanban) => void;
   linkedKanbanName: string | null;
@@ -28,6 +28,27 @@ export default function CompactKanbanListRow({
     }
     return 0;
   };
+
+  // Get linked status
+  const getLinkedStatus = () => {
+    if (kanban.type === 'order') {
+      const linkedCount = kanban.linkedKanbans?.length || 0;
+      return {
+        isLinked: linkedCount > 0,
+        count: linkedCount,
+        type: 'order' as const
+      };
+    } else {
+      // For receive kanbans, check if it has a location (indicates it can receive links)
+      return {
+        isLinked: !!kanban.locationId,
+        count: 0,
+        type: 'receive' as const
+      };
+    }
+  };
+
+  const linkedStatus = getLinkedStatus();
 
   const getKanbanDescription = () => {
     return kanban.description?.trim() || 'No description';
@@ -93,12 +114,23 @@ export default function CompactKanbanListRow({
           </span>
 
           {/* Linked Badge */}
-          {kanban.linkedKanbanId && (
-            <span className="hidden md:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
-              Linked
+          {linkedStatus.isLinked && (
+            <span 
+              className={`hidden md:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                linkedStatus.type === 'order'
+                  ? 'bg-purple-100 text-purple-800'
+                  : 'bg-indigo-100 text-indigo-800'
+              }`}
+              title={linkedStatus.type === 'order' 
+                ? `Linked to ${linkedStatus.count} receive kanban${linkedStatus.count > 1 ? 's' : ''}`
+                : 'Ready to receive from order kanbans'}
+            >
+              <LinkIcon className="w-3 h-3 mr-1" />
+              {linkedStatus.type === 'order' ? (
+                <>Linked ({linkedStatus.count}/5)</>
+              ) : (
+                <>Ready to Link</>
+              )}
             </span>
           )}
 
@@ -144,8 +176,44 @@ export default function CompactKanbanListRow({
       {/* Expanded Content - Products by Column */}
       {!isCollapsed && Array.isArray(kanban.products) && kanban.products.length > 0 && (
         <div className="border-t border-gray-200 bg-gray-50 p-4">
-          {/* Linked Board Info */}
-          {kanban.linkedKanbanId && linkedKanbanName && (
+          {/* Linked Board Info - New Multi-Link System */}
+          {linkedStatus.isLinked && kanban.type === 'order' && kanban.linkedKanbans && kanban.linkedKanbans.length > 0 && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
+              <div className="flex items-start text-sm text-purple-700">
+                <LinkIcon className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <span className="font-medium">Linked to {kanban.linkedKanbans.length} receive kanban{kanban.linkedKanbans.length > 1 ? 's' : ''}:</span>
+                  <div className="mt-2 space-y-1">
+                    {kanban.linkedKanbans.map((link) => (
+                      <div key={link.linkId} className="flex items-center text-purple-600">
+                        <span className="w-1.5 h-1.5 bg-purple-400 rounded-full mr-2"></span>
+                        <span className="font-medium">{link.name}</span>
+                        {link.locationName && (
+                          <span className="ml-2 text-purple-500">
+                            📍 {link.locationName}
+                            {link.locationArea && ` - ${link.locationArea}`}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Receive Kanban Location Info */}
+          {linkedStatus.isLinked && kanban.type === 'receive' && kanban.locationId && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4">
+              <div className="flex items-center text-sm text-indigo-700">
+                <LinkIcon className="w-4 h-4 mr-2" />
+                <span className="font-medium">Ready to receive products from order kanbans</span>
+              </div>
+            </div>
+          )}
+          
+          {/* Old single link system (backward compatibility) */}
+          {kanban.linkedKanbanId && linkedKanbanName && !kanban.linkedKanbans && (
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
               <div className="flex items-center text-sm text-purple-700">
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

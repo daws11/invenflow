@@ -1,18 +1,16 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
 import { Kanban, CreateKanban } from '@invenflow/shared';
 import { CreateKanbanModal } from '../components/CreateKanbanModal';
 import { KanbanSettingsModal } from '../components/KanbanSettingsModal';
 import CompactKanbanListRow from '../components/CompactKanbanListRow';
+import { KanbanGridCard } from '../components/KanbanGridCard';
 import CreateKanbanPlaceholder from '../components/CreateKanbanPlaceholder';
 import { useToast } from '../store/toastStore';
 import {
   MagnifyingGlassIcon,
   FunnelIcon,
-  Cog6ToothIcon,
-  DocumentDuplicateIcon,
   Squares2X2Icon,
   ListBulletIcon,
 } from '@heroicons/react/24/outline';
@@ -98,7 +96,7 @@ export default function KanbanReceivingPage() {
     return kanban.description?.trim() || 'No description';
   };
 
-  const handleCreateKanban = async (name: string, description?: string | null) => {
+  const handleCreateKanban = async (name: string, _type: 'order' | 'receive', description?: string | null, locationId?: string) => {
     try {
       const payload: CreateKanban = {
         name,
@@ -106,6 +104,7 @@ export default function KanbanReceivingPage() {
         ...(description !== undefined && description !== null
           ? { description: description }
           : {}),
+        ...(locationId ? { locationId } : {}),
       };
       await createKanban(payload);
       toast.success('Receive kanban created successfully');
@@ -306,84 +305,14 @@ export default function KanbanReceivingPage() {
           />
           
           {filteredAndSortedKanbans.map((kanban) => (
-            <div
+            <KanbanGridCard
               key={kanban.id}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all duration-200 transform hover:-translate-y-1 animate-fade-in"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold mb-1">{kanban.name}</h3>
-                  <div className="flex items-center space-x-2 mb-2">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      Receiving
-                    </span>
-                    {kanban.linkedKanbanId && (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                        </svg>
-                        Linked
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Linked Board Info */}
-                  {kanban.linkedKanbanId && (
-                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-2 mb-3">
-                      <div className="flex items-center text-xs text-purple-700">
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                        </svg>
-                        <span className="font-medium">Linked to:</span>
-                        <span className="ml-1">{getLinkedKanbanName(kanban) || 'Unknown Board'}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <p className="text-sm text-gray-600 mb-4 line-clamp-3">
-                    {getKanbanDescription(kanban)}
-                  </p>
-                </div>
-
-                <div className="flex space-x-1">
-                  <button
-                    className="text-gray-400 hover:text-blue-500 transition-colors"
-                    onClick={() => openSettingsModal(kanban)}
-                    title="Settings"
-                  >
-                    <Cog6ToothIcon className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Board Actions */}
-              <div className="space-y-2">
-                <Link
-                  to={`/kanban/${kanban.id}`}
-                  className="btn-primary text-sm flex-1 text-center w-full block"
-                >
-                  View Board
-                </Link>
-
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => openSettingsModal(kanban)}
-                    className="btn-secondary text-sm flex-1"
-                  >
-                    Settings
-                  </button>
-                  {kanban.publicFormToken && (
-                    <button
-                      onClick={() => handleCopyUrl(kanban)}
-                      className="btn-secondary text-sm"
-                      title="Copy public form URL"
-                    >
-                      <DocumentDuplicateIcon className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
+              kanban={kanban}
+              onSettings={openSettingsModal}
+              onCopyUrl={handleCopyUrl}
+              productCount={getProductCount(kanban)}
+              description={getKanbanDescription(kanban)}
+            />
           ))}
         </div>
       ) : (

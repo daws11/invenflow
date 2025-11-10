@@ -52,7 +52,8 @@ export const KanbanSchema = z.object({
   name: z.string().min(1).max(255),
   type: KanbanTypeSchema,
   description: z.string().max(1000).nullable(),
-  linkedKanbanId: z.string().uuid().nullable(),
+  linkedKanbanId: z.string().uuid().nullable(), // DEPRECATED: Use linkedKanbans array
+  locationId: z.string().uuid().nullable(),
   publicFormToken: z.string().nullable(),
   isPublicFormEnabled: z.boolean(),
   formFieldSettings: FormFieldSettingsSchema.nullable(),
@@ -65,12 +66,26 @@ export const CreateKanbanSchema = z.object({
   name: z.string().min(1).max(255),
   type: KanbanTypeSchema,
   description: z.string().max(1000).optional(),
-});
+  locationId: z.string().uuid().optional(),
+}).refine(
+  (data) => {
+    // If type is 'receive', locationId is required
+    if (data.type === 'receive') {
+      return data.locationId !== undefined && data.locationId !== null;
+    }
+    return true;
+  },
+  {
+    message: 'Location is required for receive kanbans',
+    path: ['locationId'],
+  }
+);
 
 export const UpdateKanbanSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().max(1000).optional().nullable(),
-  linkedKanbanId: z.string().uuid().nullable().optional(),
+  linkedKanbanId: z.string().uuid().nullable().optional(), // DEPRECATED
+  locationId: z.string().uuid().nullable().optional(),
   isPublicFormEnabled: z.boolean().optional(),
   formFieldSettings: FormFieldSettingsSchema.nullable().optional(),
   thresholdRules: z.array(ThresholdRuleSchema).nullable().optional(),

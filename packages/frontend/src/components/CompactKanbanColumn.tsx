@@ -1,4 +1,4 @@
-import { Product, Kanban } from '@invenflow/shared';
+import { Product, Kanban, Location } from '@invenflow/shared';
 import { useDroppable } from '@dnd-kit/core';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import CompactProductRow from './CompactProductRow';
@@ -10,6 +10,7 @@ interface CompactKanbanColumnProps {
   products: Product[];
   onProductView?: (product: Product) => void;
   kanban?: Kanban | null;
+  locations?: Location[];
 }
 
 export default function CompactKanbanColumn({ 
@@ -17,7 +18,8 @@ export default function CompactKanbanColumn({
   title, 
   products, 
   onProductView, 
-  kanban 
+  kanban,
+  locations = [],
 }: CompactKanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: id,
@@ -90,6 +92,7 @@ export default function CompactKanbanColumn({
                 product={product}
                 onView={() => onProductView?.(product)}
                 kanban={kanban}
+                location={product.locationId ? locations.find(l => l.id === product.locationId) || null : null}
               />
             ))
           )}

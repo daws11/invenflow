@@ -36,8 +36,7 @@ export default function CompactBoardView({
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        delay: 250, // 250ms hold before drag starts
-        tolerance: 5, // Allow 5px movement during delay
+        distance: 6, // Activate drag after small movement; no hold delay
       },
     }),
     useSensor(KeyboardSensor, {
@@ -156,6 +155,7 @@ export default function CompactBoardView({
             products={getProductsByColumn(column)}
             onProductView={onProductView}
             kanban={kanban}
+            locations={locations}
           />
         ))}
       </div>

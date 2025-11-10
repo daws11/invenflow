@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { nanoid } from 'nanoid';
 import { db } from '../db';
-import { kanbans, products } from '../db/schema';
-import { eq, and, asc } from 'drizzle-orm';
+import { kanbans, products, kanbanLinks, locations } from '../db/schema';
+import { eq, and, asc, sql } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
 import { UpdateKanbanSchema, FormFieldSettingsSchema, DEFAULT_FORM_FIELD_SETTINGS } from '@invenflow/shared';
@@ -34,6 +34,7 @@ router.get('/:id', async (req, res, next) => {
         type: kanbans.type,
         description: kanbans.description,
         linkedKanbanId: kanbans.linkedKanbanId,
+        locationId: kanbans.locationId,
         publicFormToken: kanbans.publicFormToken,
         isPublicFormEnabled: kanbans.isPublicFormEnabled,
         formFieldSettings: kanbans.formFieldSettings,
@@ -58,7 +59,43 @@ router.get('/:id', async (req, res, next) => {
       .where(eq(products.kanbanId, id))
       .orderBy(asc(products.createdAt));
 
-    res.json({ ...kanban, products: kanbanProducts });
+    // Get location details if this is a receive kanban
+    let location = null;
+    if (kanban.type === 'receive' && kanban.locationId) {
+      const [locationData] = await db
+        .select()
+        .from(locations)
+        .where(eq(locations.id, kanban.locationId))
+        .limit(1);
+      location = locationData || null;
+    }
+
+    // Get linked receive kanbans if this is an order kanban
+    let linkedKanbans: any[] = [];
+    if (kanban.type === 'order') {
+      linkedKanbans = await db
+        .select({
+          id: kanbans.id,
+          name: kanbans.name,
+          locationId: kanbans.locationId,
+          locationName: locations.name,
+          locationArea: locations.area,
+          locationBuilding: locations.building,
+          locationFloor: locations.floor,
+          linkId: kanbanLinks.id,
+        })
+        .from(kanbanLinks)
+        .innerJoin(kanbans, eq(kanbanLinks.receiveKanbanId, kanbans.id))
+        .leftJoin(locations, eq(kanbans.locationId, locations.id))
+        .where(eq(kanbanLinks.orderKanbanId, id));
+    }
+
+    res.json({ 
+      ...kanban, 
+      products: kanbanProducts,
+      location,
+      linkedKanbans,
+    });
   } catch (error) {
     next(error);
   }
@@ -67,10 +104,28 @@ router.get('/:id', async (req, res, next) => {
 // Create kanban
 router.post('/', async (req, res, next) => {
   try {
-    const { name, type, description, thresholdRules } = req.body;
+    const { name, type, description, thresholdRules, locationId } = req.body;
 
     if (!name || !type || !['order', 'receive'].includes(type)) {
       throw createError('Invalid kanban data', 400);
+    }
+
+    // Validate locationId is required for receive kanbans
+    if (type === 'receive') {
+      if (!locationId) {
+        throw createError('Location is required for receive kanbans', 400);
+      }
+
+      // Verify location exists
+      const [locationExists] = await db
+        .select()
+        .from(locations)
+        .where(eq(locations.id, locationId))
+        .limit(1);
+
+      if (!locationExists) {
+        throw createError('Invalid locationId', 400);
+      }
     }
 
     const newKanban: any = {
@@ -78,6 +133,7 @@ router.post('/', async (req, res, next) => {
       type,
       description: typeof description === 'string' && description.trim().length > 0 ? description.trim() : null,
       linkedKanbanId: null,
+      locationId: type === 'receive' ? locationId : null,
       publicFormToken: type === 'order' ? nanoid(10) : null,
       formFieldSettings: type === 'order' ? DEFAULT_FORM_FIELD_SETTINGS : null,
     };
@@ -109,7 +165,7 @@ router.put('/:id', async (req, res, next) => {
       throw createError('Invalid kanban data: ' + validationResult.error.message, 400);
     }
 
-    const { name, linkedKanbanId, description, thresholdRules, formFieldSettings } = validationResult.data;
+    const { name, linkedKanbanId, description, thresholdRules, formFieldSettings, locationId } = validationResult.data;
 
     // Check if kanban exists and get its type for validation
     const [existingKanban] = await db
@@ -127,9 +183,23 @@ router.put('/:id', async (req, res, next) => {
       throw createError('Form field settings are only available for Order kanbans', 400);
     }
 
+    // Validate locationId if provided
+    if (locationId !== undefined && locationId !== null) {
+      const [locationExists] = await db
+        .select()
+        .from(locations)
+        .where(eq(locations.id, locationId))
+        .limit(1);
+
+      if (!locationExists) {
+        throw createError('Invalid locationId', 400);
+      }
+    }
+
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
     if (linkedKanbanId !== undefined) updateData.linkedKanbanId = linkedKanbanId;
+    if (locationId !== undefined) updateData.locationId = locationId;
     if (description !== undefined) {
       updateData.description = typeof description === 'string' && description.trim().length > 0 ? description.trim() : null;
     }
@@ -207,6 +277,196 @@ router.put('/:id/public-form-settings', async (req, res, next) => {
       .returning();
 
     res.json(updatedKanban);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get linked receive kanbans for an order kanban
+router.get('/:id/links', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Verify kanban exists and is an order kanban
+    const [kanban] = await db
+      .select()
+      .from(kanbans)
+      .where(eq(kanbans.id, id))
+      .limit(1);
+
+    if (!kanban) {
+      throw createError('Kanban not found', 404);
+    }
+
+    if (kanban.type !== 'order') {
+      throw createError('Only order kanbans can have links', 400);
+    }
+
+    // Get linked receive kanbans with location info
+    const linkedKanbans = await db
+      .select({
+        id: kanbans.id,
+        name: kanbans.name,
+        locationId: kanbans.locationId,
+        locationName: locations.name,
+        locationArea: locations.area,
+        locationBuilding: locations.building,
+        locationFloor: locations.floor,
+        linkId: kanbanLinks.id,
+      })
+      .from(kanbanLinks)
+      .innerJoin(kanbans, eq(kanbanLinks.receiveKanbanId, kanbans.id))
+      .leftJoin(locations, eq(kanbans.locationId, locations.id))
+      .where(eq(kanbanLinks.orderKanbanId, id));
+
+    res.json(linkedKanbans);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Add link between order kanban and receive kanban
+router.post('/:id/links', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { receiveKanbanId } = req.body;
+
+    if (!receiveKanbanId) {
+      throw createError('receiveKanbanId is required', 400);
+    }
+
+    // Verify order kanban exists and is an order type
+    const [orderKanban] = await db
+      .select()
+      .from(kanbans)
+      .where(eq(kanbans.id, id))
+      .limit(1);
+
+    if (!orderKanban) {
+      throw createError('Order kanban not found', 404);
+    }
+
+    if (orderKanban.type !== 'order') {
+      throw createError('Only order kanbans can have links', 400);
+    }
+
+    // Verify receive kanban exists and is a receive type
+    const [receiveKanban] = await db
+      .select()
+      .from(kanbans)
+      .where(eq(kanbans.id, receiveKanbanId))
+      .limit(1);
+
+    if (!receiveKanban) {
+      throw createError('Receive kanban not found', 404);
+    }
+
+    if (receiveKanban.type !== 'receive') {
+      throw createError('Can only link to receive kanbans', 400);
+    }
+
+    // Check current link count (max 5)
+    const existingLinks = await db
+      .select()
+      .from(kanbanLinks)
+      .where(eq(kanbanLinks.orderKanbanId, id));
+
+    if (existingLinks.length >= 5) {
+      throw createError('Maximum of 5 linked kanbans allowed', 400);
+    }
+
+    // Check if link already exists
+    const [existingLink] = await db
+      .select()
+      .from(kanbanLinks)
+      .where(
+        and(
+          eq(kanbanLinks.orderKanbanId, id),
+          eq(kanbanLinks.receiveKanbanId, receiveKanbanId)
+        )
+      )
+      .limit(1);
+
+    if (existingLink) {
+      throw createError('Link already exists', 400);
+    }
+
+    // Create the link
+    const [createdLink] = await db
+      .insert(kanbanLinks)
+      .values({
+        orderKanbanId: id,
+        receiveKanbanId,
+      })
+      .returning();
+
+    // Return updated links list with location info
+    const linkedKanbans = await db
+      .select({
+        id: kanbans.id,
+        name: kanbans.name,
+        locationId: kanbans.locationId,
+        locationName: locations.name,
+        locationArea: locations.area,
+        locationBuilding: locations.building,
+        locationFloor: locations.floor,
+        linkId: kanbanLinks.id,
+      })
+      .from(kanbanLinks)
+      .innerJoin(kanbans, eq(kanbanLinks.receiveKanbanId, kanbans.id))
+      .leftJoin(locations, eq(kanbans.locationId, locations.id))
+      .where(eq(kanbanLinks.orderKanbanId, id));
+
+    res.status(201).json(linkedKanbans);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Remove link between order kanban and receive kanban
+router.delete('/:id/links/:linkId', async (req, res, next) => {
+  try {
+    const { id, linkId } = req.params;
+
+    // Verify the link exists and belongs to this kanban
+    const [link] = await db
+      .select()
+      .from(kanbanLinks)
+      .where(
+        and(
+          eq(kanbanLinks.id, linkId),
+          eq(kanbanLinks.orderKanbanId, id)
+        )
+      )
+      .limit(1);
+
+    if (!link) {
+      throw createError('Link not found', 404);
+    }
+
+    // Delete the link
+    await db
+      .delete(kanbanLinks)
+      .where(eq(kanbanLinks.id, linkId));
+
+    // Return updated links list
+    const linkedKanbans = await db
+      .select({
+        id: kanbans.id,
+        name: kanbans.name,
+        locationId: kanbans.locationId,
+        locationName: locations.name,
+        locationArea: locations.area,
+        locationBuilding: locations.building,
+        locationFloor: locations.floor,
+        linkId: kanbanLinks.id,
+      })
+      .from(kanbanLinks)
+      .innerJoin(kanbans, eq(kanbanLinks.receiveKanbanId, kanbans.id))
+      .leftJoin(locations, eq(kanbans.locationId, locations.id))
+      .where(eq(kanbanLinks.orderKanbanId, id));
+
+    res.json(linkedKanbans);
   } catch (error) {
     next(error);
   }

@@ -26,11 +26,12 @@ import KanbanSearchBar from '../components/KanbanSearchBar';
 import ProductSidebar from '../components/ProductSidebar';
 import ValidationModal from '../components/ValidationModal';
 import { KanbanSettingsModal } from '../components/KanbanSettingsModal';
+import { TransferConfirmationSlider } from '../components/TransferConfirmationSlider';
 import { useToast } from '../store/toastStore';
 
 export default function KanbanBoard() {
   const { id } = useParams<{ id: string }>();
-  const { currentKanban, loading, error, fetchKanbanById, moveProduct, updateKanban, deleteKanban } = useKanbanStore();
+  const { currentKanban, loading, error, fetchKanbanById, moveProduct, transferProduct, updateKanban, deleteKanban } = useKanbanStore();
   const { kanbanBoardViewMode, setKanbanBoardViewMode } = useViewPreferencesStore();
   const { locations, fetchLocations } = useLocationStore();
   const toast = useToast();
@@ -51,11 +52,14 @@ export default function KanbanBoard() {
   } | null>(null);
   const [isValidationLoading, setIsValidationLoading] = useState(false);
 
+  // Transfer confirmation slider state
+  const [showTransferSlider, setShowTransferSlider] = useState(false);
+  const [productToTransfer, setProductToTransfer] = useState<Product | null>(null);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        delay: 250, // 250ms hold before drag starts
-        tolerance: 5, // Allow 5px movement during delay
+        distance: 6, // Activate drag after small movement; no hold delay
       },
     }),
     useSensor(KeyboardSensor, {
@@ -146,6 +150,32 @@ export default function KanbanBoard() {
   };
 
   const handleMoveProduct = async (productId: string, newColumn: string) => {
+    // Check if this is an order kanban moving to "Purchased" column
+    if (currentKanban?.type === 'order' && newColumn === 'Purchased') {
+      const linkedKanbans = currentKanban?.linkedKanbans || [];
+      
+      if (linkedKanbans.length === 0) {
+        toast.error('No receive kanbans linked. Please link at least one receive kanban in settings.');
+        return;
+      }
+
+      // Find the product and show transfer confirmation slider
+      const product = currentKanban.products.find(p => p.id === productId);
+      if (product) {
+        // First move to Purchased column
+        try {
+          await moveProduct(productId, newColumn);
+          // Then show transfer slider
+          setProductToTransfer(product);
+          setShowTransferSlider(true);
+        } catch (error: any) {
+          toast.error('Failed to move product: ' + (error?.response?.data?.error?.message || error?.message));
+        }
+      }
+      return;
+    }
+
+    // Normal move for non-order kanbans or other columns
     try {
       await moveProduct(productId, newColumn);
     } catch (error: any) {
@@ -212,6 +242,25 @@ export default function KanbanBoard() {
       setShowValidationModal(false);
       setPendingProductMove(null);
     }
+  };
+
+  const handleTransferConfirm = async (targetKanbanId: string) => {
+    if (!productToTransfer) return;
+
+    try {
+      await transferProduct(productToTransfer.id, targetKanbanId);
+      toast.success('Product transferred successfully');
+      setShowTransferSlider(false);
+      setProductToTransfer(null);
+    } catch (error: any) {
+      toast.error('Failed to transfer product: ' + (error?.response?.data?.error?.message || error?.message));
+      throw error;
+    }
+  };
+
+  const handleCloseTransferSlider = () => {
+    setShowTransferSlider(false);
+    setProductToTransfer(null);
   };
 
   const handleViewProduct = (product: Product) => {
@@ -519,6 +568,17 @@ export default function KanbanBoard() {
             onUpdate={handleUpdateKanban}
             onDelete={handleDeleteKanban}
             productCount={getProductCount()}
+          />
+        )}
+
+        {/* Transfer Confirmation Slider */}
+        {showTransferSlider && productToTransfer && currentKanban && (
+          <TransferConfirmationSlider
+            isOpen={showTransferSlider}
+            onClose={handleCloseTransferSlider}
+            product={productToTransfer}
+            linkedKanbans={currentKanban.linkedKanbans || []}
+            onConfirm={handleTransferConfirm}
           />
         )}
       </div>

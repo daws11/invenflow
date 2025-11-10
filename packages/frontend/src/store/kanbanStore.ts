@@ -1,10 +1,10 @@
 import { create } from 'zustand';
-import { Kanban, Product, CreateKanban, CreateProduct } from '@invenflow/shared';
+import { Kanban, Product, CreateKanban, CreateProduct, LinkedReceiveKanban } from '@invenflow/shared';
 import { kanbanApi, productApi } from '../utils/api';
 
 interface KanbanState {
   kanbans: Kanban[];
-  currentKanban: (Kanban & { products: Product[] }) | null;
+  currentKanban: (Kanban & { products: Product[]; linkedKanbans?: LinkedReceiveKanban[] }) | null;
   loading: boolean;
   error: string | null;
 
@@ -16,9 +16,14 @@ interface KanbanState {
   togglePublicForm: (id: string, enabled: boolean) => Promise<void>;
   deleteKanban: (id: string) => Promise<void>;
 
+  // Kanban links
+  addKanbanLink: (orderKanbanId: string, receiveKanbanId: string) => Promise<void>;
+  removeKanbanLink: (orderKanbanId: string, linkId: string) => Promise<void>;
+
   createProduct: (data: CreateProduct) => Promise<Product>;
   updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
   moveProduct: (id: string, columnStatus: string, locationId?: string, skipValidation?: boolean) => Promise<void>;
+  transferProduct: (id: string, targetKanbanId: string) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
 
   refreshCurrentKanban: () => Promise<void>;
@@ -267,6 +272,91 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to delete product',
         loading: false
       });
+    }
+  },
+
+  transferProduct: async (id: string, targetKanbanId: string) => {
+    const { currentKanban } = get();
+    if (!currentKanban) return;
+    
+    // Find the product to transfer
+    const productToTransfer = currentKanban.products.find(p => p.id === id);
+    if (!productToTransfer) return;
+    
+    // Store previous state for rollback
+    const previousProducts = currentKanban.products;
+    
+    // OPTIMISTIC UPDATE: Remove product from current kanban immediately
+    set(state => ({
+      currentKanban: state.currentKanban
+        ? {
+            ...state.currentKanban,
+            products: state.currentKanban.products.filter(p => p.id !== id)
+          }
+        : null,
+      error: null
+    }));
+    
+    try {
+      // Make API call to transfer
+      await productApi.transfer(id, targetKanbanId);
+      // Product successfully transferred - already removed from UI
+    } catch (error) {
+      // ROLLBACK: Restore product on error
+      set(state => ({
+        currentKanban: state.currentKanban
+          ? {
+              ...state.currentKanban,
+              products: previousProducts
+            }
+          : null,
+        error: error instanceof Error ? error.message : 'Failed to transfer product'
+      }));
+      throw error;
+    }
+  },
+
+  addKanbanLink: async (orderKanbanId: string, receiveKanbanId: string) => {
+    set({ loading: true, error: null });
+    try {
+      const updatedLinks = await kanbanApi.addLink(orderKanbanId, receiveKanbanId);
+      set(state => ({
+        currentKanban: state.currentKanban?.id === orderKanbanId
+          ? {
+              ...state.currentKanban,
+              linkedKanbans: updatedLinks
+            }
+          : state.currentKanban,
+        loading: false
+      }));
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to add kanban link',
+        loading: false
+      });
+      throw error;
+    }
+  },
+
+  removeKanbanLink: async (orderKanbanId: string, linkId: string) => {
+    set({ loading: true, error: null });
+    try {
+      const updatedLinks = await kanbanApi.removeLink(orderKanbanId, linkId);
+      set(state => ({
+        currentKanban: state.currentKanban?.id === orderKanbanId
+          ? {
+              ...state.currentKanban,
+              linkedKanbans: updatedLinks
+            }
+          : state.currentKanban,
+        loading: false
+      }));
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to remove kanban link',
+        loading: false
+      });
+      throw error;
     }
   },
 

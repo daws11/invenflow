@@ -71,6 +71,10 @@ export const MoveProductSchema = z.object({
   columnStatus: z.string(),
 });
 
+export const TransferProductSchema = z.object({
+  targetKanbanId: z.string().uuid(),
+});
+
 export const PublicFormSubmitSchema = z.object({
   productDetails: z.string().min(1).max(1000),
   productLink: z.string().url().nullable(),
@@ -87,6 +91,7 @@ export type Product = z.infer<typeof ProductSchema>;
 export type CreateProduct = z.infer<typeof CreateProductSchema>;
 export type UpdateProduct = z.infer<typeof UpdateProductSchema>;
 export type MoveProduct = z.infer<typeof MoveProductSchema>;
+export type TransferProduct = z.infer<typeof TransferProductSchema>;
 export type PublicFormSubmit = z.infer<typeof PublicFormSubmitSchema>;
 
 export const DEFAULT_PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'] as const;

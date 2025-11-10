@@ -26,7 +26,8 @@ import {
   BulkMovementListResponse,
   BulkMovementWithDetails,
   PublicBulkMovementResponse,
-  FormFieldSettings
+  FormFieldSettings,
+  LinkedReceiveKanban
 } from '@invenflow/shared';
 import { useAuthStore } from '../store/authStore';
 
@@ -105,6 +106,22 @@ export const kanbanApi = {
   delete: async (id: string): Promise<void> => {
     await api.delete(`/api/kanbans/${id}`);
   },
+
+  // Kanban links management
+  getLinks: async (id: string): Promise<LinkedReceiveKanban[]> => {
+    const response = await api.get(`/api/kanbans/${id}/links`);
+    return response.data;
+  },
+
+  addLink: async (id: string, receiveKanbanId: string): Promise<LinkedReceiveKanban[]> => {
+    const response = await api.post(`/api/kanbans/${id}/links`, { receiveKanbanId });
+    return response.data;
+  },
+
+  removeLink: async (id: string, linkId: string): Promise<LinkedReceiveKanban[]> => {
+    const response = await api.delete(`/api/kanbans/${id}/links/${linkId}`);
+    return response.data;
+  },
 };
 
 // Product API calls
@@ -126,6 +143,11 @@ export const productApi = {
 
   move: async (id: string, columnStatus: string, locationId?: string, skipValidation?: boolean): Promise<Product> => {
     const response = await api.put(`/api/products/${id}/move`, { columnStatus, locationId, skipValidation });
+    return response.data;
+  },
+
+  transfer: async (id: string, targetKanbanId: string): Promise<Product> => {
+    const response = await api.post(`/api/products/${id}/transfer`, { targetKanbanId });
     return response.data;
   },
 
