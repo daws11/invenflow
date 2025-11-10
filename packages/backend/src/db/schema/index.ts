@@ -9,3 +9,5 @@ export * from './products';
 export * from './product-validations';
 export * from './transfer-logs';
 export * from './users';
+export * from './import-batches';
+export * from './sku-aliases';

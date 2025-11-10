@@ -7,6 +7,7 @@ import { KanbanLinkingSection } from './KanbanLinkingSection';
 import { useToast } from '../store/toastStore';
 import { useKanbanStore } from '../store/kanbanStore';
 import api from '../utils/api';
+import { locationApi } from '../utils/api';
 import {
   PencilIcon,
   LinkIcon,
@@ -67,6 +68,9 @@ export function KanbanSettingsModal({
   // Threshold state
   const [thresholdRules, setThresholdRules] = useState<ThresholdRule[]>(kanban?.thresholdRules || []);
   const [isSavingThreshold, setIsSavingThreshold] = useState(false);
+  // Receive kanban default location
+  const [locations, setLocations] = useState<Array<{ id: string; name: string; area?: string; code?: string }>>([]);
+  const [editLocationId, setEditLocationId] = useState<string | null>(kanban?.locationId ?? null);
 
   // Initialize edit form when kanban changes
   useEffect(() => {
@@ -76,8 +80,17 @@ export function KanbanSettingsModal({
       setThresholdRules(kanban.thresholdRules || []);
       setOptimisticPublicFormEnabled(kanban.isPublicFormEnabled);
       setFormFieldSettings(kanban.formFieldSettings || DEFAULT_FORM_FIELD_SETTINGS);
+      setEditLocationId(kanban.locationId ?? null);
     }
   }, [kanban]);
+
+  // Load locations for receive kanban
+  useEffect(() => {
+    if (!isOpen || !kanban || kanban.type !== 'receive') return;
+    locationApi.getAll().then(res => {
+      setLocations(res.locations || []);
+    }).catch(() => setLocations([]));
+  }, [isOpen, kanban]);
 
   if (!isOpen || !kanban) return null;
 
@@ -174,6 +187,13 @@ export function KanbanSettingsModal({
         editName.trim(),
         normalizedDescription.length > 0 ? normalizedDescription : null
       );
+      // Update default location for receive kanban if changed
+      if (kanban.type === 'receive') {
+        const newLocationId = editLocationId || null;
+        if (newLocationId !== kanban.locationId) {
+          await api.put(`/api/kanbans/${kanban.id}`, { locationId: newLocationId });
+        }
+      }
       toast.success('Kanban updated successfully!');
       setActiveTab('overview');
     } catch (error) {
@@ -416,6 +436,31 @@ export function KanbanSettingsModal({
           disabled={isSubmittingEdit}
         />
       </div>
+
+      {kanban.type === 'receive' && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Default Location <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={editLocationId || ''}
+            onChange={(e) => setEditLocationId(e.target.value || null)}
+            required
+            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent border-gray-300"
+            disabled={isSubmittingEdit}
+          >
+            <option value="">Select location...</option>
+            {locations.map((loc) => (
+              <option key={loc.id} value={loc.id}>
+                {loc.name}{loc.area ? ` - ${loc.area}` : ''}{loc.code ? ` (${loc.code})` : ''}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-gray-500">
+            This will be used as the default location for imports and received items.
+          </p>
+        </div>
+      )}
 
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <div className="flex items-center">

@@ -41,6 +41,16 @@ export const authenticateToken = (
   });
 };
 
+export const authorizeRoles = (...allowed: string[]) => {
+  return (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
+    const role = req.user?.role;
+    if (!role || !allowed.includes(role)) {
+      return next(createError('Forbidden', 403));
+    }
+    next();
+  };
+};
+
 // Middleware to optionally authenticate (doesn't fail if no token)
 export const optionalAuth = (
   req: AuthenticatedRequest,

@@ -8,6 +8,8 @@ import { InventoryGroupedList } from '../components/InventoryGroupedList';
 import { InventoryFilters } from '../components/InventoryFilters';
 import { ProductDetailModal } from '../components/ProductDetailModal';
 import { ViewModeDropdown } from '../components/ViewModeDropdown';
+import { StockAdjustmentImportModal } from '../components/StockAdjustmentImportModal';
+import { inventoryApi } from '../utils/api';
 import {
   MagnifyingGlassIcon,
   AdjustmentsHorizontalIcon,
@@ -51,6 +53,8 @@ export default function InventoryManager() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (displayMode === 'individual') {
@@ -196,6 +200,45 @@ export default function InventoryManager() {
               <ArrowPathIcon className="h-4 w-4 mr-2" />
               Refresh
             </button>
+            <button
+              onClick={() => setShowImport(!showImport)}
+              className="inline-flex items-center px-3 py-2 border border-green-600 shadow-sm text-sm leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none"
+            >
+              Import Stock
+            </button>
+            <div className="relative">
+              <button
+                onClick={async () => {
+                  try {
+                    setExporting(true);
+                    const blob = await inventoryApi.exportInventory({
+                      format: 'csv',
+                      grouped: displayMode === 'grouped',
+                      search: filters.search,
+                      category: (filters as any).category,
+                      supplier: (filters as any).supplier,
+                      location: (filters as any).location,
+                      columnStatus: (filters as any).columnStatus,
+                      dateFrom: (filters as any).dateFrom,
+                      dateTo: (filters as any).dateTo,
+                    });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `inventory-${displayMode === 'grouped' ? 'grouped' : 'items'}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  } finally {
+                    setExporting(false);
+                  }
+                }}
+                className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                disabled={exporting}
+                title="Export CSV"
+              >
+                {exporting ? 'Exporting...' : 'Export CSV'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -343,6 +386,12 @@ export default function InventoryManager() {
           </div>
         </div>
       </div>
+
+      {/* Import Right-Side Slider */}
+      <StockAdjustmentImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+      />
 
       {/* Filters Panel */}
       {showFilters && (

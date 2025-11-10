@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { GroupedInventoryItem } from '@invenflow/shared';
+import { GroupedInventoryItem, InventoryItem } from '@invenflow/shared';
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -11,6 +11,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { StatusDetailModal } from './StatusDetailModal';
 import { LocationDetailsDropdown } from './LocationDetailsDropdown';
+import { ProductDetailModal } from './ProductDetailModal';
+import { useInventoryStore } from '../store/inventoryStore';
 
 interface InventoryGroupedListProps {
   items: GroupedInventoryItem[];
@@ -26,6 +28,11 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
     status: ProductStatus;
     productName: string;
   } | null>(null);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [loadingProduct, setLoadingProduct] = useState(false);
+  
+  const fetchProductsBySku = useInventoryStore((state) => state.fetchProductsBySku);
 
   const toggleRow = (sku: string) => {
     const newExpanded = new Set(expandedRows);
@@ -39,6 +46,22 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
 
   const handleStatusClick = (sku: string, status: ProductStatus, productName: string) => {
     setSelectedStatus({ sku, status, productName });
+  };
+
+  const handleProductNameClick = async (sku: string) => {
+    setLoadingProduct(true);
+    try {
+      const products = await fetchProductsBySku(sku);
+      if (products.length > 0) {
+        // Use the first product (most recent based on fetchProductsBySku sorting)
+        setSelectedItem(products[0]);
+        setShowDetailModal(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch product details:', error);
+    } finally {
+      setLoadingProduct(false);
+    }
   };
 
   if (loading) {
@@ -140,21 +163,23 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
                         )}
                       </button>
                     </td>
-                    <td className="px-6 py-4">
+                    <td 
+                      className="px-6 py-4 cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleProductNameClick(item.sku);
+                      }}
+                    >
                       <div className="flex items-center">
-                        {item.productImage ? (
+                        {item.productImage && (
                           <img
                             src={item.productImage}
                             alt={item.productName}
                             className="h-10 w-10 rounded object-cover"
                           />
-                        ) : (
-                          <div className="h-10 w-10 rounded bg-gray-200 flex items-center justify-center">
-                            <CubeIcon className="h-6 w-6 text-gray-400" />
-                          </div>
                         )}
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
+                        <div className={item.productImage ? "ml-4" : ""}>
+                          <div className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">
                             {item.productName}
                           </div>
                         </div>
@@ -299,6 +324,24 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
           productName={selectedStatus.productName}
           onClose={() => setSelectedStatus(null)}
         />
+      )}
+
+      {/* Product Detail Modal */}
+      {showDetailModal && selectedItem && (
+        <ProductDetailModal
+          item={selectedItem}
+          onClose={() => {
+            setShowDetailModal(false);
+            setSelectedItem(null);
+          }}
+        />
+      )}
+
+      {/* Loading overlay */}
+      {loadingProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+        </div>
       )}
     </>
   );

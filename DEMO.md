@@ -126,6 +126,18 @@ curl -X POST http://localhost:3001/api/public/form/sample123 \
   -d '{"productDetails": "Test Product", "priority": "High"}'
 ```
 
+### 7. Import/Export Inventory (Stored-only)
+1. Open Inventory Manager page.
+2. Click "Import Stock" to open the import panel.
+3. Download the CSV template. If the target Receive kanban has a default location:
+   - Minimal columns: Product Name, Supplier, Category, New Stock Level
+   - Optional override per row: Location (Location Code)
+   If the Receive kanban has no default location, fill the Location column per row.
+4. Select a Receive kanban target and upload the CSV.
+5. Confirm Import → results show totals (success/skipped/failed).
+6. Export current view:
+   - Click "Export CSV" to download current filtered inventory (grouped uses the Grouped view toggle).
+
 ## 📱 **Features to Explore**
 
 ### **Kanban List Page**

@@ -313,6 +313,50 @@ export const inventoryApi = {
     const response = await api.get('/api/inventory', { params });
     return response.data;
   },
+  importStored: async (data: {
+    importBatchLabel?: string;
+    importBatchId?: string;
+    targetReceiveKanbanId: string;
+    items: Array<{
+      sku?: string;
+      legacySku?: string;
+      legacyId?: string;
+      productName: string;
+      supplier: string;
+      category: string;
+      dimensions?: string | null;
+      newStockLevel: number;
+      locationId?: string;
+      locationCode?: string;
+      unitPrice?: number;
+      notes?: string;
+      originalPurchaseDate?: string;
+    }>;
+  }): Promise<{
+    importBatchId: string;
+    totals: { total: number; successful: number; failed: number; skipped: number };
+    results: any[];
+  }> => {
+    const response = await api.post('/api/inventory/import/stored', data);
+    return response.data;
+  },
+  exportInventory: async (params: {
+    format?: 'csv' | 'xlsx';
+    grouped?: boolean;
+    search?: string;
+    category?: string[];
+    supplier?: string[];
+    location?: string[];
+    columnStatus?: string[];
+    dateFrom?: string;
+    dateTo?: string;
+  }): Promise<Blob> => {
+    const response = await api.get('/api/inventory/export', {
+      params,
+      responseType: 'blob',
+    });
+    return response.data;
+  },
 
   getGroupedInventory: async (params?: { search?: string; category?: string[]; supplier?: string[]; status?: string }): Promise<GroupedInventoryResponse> => {
     const response = await api.get('/api/inventory/grouped', { params });

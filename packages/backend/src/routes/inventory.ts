@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { products, kanbans, productValidations, locations, persons } from '../db/schema';
+import { products, kanbans, productValidations, locations, persons, movementLogs, skuAliases, importBatches } from '../db/schema';
 import type { ProductValidation } from '@invenflow/shared';
 import {
   eq,
@@ -17,7 +17,9 @@ import {
   getTableColumns,
 } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, authorizeRoles } from '../middleware/auth';
+import { z } from 'zod';
+import { generateStableSku, buildProductFingerprint } from '../utils/sku';
 
 const router = Router();
 
@@ -363,6 +365,186 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// Export inventory data (CSV/XLSX), supports grouped-by-SKU or raw
+router.get('/export', authorizeRoles('admin', 'manager'), async (req, res, next) => {
+  try {
+    const format = (toStringValue(req.query.format) || 'csv').toLowerCase();
+    const grouped = toStringValue(req.query.grouped) === 'true';
+
+    // Reuse filters similar to GET /
+    const searchValue = toStringValue(req.query.search);
+    const categoryValues = toStringArray(req.query.category);
+    const supplierValues = toStringArray(req.query.supplier);
+    const locationValues = toStringArray(req.query.location);
+    const columnStatusValues = toStringArray(req.query.columnStatus);
+    const dateFromValue = toDateValue(req.query.dateFrom);
+    const dateToValue = toDateValue(req.query.dateTo);
+
+    const conditions: SQL<unknown>[] = [];
+    const pushCondition = (clause: SQL<unknown> | undefined) => {
+      if (clause) {
+        conditions.push(clause);
+      }
+    };
+    // Only receive kanban items
+    pushCondition(eq(kanbans.type, 'receive'));
+    // Status
+    if (columnStatusValues.length > 0) {
+      pushCondition(inArray(products.columnStatus, columnStatusValues));
+    } else {
+      pushCondition(inArray(products.columnStatus, ['Received', 'Stored']));
+    }
+    // Filters
+    if (searchValue) {
+      pushCondition(
+        or(
+          ilike(products.productDetails, `%${searchValue}%`),
+          ilike(products.notes, `%${searchValue}%`),
+          ilike(products.sku, `%${searchValue}%`)
+        )
+      );
+    }
+    if (categoryValues.length > 0) {
+      pushCondition(inArray(products.category, categoryValues));
+    }
+    if (supplierValues.length > 0) {
+      pushCondition(inArray(products.supplier, supplierValues));
+    }
+    if (locationValues.length > 0) {
+      pushCondition(inArray(products.locationId, locationValues));
+    }
+    if (dateFromValue) {
+      pushCondition(gte(products.updatedAt, dateFromValue));
+    }
+    if (dateToValue) {
+      pushCondition(lte(products.updatedAt, dateToValue));
+    }
+
+    const whereCombined = combineConditions(conditions);
+
+    const toCsv = (rows: any[]): string => {
+      if (rows.length === 0) return '';
+      const headers = Object.keys(rows[0]!);
+      const escape = (v: any) => {
+        if (v === null || v === undefined) return '';
+        const s = String(v);
+        if (/[",\n]/.test(s)) {
+          return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+      };
+      const lines = [
+        headers.join(','),
+        ...rows.map(r => headers.map(h => escape(r[h])).join(',')),
+      ];
+      return lines.join('\n');
+    };
+
+    const filenameBase = grouped ? 'inventory-grouped' : 'inventory';
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `${filenameBase}-${timestamp}.${format === 'xlsx' ? 'xlsx' : 'csv'}`;
+
+    if (grouped) {
+      // Use raw grouped query similar to /grouped
+      const whereClauses: string[] = ["k.type = 'receive'", "p.sku IS NOT NULL"];
+      if (searchValue) {
+        const escaped = searchValue.replace(/'/g, "''");
+        whereClauses.push(`(p.product_details ILIKE '%${escaped}%' OR p.sku ILIKE '%${escaped}%')`);
+      }
+      if (categoryValues.length > 0) {
+        const esc = categoryValues.map(c => `'${c.replace(/'/g, "''")}'`).join(', ');
+        whereClauses.push(`p.category IN (${esc})`);
+      }
+      if (supplierValues.length > 0) {
+        const esc = supplierValues.map(s => `'${s.replace(/'/g, "''")}'`).join(', ');
+        whereClauses.push(`p.supplier IN (${esc})`);
+      }
+      const whereClause = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+      const groupedResult = await db.execute(
+        sql`
+          SELECT
+            p.sku,
+            MAX(p.product_details) as "productName",
+            MAX(p.category) as category,
+            MAX(p.supplier) as supplier,
+            COALESCE(SUM(CASE WHEN p.column_status = 'Purchased' THEN COALESCE(p.stock_level, 1) ELSE 0 END), 0)::int as incoming,
+            COALESCE(SUM(CASE WHEN p.column_status = 'Received' THEN COALESCE(p.stock_level, 1) ELSE 0 END), 0)::int as received,
+            COALESCE(SUM(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NULL THEN COALESCE(p.stock_level, 1) ELSE 0 END), 0)::int as stored,
+            COALESCE(SUM(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NOT NULL THEN COALESCE(p.stock_level, 1) ELSE 0 END), 0)::int as used,
+            (
+              COALESCE(SUM(CASE WHEN p.column_status = 'Received' THEN COALESCE(p.stock_level, 1) ELSE 0 END), 0) +
+              COALESCE(SUM(CASE WHEN p.column_status = 'Stored' THEN COALESCE(p.stock_level, 1) ELSE 0 END), 0)
+            )::int as "totalStock",
+            MAX(p.unit_price) as "unitPrice",
+            MAX(p.updated_at) as "lastUpdated"
+          FROM products p
+          INNER JOIN kanbans k ON p.kanban_id = k.id
+          ${sql.raw(whereClause)}
+          GROUP BY p.sku
+          ORDER BY MAX(p.updated_at) DESC
+        `
+      );
+      const rows = Array.from(groupedResult).map((r: any) => ({
+        SKU: r.sku,
+        ProductName: r.productName,
+        Category: r.category,
+        Supplier: r.supplier,
+        Incoming: Number(r.incoming ?? 0),
+        Received: Number(r.received ?? 0),
+        Stored: Number(r.stored ?? 0),
+        Used: Number(r.used ?? 0),
+        TotalStock: Number(r.totalStock ?? 0),
+        UnitPrice: r.unitPrice ? Number(r.unitPrice) : '',
+        LastUpdated: r.lastUpdated,
+      }));
+      const csv = toCsv(rows);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Type', format === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv; charset=utf-8');
+      return res.send(csv);
+    } else {
+      // Raw items
+      const itemRows = await db
+        .select({
+          id: products.id,
+          sku: products.sku,
+          productDetails: products.productDetails,
+          category: products.category,
+          supplier: products.supplier,
+          columnStatus: products.columnStatus,
+          stockLevel: products.stockLevel,
+          unitPrice: products.unitPrice,
+          locationId: products.locationId,
+          createdAt: products.createdAt,
+          updatedAt: products.updatedAt,
+        })
+        .from(products)
+        .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
+        .where(whereCombined)
+        .orderBy(desc(products.updatedAt));
+
+      const rows = itemRows.map((r: any) => ({
+        SKU: r.sku,
+        ProductName: r.productDetails,
+        Category: r.category,
+        Supplier: r.supplier,
+        Status: r.columnStatus,
+        StockLevel: r.stockLevel ?? '',
+        UnitPrice: r.unitPrice ? Number(r.unitPrice) : '',
+        LocationId: r.locationId ?? '',
+        CreatedAt: r.createdAt,
+        UpdatedAt: r.updatedAt,
+      }));
+      const csv = toCsv(rows);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Type', format === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv; charset=utf-8');
+      return res.send(csv);
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get inventory statistics
 router.get('/stats', async (req, res, next) => {
   try {
@@ -670,6 +852,403 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
     res.json({ items });
   } catch (error) {
     console.error('Error fetching location details:', error);
+    next(error);
+  }
+});
+
+// List import batches
+router.get('/import/batches', authorizeRoles('admin', 'manager'), async (_req, res, next) => {
+  try {
+    const batches = await db
+      .select()
+      .from(importBatches)
+      .orderBy(desc(importBatches.createdAt));
+    res.json({ items: batches });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Import batch summary
+router.get('/import/batches/:id/summary', authorizeRoles('admin', 'manager'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const [batch] = await db.select().from(importBatches).where(eq(importBatches.id, id)).limit(1);
+    if (!batch) return res.status(404).json({ error: 'Batch not found' });
+
+    const productsInBatch = await db
+      .select({
+        id: products.id,
+        stockLevel: products.stockLevel,
+        unitPrice: products.unitPrice,
+        locationId: products.locationId,
+        createdAt: products.createdAt,
+      })
+      .from(products)
+      .where(eq(products.importBatchId, id));
+
+    const totalItems = productsInBatch.length;
+    const totalValue = productsInBatch.reduce((sum, p: any) => {
+      const qty = Number(p.stockLevel ?? 0);
+      const price = p.unitPrice ? Number(p.unitPrice) : 0;
+      return sum + qty * price;
+    }, 0);
+
+    const locationCounts: Record<string, number> = {};
+    for (const p of productsInBatch as any[]) {
+      const loc = p.locationId || 'unknown';
+      locationCounts[loc] = (locationCounts[loc] ?? 0) + 1;
+    }
+
+    res.json({
+      batch,
+      summary: {
+        totalItems,
+        totalValue,
+        locations: locationCounts,
+        importDate: (batch as any).createdAt,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Import Stored items (migration/stock adjustments)
+const ImportItemSchema = z.object({
+  sku: z.string().min(1).optional(),
+  legacySku: z.string().min(1).optional(),
+  legacyId: z.string().min(1).optional(),
+  productName: z.string().min(1),
+  supplier: z.string().min(1),
+  category: z.string().min(1),
+  dimensions: z.string().optional().nullable(),
+  newStockLevel: z.number().int().min(0),
+  locationId: z.string().uuid().optional(),
+  locationCode: z.string().min(1).optional(),
+  unitPrice: z.union([z.string(), z.number()]).optional(),
+  notes: z.string().optional(),
+  originalPurchaseDate: z.union([z.string(), z.date()]).optional(),
+});
+
+const ImportStoredBodySchema = z.object({
+  importBatchLabel: z.string().optional(),
+  importBatchId: z.string().uuid().optional(),
+  targetReceiveKanbanId: z.string().uuid(),
+  items: z.array(ImportItemSchema).min(1),
+});
+
+router.post('/import/stored', authorizeRoles('admin', 'manager'), async (req, res, next) => {
+  try {
+    const validated = ImportStoredBodySchema.parse(req.body);
+    const { importBatchLabel, importBatchId, targetReceiveKanbanId, items } = validated;
+
+    // 1) Validate target kanban
+    const [targetKanban] = await db
+      .select()
+      .from(kanbans)
+      .where(and(eq(kanbans.id, targetReceiveKanbanId), eq(kanbans.type, 'receive')))
+      .limit(1);
+    if (!targetKanban) {
+      return res.status(400).json({ error: 'Invalid targetReceiveKanbanId (must be a receive kanban)' });
+    }
+
+    // 2) Ensure/import batch
+    let batchId = importBatchId ?? null;
+    let batchCreatedAt: Date | null = null;
+    if (batchId) {
+      const [existingBatch] = await db
+        .select()
+        .from(importBatches)
+        .where(eq(importBatches.id, batchId))
+        .limit(1);
+      if (existingBatch) {
+        batchCreatedAt = existingBatch.createdAt as unknown as Date;
+      } else {
+        // if provided id not found, create with same id not trivial; just create a new one
+        const [created] = await db.insert(importBatches).values({
+          label: importBatchLabel ?? 'Inventory Import',
+          createdBy: (req as any).user?.email || (req as any).user?.username || 'system',
+        }).returning();
+        batchId = created.id;
+        batchCreatedAt = created.createdAt as unknown as Date;
+      }
+    } else {
+      const [created] = await db.insert(importBatches).values({
+        label: importBatchLabel ?? 'Inventory Import',
+        createdBy: (req as any).user?.email || (req as any).user?.username || 'system',
+      }).returning();
+      batchId = created.id;
+      batchCreatedAt = created.createdAt as unknown as Date;
+    }
+
+    const movedBy = (req as any).user?.email || (req as any).user?.username || 'system-import';
+    const results: any[] = [];
+
+    const normalizeDate = (value: any): Date | null => {
+      if (!value) return null;
+      const d = value instanceof Date ? value : new Date(value);
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+
+    // Preload locations by code for faster resolution
+    const allLocationCodes = Array.from(
+      new Set(items.map(i => i.locationCode).filter((v): v is string => Boolean(v)))
+    );
+    const locationMapByCode = new Map<string, string>();
+    if (allLocationCodes.length > 0) {
+      const locs = await db.select().from(locations).where(inArray(locations.code, allLocationCodes));
+      for (const l of locs) {
+        locationMapByCode.set((l as any).code, (l as any).id);
+      }
+    }
+
+    const now = new Date();
+
+    for (let idx = 0; idx < items.length; idx++) {
+      const item = items[idx]!;
+      try {
+        // Resolve location with priority: row locationId -> row locationCode -> receiveKanban.locationId
+        const resolvedLocationId =
+          item.locationId ??
+          (item.locationCode ? locationMapByCode.get(item.locationCode) : undefined) ??
+          (targetKanban as any).locationId ??
+          undefined;
+        if (!resolvedLocationId) {
+          results.push({
+            row: idx + 1,
+            status: 'error',
+            error: 'No location resolved: receive kanban has no default location and row has no valid location',
+          });
+          continue;
+        }
+
+        // Find product by SKU
+        let productRecord: any | null = null;
+        if (item.sku) {
+          const [p] = await db.select().from(products).where(eq(products.sku, item.sku)).limit(1);
+          if (p) productRecord = p;
+        }
+        // Or by alias
+        if (!productRecord && (item.legacySku || item.legacyId)) {
+          const aliasWhere = item.legacySku
+            ? eq(skuAliases.legacySku, item.legacySku)
+            : eq(skuAliases.legacyId, item.legacyId!);
+          const aliasRows = await db
+            .select()
+            .from(skuAliases)
+            .where(aliasWhere)
+            .limit(1);
+          const alias = aliasRows[0];
+          if (alias) {
+            const [p] = await db.select().from(products).where(eq(products.id, alias.productId)).limit(1);
+            if (p) productRecord = p;
+          }
+        }
+        // Or by fingerprint match (exact)
+        if (!productRecord) {
+          const fp = buildProductFingerprint({
+            name: item.productName,
+            supplier: item.supplier,
+            category: item.category,
+            dimensions: item.dimensions ?? undefined,
+          });
+          // naive exact match on normalized fields
+          const normalizedName = item.productName.trim();
+          const normalizedSupplier = item.supplier.trim();
+          const normalizedCategory = item.category.trim();
+          const [p] = await db
+            .select()
+            .from(products)
+            .where(
+              and(
+                ilike(products.productDetails, normalizedName),
+                ilike(products.supplier, normalizedSupplier),
+                ilike(products.category, normalizedCategory)
+              )
+            )
+            .limit(1);
+          if (p) productRecord = p;
+        }
+
+        // Unit price normalization
+        const unitPrice =
+          item.unitPrice !== undefined
+            ? Number(item.unitPrice)
+            : undefined;
+        const originalPurchaseDate = normalizeDate(item.originalPurchaseDate);
+
+        if (productRecord) {
+          // Update
+          const oldStock = productRecord.stockLevel ?? 0;
+          const prevLocationId = productRecord.locationId ?? null;
+          const newStock = item.newStockLevel;
+
+          // idempotent-ish: skip if no change and same batch already applied
+          if (
+            productRecord.importBatchId === batchId &&
+            productRecord.stockLevel === newStock &&
+            productRecord.locationId === locationId &&
+            productRecord.updatedAt &&
+            batchCreatedAt &&
+            new Date(productRecord.updatedAt) >= new Date(batchCreatedAt)
+          ) {
+            results.push({
+              row: idx + 1,
+              status: 'skipped',
+              productId: productRecord.id,
+              sku: productRecord.sku,
+              reason: 'No changes (already applied in this batch)',
+            });
+            continue;
+          }
+
+          const [updated] = await db
+            .update(products)
+            .set({
+              stockLevel: newStock,
+              locationId: resolvedLocationId,
+              unitPrice: unitPrice !== undefined ? String(unitPrice) : productRecord.unitPrice,
+              columnStatus: 'Stored',
+              importSource: 'bulk-import',
+              importBatchId: batchId!,
+              originalPurchaseDate: originalPurchaseDate ?? productRecord.originalPurchaseDate,
+              updatedAt: now,
+            })
+            .where(eq(products.id, productRecord.id))
+            .returning();
+
+          await db.insert(movementLogs).values({
+            productId: productRecord.id,
+            fromLocationId: prevLocationId,
+            toLocationId: resolvedLocationId,
+            fromStockLevel: oldStock,
+            toStockLevel: newStock,
+            notes: item.notes || `Stock adjustment via import (batch ${batchId})`,
+            movedBy,
+            createdAt: now,
+          });
+
+          // Record alias if provided
+          if (item.legacySku || item.legacyId) {
+            try {
+              await db.insert(skuAliases).values({
+                productId: productRecord.id,
+                legacySku: item.legacySku,
+                legacyId: item.legacyId,
+              });
+            } catch {}
+          }
+
+          results.push({
+            row: idx + 1,
+            status: 'success',
+            action: 'updated',
+            productId: updated.id,
+            sku: updated.sku,
+            oldStock,
+            newStock,
+            stockChange: newStock - oldStock,
+            locationId: resolvedLocationId,
+          });
+        } else {
+          // Create new product in receive kanban with Stored status
+          const genSku = item.sku && item.sku.trim().length > 0
+            ? item.sku.trim()
+            : generateStableSku({
+                name: item.productName,
+                supplier: item.supplier,
+                category: item.category,
+                dimensions: item.dimensions ?? undefined,
+              });
+
+          const [created] = await db
+            .insert(products)
+            .values({
+              kanbanId: targetReceiveKanbanId,
+              columnStatus: 'Stored',
+              productDetails: item.productName,
+              productLink: null,
+              locationId: resolvedLocationId,
+              assignedToPersonId: null,
+              priority: null,
+              stockLevel: item.newStockLevel,
+              sourceProductId: null,
+              productImage: null,
+              category: item.category,
+              tags: null,
+              supplier: item.supplier,
+              sku: genSku,
+              dimensions: item.dimensions ?? null,
+              weight: null,
+              unitPrice: unitPrice !== undefined ? String(unitPrice) : null,
+              notes: item.notes ?? null,
+              importSource: 'bulk-import',
+              importBatchId: batchId!,
+              originalPurchaseDate: originalPurchaseDate,
+              columnEnteredAt: now,
+              createdAt: now,
+              updatedAt: now,
+            })
+            .returning();
+
+          await db.insert(movementLogs).values({
+            productId: created.id,
+            fromLocationId: null,
+            toLocationId: resolvedLocationId,
+            fromStockLevel: 0,
+            toStockLevel: item.newStockLevel,
+            notes: item.notes || `Initial setup via import (batch ${batchId})`,
+            movedBy,
+            createdAt: now,
+          });
+
+          if (item.legacySku || item.legacyId) {
+            try {
+              await db.insert(skuAliases).values({
+                productId: created.id,
+                legacySku: item.legacySku,
+                legacyId: item.legacyId,
+              });
+            } catch {}
+          }
+
+          results.push({
+            row: idx + 1,
+            status: 'success',
+            action: 'created',
+            productId: created.id,
+            sku: created.sku,
+            oldStock: 0,
+            newStock: item.newStockLevel,
+            stockChange: item.newStockLevel,
+            locationId: resolvedLocationId,
+          });
+        }
+      } catch (rowError: any) {
+        results.push({
+          row: idx + 1,
+          status: 'error',
+          error: rowError?.message || 'Unknown error',
+        });
+      }
+    }
+
+    const successful = results.filter(r => r.status === 'success').length;
+    const failed = results.filter(r => r.status === 'error').length;
+    const skipped = results.filter(r => r.status === 'skipped').length;
+
+    res.json({
+      importBatchId: batchId,
+      totals: {
+        total: items.length,
+        successful,
+        failed,
+        skipped,
+      },
+      results,
+    });
+  } catch (error) {
     next(error);
   }
 });

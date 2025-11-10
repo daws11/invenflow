@@ -178,7 +178,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
         await createMovement({
           productId: product.productId,
           toLocationId,
-          toStockLevel: product.quantity,
+          quantityToMove: product.quantity,
           notes: notes || null,
         });
 

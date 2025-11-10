@@ -171,7 +171,7 @@ router.get('/product/:productId', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const validatedData = CreateMovementSchema.parse(req.body);
-    const { productId, toLocationId, toPersonId, toStockLevel, notes } = validatedData;
+    const { productId, toLocationId, toPersonId, quantityToMove, notes } = validatedData;
 
     // Get user from auth token
     const movedBy = (req as any).user?.email || (req as any).user?.username || null;
@@ -228,23 +228,89 @@ router.post('/', async (req, res, next) => {
           fromPersonId: product.assignedToPersonId,
           toPersonId: toPersonId || null,
           fromStockLevel: product.stockLevel,
-          toStockLevel,
+          toStockLevel: quantityToMove,
           notes: notes || null,
           movedBy,
         })
         .returning();
 
-      // 4. Update product location/person and stock level
-      const [updatedProduct] = await tx
-        .update(products)
-        .set({
-          locationId: toLocationId || product.locationId,
-          assignedToPersonId: toPersonId || product.assignedToPersonId,
-          stockLevel: toStockLevel,
-          updatedAt: new Date(),
-        })
-        .where(eq(products.id, productId))
-        .returning();
+      // 4. Handle stock movement logic
+      const currentStock = product.stockLevel || 0;
+      
+      // Validate that we're not moving more than available
+      if (quantityToMove > currentStock) {
+        throw createError(
+          `Cannot move ${quantityToMove} units. Only ${currentStock} units available.`,
+          400
+        );
+      }
+
+      // Calculate remaining stock at source location
+      const remainingStock = currentStock - quantityToMove;
+      const shouldMoveAllStock = remainingStock === 0;
+
+      let updatedProduct;
+
+      if (shouldMoveAllStock) {
+        // Move entire product to new location
+        [updatedProduct] = await tx
+          .update(products)
+          .set({
+            locationId: toLocationId || product.locationId,
+            assignedToPersonId: toPersonId || product.assignedToPersonId,
+            stockLevel: quantityToMove,
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, productId))
+          .returning();
+      } else {
+        // Partial movement: reduce stock at source and create new product at destination
+        // Update source product stock
+        [updatedProduct] = await tx
+          .update(products)
+          .set({
+            stockLevel: remainingStock,
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, productId))
+          .returning();
+
+        // Create new product at destination location
+        const [newProduct] = await tx
+          .insert(products)
+          .values({
+            kanbanId: product.kanbanId,
+            columnStatus: 'Stored',
+            productDetails: product.productDetails,
+            productLink: product.productLink,
+            locationId: toLocationId || null,
+            assignedToPersonId: toPersonId || null,
+            priority: product.priority,
+            stockLevel: quantityToMove,
+            sourceProductId: productId, // Track parent product
+            productImage: product.productImage,
+            category: product.category,
+            tags: product.tags,
+            supplier: product.supplier,
+            sku: product.sku,
+            dimensions: product.dimensions,
+            weight: product.weight,
+            unitPrice: product.unitPrice,
+            notes: product.notes,
+            columnEnteredAt: new Date(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .returning();
+
+        // Update movement log to reference the new product for destination tracking
+        await tx
+          .update(movementLogs)
+          .set({
+            notes: `${notes || 'Product movement'} - New product created at destination: ${newProduct.id}`,
+          })
+          .where(eq(movementLogs.id, movementLog.id));
+      }
 
       return {
         movementLog,

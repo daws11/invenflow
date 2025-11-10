@@ -18,7 +18,7 @@ export const CreateMovementSchema = z.object({
   productId: z.string().uuid(),
   toLocationId: z.string().uuid().nullable().optional(),
   toPersonId: z.string().uuid().nullable().optional(),
-  toStockLevel: z.number().int().min(0),
+  quantityToMove: z.number().int().positive(), // Changed from toStockLevel to quantityToMove for clarity
   notes: z.string().max(1000).nullable().optional(),
 }).refine(
   (data) => data.toLocationId || data.toPersonId,

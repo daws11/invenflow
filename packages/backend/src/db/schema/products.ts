@@ -29,6 +29,10 @@ export const products = pgTable(
     weight: decimal('weight', { precision: 10, scale: 2 }),
     unitPrice: decimal('unit_price', { precision: 12, scale: 2 }),
     notes: text('notes'),
+    // Import metadata
+    importSource: text('import_source'), // 'bulk-import' | 'kanban-flow' | 'manual' (kept as free text)
+    importBatchId: uuid('import_batch_id'),
+    originalPurchaseDate: timestamp('original_purchase_date'),
     columnEnteredAt: timestamp('column_entered_at').notNull().defaultNow(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -42,6 +46,7 @@ export const products = pgTable(
     sourceProductIdIdx: index('products_source_product_id_idx').on(table.sourceProductId),
     locationIdIdx: index('products_location_id_idx').on(table.locationId),
     assignedToPersonIdIdx: index('products_assigned_to_person_id_idx').on(table.assignedToPersonId),
+    importBatchIdIdx: index('products_import_batch_id_idx').on(table.importBatchId),
   })
 );
 

@@ -22,6 +22,10 @@ export const ProductSchema = z.object({
   weight: z.number().positive().nullable(),
   unitPrice: z.number().positive().nullable(),
   notes: z.string().max(1000).nullable(),
+  // Import metadata
+  importSource: z.string().nullable(),
+  importBatchId: z.string().uuid().nullable(),
+  originalPurchaseDate: z.date().nullable(),
   columnEnteredAt: z.date(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -45,6 +49,10 @@ export const CreateProductSchema = z.object({
   weight: z.number().positive().nullable(),
   unitPrice: z.number().positive().nullable(),
   notes: z.string().max(1000).nullable(),
+  // Import metadata
+  importSource: z.string().nullable().optional(),
+  importBatchId: z.string().uuid().nullable().optional(),
+  originalPurchaseDate: z.date().nullable().optional(),
   columnEnteredAt: z.date().optional(),
 });
 
@@ -65,6 +73,10 @@ export const UpdateProductSchema = z.object({
   weight: z.number().positive().nullable().optional(),
   unitPrice: z.number().positive().nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
+  // Import metadata
+  importSource: z.string().nullable().optional(),
+  importBatchId: z.string().uuid().nullable().optional(),
+  originalPurchaseDate: z.date().nullable().optional(),
 });
 
 export const MoveProductSchema = z.object({
@@ -137,3 +149,22 @@ export function isValidColumn(column: string, kanbanType: KanbanType): boolean {
 export function isStockTrackingEnabled(columnStatus: ColumnStatus): boolean {
   return columnStatus === 'Stored';
 }
+
+// Import (Stored) adjustment item schema for migration/import flows
+export const ImportAdjustmentItemSchema = z.object({
+  sku: z.string().max(100).optional(),
+  legacySku: z.string().max(100).optional(),
+  legacyId: z.string().max(100).optional(),
+  productName: z.string().min(1).max(1000),
+  supplier: z.string().min(1).max(255),
+  category: z.string().min(1).max(100),
+  dimensions: z.string().max(255).optional(),
+  newStockLevel: z.number().int().min(0),
+  locationId: z.string().uuid().optional(),
+  locationCode: z.string().max(50).optional(),
+  unitPrice: z.number().positive().optional(),
+  notes: z.string().max(1000).optional(),
+  originalPurchaseDate: z.date().optional(),
+});
+
+export type ImportAdjustmentItem = z.infer<typeof ImportAdjustmentItemSchema>;
