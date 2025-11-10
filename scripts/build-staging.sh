@@ -15,6 +15,9 @@ NC='\033[0m' # No Color
 # Configuration
 LOG_FILE="./logs/build-staging.log"
 
+# Create logs directory if it doesn't exist (MUST be before any log() calls)
+mkdir -p logs
+
 # Logging function
 log() {
     echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
@@ -34,9 +37,6 @@ warning() {
 }
 
 log "🔨 Starting InvenFlow staging build process..."
-
-# Create logs directory if it doesn't exist
-mkdir -p logs
 
 # Check if we're in the right directory
 if [ ! -f "package.json" ]; then

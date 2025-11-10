@@ -21,6 +21,9 @@ HEALTH_CHECK_URL="http://localhost:3001/api/health"
 MAX_RETRIES=3
 ROLLBACK_VERSION_FILE="./logs/last_successful_version"
 
+# Create logs directory if it doesn't exist (MUST be before any log() calls)
+mkdir -p logs
+
 # Logging function
 log() {
     echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
@@ -98,9 +101,6 @@ fi
 if [ ! -f "package.json" ]; then
     error "Please run this script from the project root directory"
 fi
-
-# Create logs directory if it doesn't exist
-mkdir -p logs
 
 # Save current version for potential rollback
 if command -v git &> /dev/null && [ -d ".git" ]; then

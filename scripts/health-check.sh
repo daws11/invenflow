@@ -20,6 +20,9 @@ TIMEOUT=30
 MAX_RETRIES=3
 RETRY_DELAY=5
 
+# Create logs directory if it doesn't exist (MUST be before any log() calls)
+mkdir -p logs
+
 # Logging function
 log() {
     echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
@@ -126,9 +129,6 @@ check_database() {
 
 # Main execution
 log "🏥 Starting InvenFlow health check..."
-
-# Create logs directory if it doesn't exist
-mkdir -p logs
 
 # Step 1: Check PM2 process status
 log "📊 Step 1: Checking PM2 process status..."

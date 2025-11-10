@@ -17,6 +17,9 @@ LOG_FILE="./logs/migrate-staging.log"
 MIGRATIONS_DIR="packages/backend/src/db/migrations"
 BACKUP_DIR="/var/backups/invenflow-staging"
 
+# Create logs directory if it doesn't exist (MUST be before any log() calls)
+mkdir -p logs
+
 # Logging function
 log() {
     echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
@@ -91,9 +94,6 @@ if [ "$1" = "rollback" ]; then
 fi
 
 log "🗄️  Starting InvenFlow staging database migration..."
-
-# Create logs directory if it doesn't exist
-mkdir -p logs
 
 # Check if we're in the right directory
 if [ ! -f "package.json" ]; then
