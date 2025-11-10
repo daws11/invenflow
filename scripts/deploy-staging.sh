@@ -51,20 +51,32 @@ echo -e "${BLUE}🗄️  Running database migrations...${NC}"
     exit 1
 }
 
-# Step 4: Stop existing PM2 process (if any)
+# Step 4: Stop and delete existing PM2 process (if any)
 echo -e "${BLUE}🛑 Stopping existing PM2 process...${NC}"
 if pm2 describe "$APP_NAME" > /dev/null 2>&1; then
     pm2 stop "$APP_NAME" 2>/dev/null || true
     pm2 delete "$APP_NAME" 2>/dev/null || true
+    # Wait a moment for process to fully stop
+    sleep 2
 fi
 
 # Step 5: Start application with PM2
 echo -e "${BLUE}🚀 Starting application with PM2...${NC}"
 cd "$PROJECT_ROOT" || exit 1
+
+# Verify build files exist before starting
+if [ ! -f "packages/backend/dist/index.js" ]; then
+    echo -e "${RED}Error: Backend build not found at packages/backend/dist/index.js${NC}" >&2
+    exit 1
+fi
+
 pm2 start pm2/ecosystem.config.cjs --env staging || {
     echo -e "${RED}Failed to start application${NC}" >&2
     exit 1
 }
+
+# Wait a moment for app to start
+sleep 3
 
 # Step 6: Save PM2 configuration
 pm2 save 2>/dev/null || true
