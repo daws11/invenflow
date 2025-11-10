@@ -150,3 +150,38 @@ export const GroupedInventoryResponseSchema = z.object({
 export type ProductStatusBreakdown = z.infer<typeof ProductStatusBreakdownSchema>;
 export type GroupedInventoryItem = z.infer<typeof GroupedInventoryItemSchema>;
 export type GroupedInventoryResponse = z.infer<typeof GroupedInventoryResponseSchema>;
+
+// Product location detail schema - for SKU location breakdown
+export const ProductLocationDetailSchema = z.object({
+  id: z.string().uuid(),
+  productDetails: z.string(),
+  columnStatus: z.string(),
+  stockLevel: z.number().nullable(),
+  locationId: z.string().uuid().nullable(),
+  assignedToPersonId: z.string().uuid().nullable(),
+  kanbanId: z.string().uuid(),
+  updatedAt: z.coerce.date(),
+  location: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    code: z.string(),
+    area: z.string().nullable(),
+    building: z.string().nullable(),
+  }).nullable(),
+  person: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    code: z.string(),
+    department: z.string().nullable(),
+  }).nullable(),
+  kanban: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+  }),
+});
+
+export type ProductLocationDetail = z.infer<typeof ProductLocationDetailSchema>;
+
+export interface ProductLocationResponse {
+  items: ProductLocationDetail[];
+}

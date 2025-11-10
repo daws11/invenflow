@@ -98,17 +98,17 @@ export default function KanbanPurchasingPage() {
     return kanban.description?.trim() || 'No description';
   };
 
-  const handleCreateKanban = async (name: string, type: 'order', description?: string | null) => {
+  const handleCreateKanban = async (name: string, description?: string | null) => {
     try {
       const payload: CreateKanban = {
         name,
-        type,
+        type: 'order',
         ...(description !== undefined && description !== null
           ? { description: description }
           : {}),
       };
       await createKanban(payload);
-      toast.success('Order kanban created successfully');
+      toast.success('Purchasing kanban created successfully');
       setIsCreateModalOpen(false);
     } catch (error) {
       toast.error('Failed to create kanban. Please try again.');
@@ -187,7 +187,7 @@ export default function KanbanPurchasingPage() {
     <div>
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 gap-4">
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Kanban Purchasing</h2>
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Purchasing Kanbans</h2>
         <div className="flex flex-wrap gap-2">
           {/* View Toggle */}
           <button
@@ -213,7 +213,7 @@ export default function KanbanPurchasingPage() {
             className="btn-primary"
             onClick={openCreateModal}
           >
-            Create Order Kanban
+            Create Purchasing Kanban
           </button>
         </div>
       </div>
@@ -229,7 +229,7 @@ export default function KanbanPurchasingPage() {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search order kanbans by name..."
+                placeholder="Search purchasing kanbans by name..."
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -296,48 +296,15 @@ export default function KanbanPurchasingPage() {
       )}
 
       {/* Kanban List */}
-      {filteredAndSortedKanbans.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200">
-          {loading ? (
-            <div className="animate-pulse space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-32 bg-gray-200 rounded-lg mx-auto max-w-md"></div>
-              ))}
-            </div>
-          ) : (
-            <>
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-              </svg>
-              <div className="text-gray-500 text-lg mb-4 mt-4">
-                {searchTerm
-                  ? 'No order kanbans match your search criteria'
-                  : 'No order kanbans yet'}
-              </div>
-              <p className="text-gray-400 mb-6">
-                {searchTerm
-                  ? 'Try adjusting your filters or create a new order kanban board'
-                  : 'Create your first order kanban board to get started'}
-              </p>
-              {!searchTerm && (
-                <button
-                  className="btn-primary"
-                  onClick={openCreateModal}
-                >
-                  Create Order Kanban
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      ) : kanbanListViewMode === 'grid' ? (
+      {kanbanListViewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Create New Kanban Placeholder */}
-          <CreateKanbanPlaceholder
-            type="order"
+          <CreateKanbanPlaceholder 
+            type="order" 
             onClick={openCreateModal}
             viewMode="grid"
           />
+          
           {filteredAndSortedKanbans.map((kanban) => (
             <div
               key={kanban.id}
@@ -348,7 +315,7 @@ export default function KanbanPurchasingPage() {
                   <h3 className="text-lg font-semibold mb-1">{kanban.name}</h3>
                   <div className="flex items-center space-x-2 mb-2">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      Order
+                      Purchasing
                     </span>
                     {kanban.linkedKanbanId && (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
@@ -430,11 +397,12 @@ export default function KanbanPurchasingPage() {
       ) : (
         <div className="space-y-4">
           {/* Create New Kanban Placeholder */}
-          <CreateKanbanPlaceholder
-            type="order"
+          <CreateKanbanPlaceholder 
+            type="order" 
             onClick={openCreateModal}
             viewMode="compact"
           />
+          
           {filteredAndSortedKanbans.map((kanban) => (
             <CompactKanbanListRow
               key={kanban.id}
@@ -444,6 +412,25 @@ export default function KanbanPurchasingPage() {
               linkedKanbanName={getLinkedKanbanName(kanban)}
             />
           ))}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {filteredAndSortedKanbans.length === 0 && !loading && (
+        <div className="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200 mt-4">
+          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+          </svg>
+          <div className="text-gray-500 text-lg mb-4 mt-4">
+            {searchTerm
+              ? 'No purchasing kanbans match your search criteria'
+              : 'No purchasing kanbans yet'}
+          </div>
+          <p className="text-gray-400 mb-6">
+            {searchTerm
+              ? 'Try adjusting your search or create a new purchasing kanban board'
+              : 'Create your first purchasing kanban board to get started'}
+          </p>
         </div>
       )}
 

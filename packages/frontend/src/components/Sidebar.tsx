@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { X, Menu, Layout, MapPin, Users, UserCircle, LogOut, Package, ArrowRightLeft, Settings, ChevronDown, Building2, Truck, ShoppingCart } from 'lucide-react';
+import { X, Menu, Layout, MapPin, Users, UserCircle, LogOut, Package, ArrowRightLeft, Settings, ChevronDown, Building2 } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -105,12 +105,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
     {
       name: 'Kanban Purchasing',
       path: '/kanbans/purchasing',
-      icon: ShoppingCart,
+      icon: Layout,
     },
     {
       name: 'Kanban Receiving',
       path: '/kanbans/receiving',
-      icon: Truck,
+      icon: Layout,
     },
   ];
 

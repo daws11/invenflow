@@ -97,7 +97,7 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
   togglePublicForm: async (id: string, enabled: boolean) => {
     set({ loading: true, error: null });
     try {
-      const updatedKanban = await kanbanApi.updatePublicFormSettings(id, enabled);
+      const updatedKanban = await kanbanApi.updatePublicFormSettings(id, { isPublicFormEnabled: enabled });
       set(state => ({
         kanbans: state.kanbans.map(k => k.id === id ? updatedKanban : k),
         currentKanban: state.currentKanban?.id === id

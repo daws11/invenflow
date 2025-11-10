@@ -12,6 +12,7 @@ export const kanbans = pgTable(
     linkedKanbanId: uuid('linked_kanban_id'),
     publicFormToken: text('public_form_token').unique(),
     isPublicFormEnabled: boolean('is_public_form_enabled').notNull().default(true),
+    formFieldSettings: jsonb('form_field_settings').default('{}'),
     thresholdRules: jsonb('threshold_rules').default('[]'),
     createdAt: timestamp('created_at', { mode: 'string' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { mode: 'string' }).notNull().defaultNow(),

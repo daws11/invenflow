@@ -1,0 +1,1 @@
+ALTER TABLE "kanbans" ADD COLUMN "form_field_settings" jsonb DEFAULT '{}';

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Kanban, ThresholdRule } from '@invenflow/shared';
+import { Kanban, ThresholdRule, FormFieldSettings, DEFAULT_FORM_FIELD_SETTINGS } from '@invenflow/shared';
 import { DeleteKanbanModal } from './DeleteKanbanModal';
 import { ThresholdSettingsSection } from './ThresholdSettingsSection';
+import { FormFieldConfiguration } from './FormFieldConfiguration';
 import { useToast } from '../store/toastStore';
 import { useKanbanStore } from '../store/kanbanStore';
 import api from '../utils/api';
@@ -55,6 +56,10 @@ export function KanbanSettingsModal({
   // Public form state
   const [isTogglingPublicForm, setIsTogglingPublicForm] = useState(false);
   const [optimisticPublicFormEnabled, setOptimisticPublicFormEnabled] = useState(kanban?.isPublicFormEnabled ?? true);
+  const [formFieldSettings, setFormFieldSettings] = useState<FormFieldSettings>(
+    kanban?.formFieldSettings || DEFAULT_FORM_FIELD_SETTINGS
+  );
+  const [isSavingFormFields, setIsSavingFormFields] = useState(false);
 
   // Threshold state
   const [thresholdRules, setThresholdRules] = useState<ThresholdRule[]>(kanban?.thresholdRules || []);
@@ -67,6 +72,7 @@ export function KanbanSettingsModal({
       setEditDescription(kanban.description ?? '');
       setThresholdRules(kanban.thresholdRules || []);
       setOptimisticPublicFormEnabled(kanban.isPublicFormEnabled);
+      setFormFieldSettings(kanban.formFieldSettings || DEFAULT_FORM_FIELD_SETTINGS);
     }
   });
 
@@ -108,6 +114,30 @@ export function KanbanSettingsModal({
       toast.error('Failed to update public form settings');
     } finally {
       setIsTogglingPublicForm(false);
+    }
+  };
+
+  const handleSaveFormFieldSettings = async () => {
+    if (!kanban) return;
+    
+    setIsSavingFormFields(true);
+    
+    try {
+      const { kanbanApi } = await import('../utils/api');
+      await kanbanApi.updatePublicFormSettings(kanban.id, {
+        formFieldSettings,
+      });
+      
+      // Update the kanban store
+      const { updateKanban } = useKanbanStore.getState();
+      updateKanban(kanban.id, { formFieldSettings });
+      
+      toast.success('Form field settings saved successfully');
+    } catch (error) {
+      console.error('Failed to save form field settings:', error);
+      toast.error('Failed to save form field settings');
+    } finally {
+      setIsSavingFormFields(false);
     }
   };
 
@@ -644,6 +674,27 @@ export function KanbanSettingsModal({
           <p className="text-sm text-red-800">
             <strong>Note:</strong> When the form is disabled, users who try to access the public URL will see an error message stating that the form has been disabled by the administrator.
           </p>
+        </div>
+      )}
+
+      {/* Form Field Configuration */}
+      {optimisticPublicFormEnabled && (
+        <div className="border-t border-gray-200 pt-6">
+          <FormFieldConfiguration
+            formFieldSettings={formFieldSettings}
+            onChange={setFormFieldSettings}
+            disabled={isSavingFormFields}
+          />
+          
+          <div className="flex justify-end mt-6">
+            <button
+              onClick={handleSaveFormFieldSettings}
+              disabled={isSavingFormFields}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSavingFormFields ? 'Saving...' : 'Save Field Settings'}
+            </button>
+          </div>
         </div>
       )}
     </div>

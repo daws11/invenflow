@@ -21,6 +21,32 @@ export const ThresholdRuleSchema = z.object({
 
 export type ThresholdRule = z.infer<typeof ThresholdRuleSchema>;
 
+// Form field settings types
+export const FormFieldSettingsSchema = z.object({
+  requesterName: z.boolean().default(true),
+  department: z.boolean().default(true),
+  location: z.boolean().default(true),
+  itemUrl: z.boolean().default(true),
+  quantity: z.boolean().default(true),
+  priority: z.boolean().default(true),
+  details: z.boolean().default(true),
+  notes: z.boolean().default(true),
+});
+
+export type FormFieldSettings = z.infer<typeof FormFieldSettingsSchema>;
+
+// Default form field settings - all fields enabled except itemName (always required)
+export const DEFAULT_FORM_FIELD_SETTINGS: FormFieldSettings = {
+  requesterName: true,
+  department: true,
+  location: true,
+  itemUrl: true,
+  quantity: true,
+  priority: true,
+  details: true,
+  notes: true,
+};
+
 export const KanbanSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1).max(255),
@@ -29,6 +55,7 @@ export const KanbanSchema = z.object({
   linkedKanbanId: z.string().uuid().nullable(),
   publicFormToken: z.string().nullable(),
   isPublicFormEnabled: z.boolean(),
+  formFieldSettings: FormFieldSettingsSchema.nullable(),
   thresholdRules: z.array(ThresholdRuleSchema).nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -45,6 +72,7 @@ export const UpdateKanbanSchema = z.object({
   description: z.string().max(1000).optional().nullable(),
   linkedKanbanId: z.string().uuid().nullable().optional(),
   isPublicFormEnabled: z.boolean().optional(),
+  formFieldSettings: FormFieldSettingsSchema.nullable().optional(),
   thresholdRules: z.array(ThresholdRuleSchema).nullable().optional(),
 });
 

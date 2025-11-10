@@ -10,6 +10,7 @@ import {
   UserIcon,
 } from '@heroicons/react/24/outline';
 import { StatusDetailModal } from './StatusDetailModal';
+import { LocationDetailsDropdown } from './LocationDetailsDropdown';
 
 interface InventoryGroupedListProps {
   items: GroupedInventoryItem[];
@@ -274,62 +275,11 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
                   {/* Expanded Details Row */}
                   {isExpanded && (
                     <tr>
-                      <td colSpan={12} className="px-6 py-4 bg-gray-50">
-                        <div className="space-y-3">
-                          {/* Additional Info */}
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Last Updated:</span>
-                              <span className="font-medium text-gray-900">
-                                {new Date(item.lastUpdated).toLocaleDateString('id-ID', {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Total Products:</span>
-                              <span className="font-medium text-gray-900">
-                                {item.productIds?.length || 0} items
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Status Descriptions */}
-                          <div className="grid grid-cols-4 gap-3 pt-3 border-t border-gray-200">
-                            <div className="text-center p-2 bg-purple-50 rounded">
-                              <div className="flex items-center justify-center space-x-1 mb-1">
-                                <ClockIcon className="h-4 w-4 text-purple-600" />
-                                <span className="text-xs font-semibold text-purple-600">Incoming</span>
-                              </div>
-                              <p className="text-xs text-gray-600">Purchased, waiting to receive</p>
-                            </div>
-                            <div className="text-center p-2 bg-yellow-50 rounded">
-                              <div className="flex items-center justify-center space-x-1 mb-1">
-                                <CheckCircleIcon className="h-4 w-4 text-yellow-600" />
-                                <span className="text-xs font-semibold text-yellow-600">Received</span>
-                              </div>
-                              <p className="text-xs text-gray-600">Received, not stored yet</p>
-                            </div>
-                            <div className="text-center p-2 bg-green-50 rounded">
-                              <div className="flex items-center justify-center space-x-1 mb-1">
-                                <ArchiveBoxIcon className="h-4 w-4 text-green-600" />
-                                <span className="text-xs font-semibold text-green-600">Stored</span>
-                              </div>
-                              <p className="text-xs text-gray-600">Available in storage</p>
-                            </div>
-                            <div className="text-center p-2 bg-blue-50 rounded">
-                              <div className="flex items-center justify-center space-x-1 mb-1">
-                                <UserIcon className="h-4 w-4 text-blue-600" />
-                                <span className="text-xs font-semibold text-blue-600">Used</span>
-                              </div>
-                              <p className="text-xs text-gray-600">Assigned to person</p>
-                            </div>
-                          </div>
-                        </div>
+                      <td colSpan={12} className="p-0">
+                        <LocationDetailsDropdown 
+                          sku={item.sku} 
+                          isOpen={isExpanded} 
+                        />
                       </td>
                     </tr>
                   )}

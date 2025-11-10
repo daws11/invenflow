@@ -94,6 +94,7 @@ router.get('/form/:token', async (req, res, next) => {
         name: kanbans.name,
         type: kanbans.type,
         isPublicFormEnabled: kanbans.isPublicFormEnabled,
+        formFieldSettings: kanbans.formFieldSettings,
       })
       .from(kanbans)
       .where(eq(kanbans.publicFormToken, token))

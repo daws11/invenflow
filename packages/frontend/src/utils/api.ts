@@ -12,6 +12,7 @@ import {
   InventoryResponse,
   InventoryStats,
   GroupedInventoryResponse,
+  ProductLocationResponse,
   User,
   CreateUser,
   UpdateUser,
@@ -24,7 +25,8 @@ import {
   BulkMovementFilters,
   BulkMovementListResponse,
   BulkMovementWithDetails,
-  PublicBulkMovementResponse
+  PublicBulkMovementResponse,
+  FormFieldSettings
 } from '@invenflow/shared';
 import { useAuthStore } from '../store/authStore';
 
@@ -89,8 +91,14 @@ export const kanbanApi = {
     return response.data;
   },
 
-  updatePublicFormSettings: async (id: string, isPublicFormEnabled: boolean): Promise<Kanban> => {
-    const response = await api.put(`/api/kanbans/${id}/public-form-settings`, { isPublicFormEnabled });
+  updatePublicFormSettings: async (
+    id: string, 
+    settings: { 
+      isPublicFormEnabled?: boolean; 
+      formFieldSettings?: FormFieldSettings; 
+    }
+  ): Promise<Kanban> => {
+    const response = await api.put(`/api/kanbans/${id}/public-form-settings`, settings);
     return response.data;
   },
 
@@ -291,6 +299,11 @@ export const inventoryApi = {
 
   getStats: async (): Promise<InventoryStats> => {
     const response = await api.get('/api/inventory/stats');
+    return response.data;
+  },
+
+  getLocationDetailsBySku: async (sku: string): Promise<ProductLocationResponse> => {
+    const response = await api.get(`/api/inventory/sku/${encodeURIComponent(sku)}/locations`);
     return response.data;
   },
 };

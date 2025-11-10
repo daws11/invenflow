@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { GroupedInventoryItem } from '@invenflow/shared';
+import { ChevronDownIcon } from '@heroicons/react/24/outline';
 import { getStatusIcon, getStatusLabel } from '../utils/productStatus';
 import { StatusDetailModal } from './StatusDetailModal';
+import { LocationDetailsDropdown } from './LocationDetailsDropdown';
 
 interface InventoryGroupedViewProps {
   items: GroupedInventoryItem[];
@@ -16,9 +18,20 @@ export const InventoryGroupedView = ({ items, loading }: InventoryGroupedViewPro
     status: ProductStatus;
     productName: string;
   } | null>(null);
+  const [expandedSkus, setExpandedSkus] = useState<Set<string>>(new Set());
 
   const handleStatusClick = (sku: string, status: ProductStatus, productName: string) => {
     setSelectedStatus({ sku, status, productName });
+  };
+
+  const toggleExpand = (sku: string) => {
+    const newExpanded = new Set(expandedSkus);
+    if (newExpanded.has(sku)) {
+      newExpanded.delete(sku);
+    } else {
+      newExpanded.add(sku);
+    }
+    setExpandedSkus(newExpanded);
   };
 
   if (loading) {
@@ -231,6 +244,24 @@ export const InventoryGroupedView = ({ items, loading }: InventoryGroupedViewPro
                   </p>
                 </div>
               )}
+
+              {/* Location Details Button */}
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => toggleExpand(item.sku)}
+                  className="w-full flex items-center justify-between px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                >
+                  <span>View Location Details</span>
+                  <ChevronDownIcon className={`h-5 w-5 transition-transform ${
+                    expandedSkus.has(item.sku) ? 'rotate-180' : ''
+                  }`} />
+                </button>
+                
+                <LocationDetailsDropdown 
+                  sku={item.sku} 
+                  isOpen={expandedSkus.has(item.sku)} 
+                />
+              </div>
             </div>
           </div>
         ))}

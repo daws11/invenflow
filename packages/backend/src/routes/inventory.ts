@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { products, kanbans, productValidations } from '../db/schema';
+import { products, kanbans, productValidations, locations, persons } from '../db/schema';
 import type { ProductValidation } from '@invenflow/shared';
 import {
   eq,
@@ -564,6 +564,58 @@ router.get('/grouped', async (req, res, next) => {
       items: filteredItems,
       total: filteredItems.length,
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get product location breakdown by SKU
+router.get('/sku/:sku/locations', async (req, res, next) => {
+  try {
+    const { sku } = req.params;
+    
+    const items = await db
+      .select({
+        id: products.id,
+        productDetails: products.productDetails,
+        columnStatus: products.columnStatus,
+        stockLevel: products.stockLevel,
+        locationId: products.locationId,
+        assignedToPersonId: products.assignedToPersonId,
+        kanbanId: products.kanbanId,
+        updatedAt: products.updatedAt,
+        location: {
+          id: locations.id,
+          name: locations.name,
+          code: locations.code,
+          area: locations.area,
+          building: locations.building,
+        },
+        person: {
+          id: persons.id,
+          name: persons.name,
+          code: persons.code,
+          department: persons.department,
+        },
+        kanban: {
+          id: kanbans.id,
+          name: kanbans.name,
+        }
+      })
+      .from(products)
+      .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
+      .leftJoin(locations, eq(products.locationId, locations.id))
+      .leftJoin(persons, eq(products.assignedToPersonId, persons.id))
+      .where(
+        and(
+          eq(products.sku, sku),
+          eq(kanbans.type, 'receive'),
+          inArray(products.columnStatus, ['Received', 'Stored'])
+        )
+      )
+      .orderBy(desc(products.updatedAt));
+
+    res.json({ items });
   } catch (error) {
     next(error);
   }

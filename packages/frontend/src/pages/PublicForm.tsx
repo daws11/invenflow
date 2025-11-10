@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { publicApi, ProductSearchResult } from '../utils/api';
+import { FormFieldSettings, DEFAULT_FORM_FIELD_SETTINGS } from '@invenflow/shared';
 
 interface KanbanInfo {
   id: string;
   name: string;
   type: string;
+  formFieldSettings?: FormFieldSettings | null;
 }
 
 interface Department {
@@ -53,6 +55,12 @@ export default function PublicForm() {
     sku: '',
     unitPrice: '',
   });
+
+  // Helper function to check if a field is enabled
+  const isFieldEnabled = (fieldKey: keyof FormFieldSettings): boolean => {
+    const settings = kanbanInfo?.formFieldSettings || DEFAULT_FORM_FIELD_SETTINGS;
+    return settings[fieldKey] ?? true;
+  };
 
   // Fetch initial data
   useEffect(() => {
@@ -162,50 +170,73 @@ export default function PublicForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate required fields
-    if (!formData.requesterName.trim()) {
+    // Validate required fields (only if enabled)
+    if (isFieldEnabled('requesterName') && !formData.requesterName.trim()) {
       alert('Requester name is required');
       return;
     }
 
-    if (!formData.departmentId) {
+    if (isFieldEnabled('department') && !formData.departmentId) {
       alert('Department is required');
       return;
     }
 
+    // Item name is always required
     if (!formData.itemName.trim()) {
       alert('Item name is required');
       return;
     }
 
-    if (!formData.quantity || parseInt(formData.quantity) < 1) {
+    if (isFieldEnabled('quantity') && (!formData.quantity || parseInt(formData.quantity) < 1)) {
       alert('Quantity must be at least 1');
       return;
     }
 
-    if (!formData.priority) {
+    if (isFieldEnabled('priority') && !formData.priority) {
       alert('Priority is required');
       return;
     }
 
     try {
       setSubmitting(true);
-      await publicApi.submitForm(token!, {
-        requesterName: formData.requesterName.trim(),
-        departmentId: formData.departmentId,
-        area: formData.area || undefined,
-        itemName: formData.itemName.trim(),
-        itemUrl: formData.itemUrl.trim() || undefined,
-        quantity: parseInt(formData.quantity),
-        details: formData.details.trim() || undefined,
-        priority: formData.priority,
-        notes: formData.notes.trim() || undefined,
+      
+      // Build submission data with only enabled fields
+      const submissionData: any = {
+        itemName: formData.itemName.trim(), // Always required
         productId: formData.selectedProductId || undefined,
         category: formData.category || undefined,
         supplier: formData.supplier || undefined,
         sku: formData.sku || undefined,
         unitPrice: formData.unitPrice || undefined,
-      });
+      };
+
+      // Add optional fields only if enabled
+      if (isFieldEnabled('requesterName')) {
+        submissionData.requesterName = formData.requesterName.trim();
+      }
+      if (isFieldEnabled('department')) {
+        submissionData.departmentId = formData.departmentId;
+      }
+      if (isFieldEnabled('location')) {
+        submissionData.area = formData.area || undefined;
+      }
+      if (isFieldEnabled('itemUrl')) {
+        submissionData.itemUrl = formData.itemUrl.trim() || undefined;
+      }
+      if (isFieldEnabled('quantity')) {
+        submissionData.quantity = parseInt(formData.quantity);
+      }
+      if (isFieldEnabled('priority')) {
+        submissionData.priority = formData.priority;
+      }
+      if (isFieldEnabled('details')) {
+        submissionData.details = formData.details.trim() || undefined;
+      }
+      if (isFieldEnabled('notes')) {
+        submissionData.notes = formData.notes.trim() || undefined;
+      }
+
+      await publicApi.submitForm(token!, submissionData);
 
       setSubmitted(true);
       setFormData({
@@ -331,58 +362,64 @@ export default function PublicForm() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Requester Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Requester Name *
-            </label>
-            <input
-              type="text"
-              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Your name"
-              value={formData.requesterName}
-              onChange={(e) => setFormData({ ...formData, requesterName: e.target.value })}
-              required
-            />
-          </div>
+          {isFieldEnabled('requesterName') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Requester Name *
+              </label>
+              <input
+                type="text"
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Your name"
+                value={formData.requesterName}
+                onChange={(e) => setFormData({ ...formData, requesterName: e.target.value })}
+                required
+              />
+            </div>
+          )}
 
           {/* Department */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Department *
-            </label>
-            <select
-              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              value={formData.departmentId}
-              onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
-              required
-            >
-              <option value="">Select department</option>
-              {departments.map(dept => (
-                <option key={dept.id} value={dept.id}>
-                  {dept.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {isFieldEnabled('department') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Department *
+              </label>
+              <select
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={formData.departmentId}
+                onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
+                required
+              >
+                <option value="">Select department</option>
+                {departments.map(dept => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Location (Area) */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Location
-            </label>
-            <select
-              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              value={formData.area}
-              onChange={(e) => setFormData({ ...formData, area: e.target.value })}
-            >
-              <option value="">Select location</option>
-              {areas.map(area => (
-                <option key={area} value={area}>
-                  {area}
-                </option>
-              ))}
-            </select>
-          </div>
+          {isFieldEnabled('location') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Location
+              </label>
+              <select
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={formData.area}
+                onChange={(e) => setFormData({ ...formData, area: e.target.value })}
+              >
+                <option value="">Select location</option>
+                {areas.map(area => (
+                  <option key={area} value={area}>
+                    {area}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Item Name with Autocomplete */}
           <div className="relative" ref={dropdownRef}>
@@ -442,81 +479,97 @@ export default function PublicForm() {
           </div>
 
           {/* Item URL */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Item URL
-            </label>
-            <input
-              type="url"
-              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="https://example.com/product"
-              value={formData.itemUrl}
-              onChange={(e) => setFormData({ ...formData, itemUrl: e.target.value })}
-            />
-          </div>
-
-          {/* Quantity and Priority */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {isFieldEnabled('itemUrl') && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Quantity *
+                Item URL
               </label>
               <input
-                type="number"
+                type="url"
                 className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Quantity"
-                min="1"
-                value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                required
+                placeholder="https://example.com/product"
+                value={formData.itemUrl}
+                onChange={(e) => setFormData({ ...formData, itemUrl: e.target.value })}
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Priority *
-              </label>
-              <select
-                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                value={formData.priority}
-                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                required
-              >
-                <option value="">Select priority</option>
-                <option value="Low">Low</option>
-                <option value="Medium">Medium</option>
-                <option value="High">High</option>
-                <option value="Urgent">Urgent</option>
-              </select>
+          )}
+
+          {/* Quantity and Priority */}
+          {(isFieldEnabled('quantity') || isFieldEnabled('priority')) && (
+            <div className={`grid gap-4 ${
+              isFieldEnabled('quantity') && isFieldEnabled('priority') 
+                ? 'grid-cols-1 md:grid-cols-2' 
+                : 'grid-cols-1'
+            }`}>
+              {isFieldEnabled('quantity') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Quantity *
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Quantity"
+                    min="1"
+                    value={formData.quantity}
+                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                    required
+                  />
+                </div>
+              )}
+              {isFieldEnabled('priority') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Priority *
+                  </label>
+                  <select
+                    className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={formData.priority}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                    required
+                  >
+                    <option value="">Select priority</option>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Urgent">Urgent</option>
+                  </select>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
           {/* Details */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Details
-            </label>
-            <textarea
-              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Additional product description or specifications..."
-              rows={3}
-              value={formData.details}
-              onChange={(e) => setFormData({ ...formData, details: e.target.value })}
-            />
-          </div>
+          {isFieldEnabled('details') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Details
+              </label>
+              <textarea
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Additional product description or specifications..."
+                rows={3}
+                value={formData.details}
+                onChange={(e) => setFormData({ ...formData, details: e.target.value })}
+              />
+            </div>
+          )}
 
           {/* Notes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Notes
-            </label>
-            <textarea
-              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Any additional comments or special instructions..."
-              rows={3}
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            />
-          </div>
+          {isFieldEnabled('notes') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Notes
+              </label>
+              <textarea
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Any additional comments or special instructions..."
+                rows={3}
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              />
+            </div>
+          )}
 
           <button
             type="submit"
