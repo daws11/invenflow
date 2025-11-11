@@ -173,9 +173,9 @@ const QuickFilters = React.memo(function QuickFilters({ products, className }: Q
 
   return (
     <div className={`${className || ''}`}>
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-medium text-gray-700 flex items-center">
-          <SparklesIcon className="w-4 h-4 mr-1" />
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-xs font-semibold text-gray-700 flex items-center">
+          <SparklesIcon className="w-3 h-3 mr-1" />
           Quick Filters
         </h4>
         {hasActiveFilters() && (
@@ -188,20 +188,20 @@ const QuickFilters = React.memo(function QuickFilters({ products, className }: Q
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {visibleFilters.map((filter) => {
           const Icon = filter.icon;
           return (
             <button
               key={filter.id}
               onClick={filter.action}
-              className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium border transition-all ${getColorClasses(filter.color, filter.isActive)}`}
+              className={`inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all ${getColorClasses(filter.color, filter.isActive)}`}
               title={filter.description}
             >
-              <Icon className="w-4 h-4 mr-2" />
+              <Icon className="w-3 h-3 mr-1.5" />
               <span>{filter.label}</span>
               {filter.count !== undefined && filter.count > 0 && (
-                <span className={`ml-2 px-1.5 py-0.5 rounded-full text-xs font-semibold ${
+                <span className={`ml-1.5 px-1 py-0.5 rounded-full text-xs font-semibold ${
                   filter.isActive 
                     ? 'bg-white/20' 
                     : 'bg-black/10'
@@ -214,20 +214,22 @@ const QuickFilters = React.memo(function QuickFilters({ products, className }: Q
         })}
       </div>
 
-      {/* Smart Suggestions */}
-      {!hasActiveFilters() && (
-        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-600 mb-2 font-medium">💡 Smart Suggestions:</p>
-          <div className="space-y-1 text-xs text-gray-500">
-            {counts.urgentCount > 0 && (
-              <p>• You have {counts.urgentCount} urgent item{counts.urgentCount !== 1 ? 's' : ''} that need attention</p>
-            )}
-            {counts.lowStockCount > 0 && (
-              <p>• {counts.lowStockCount} item{counts.lowStockCount !== 1 ? 's' : ''} running low on stock</p>
-            )}
-            {counts.recentCount > 0 && (
-              <p>• {counts.recentCount} item{counts.recentCount !== 1 ? 's' : ''} added in the last week</p>
-            )}
+      {/* Compact Smart Suggestions */}
+      {!hasActiveFilters() && (counts.urgentCount > 0 || counts.lowStockCount > 0 || counts.recentCount > 0) && (
+        <div className="mt-2 p-2 bg-blue-50 rounded-md border border-blue-100">
+          <div className="flex items-center text-xs text-blue-700">
+            <span className="mr-1">💡</span>
+            <div className="flex flex-wrap gap-3">
+              {counts.urgentCount > 0 && (
+                <span>{counts.urgentCount} urgent</span>
+              )}
+              {counts.lowStockCount > 0 && (
+                <span>{counts.lowStockCount} low stock</span>
+              )}
+              {counts.recentCount > 0 && (
+                <span>{counts.recentCount} recent</span>
+              )}
+            </div>
           </div>
         </div>
       )}

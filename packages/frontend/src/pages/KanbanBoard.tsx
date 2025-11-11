@@ -13,7 +13,7 @@ import {
   DragEndEvent,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { Squares2X2Icon, ListBulletIcon, FunnelIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { Squares2X2Icon, ListBulletIcon, FunnelIcon, PlusIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
 import { useLocationStore } from '../store/locationStore';
@@ -51,11 +51,15 @@ export default function KanbanBoard() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [showDesktopFilters, setShowDesktopFilters] = useState(false);
   const {
     supplierFilter, categoryFilter, priorityFilter,
     locationFilter, tagFilter, stockLevelMin, stockLevelMax,
     priceMin, priceMax, createdFrom, createdTo, createdPreset,
     updatedFrom, updatedTo, updatedPreset,
+    resetFilters,
+    hasActiveFilters,
+    getActiveFilterCount,
   } = useViewPreferencesStore();
 
   // Validation modal state
@@ -88,7 +92,14 @@ export default function KanbanBoard() {
   // Keyboard shortcuts
   const { shortcuts } = useKanbanKeyboardShortcuts({
     onAddProduct: () => setShowAddForm(true),
-    onToggleFilters: () => setShowFilters(prev => !prev),
+    onToggleFilters: () => {
+      // On desktop, toggle desktop filters; on mobile, toggle mobile filters
+      if (window.innerWidth >= 640) {
+        setShowDesktopFilters(prev => !prev);
+      } else {
+        setShowFilters(prev => !prev);
+      }
+    },
     onToggleSettings: () => setIsSettingsModalOpen(true),
     onToggleView: () => setKanbanBoardViewMode(kanbanBoardViewMode === 'board' ? 'compact' : 'board'),
     onFocusSearch: () => {
@@ -104,6 +115,13 @@ export default function KanbanBoard() {
       fetchKanbanById(id);
     }
   }, [id, fetchKanbanById]);
+
+  // Auto-expand filters when there are active filters
+  useEffect(() => {
+    if (hasActiveFilters() && !showDesktopFilters) {
+      setShowDesktopFilters(true);
+    }
+  }, [hasActiveFilters, showDesktopFilters]);
 
   useEffect(() => {
     fetchLocations();
@@ -638,6 +656,26 @@ export default function KanbanBoard() {
 
                 {/* Action Buttons Group */}
                 <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setShowDesktopFilters(prev => !prev)}
+                    className={`btn-secondary px-4 py-2 text-sm flex items-center ${
+                      showDesktopFilters ? 'bg-blue-50 text-blue-700 border-blue-200' : ''
+                    }`}
+                    title={showDesktopFilters ? 'Hide filters' : 'Show filters'}
+                  >
+                    <FunnelIcon className="w-4 h-4 mr-2" />
+                    Filters
+                    {(hasActiveFilters() || searchQuery) && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">
+                        {getActiveFilterCount() + (searchQuery ? 1 : 0)}
+                      </span>
+                    )}
+                    {showDesktopFilters ? (
+                      <ChevronUpIcon className="w-4 h-4 ml-2 transition-transform duration-200" />
+                    ) : (
+                      <ChevronDownIcon className="w-4 h-4 ml-2 transition-transform duration-200" />
+                    )}
+                  </button>
                   <KeyboardShortcutsHelp shortcuts={shortcuts} />
                   <button
                     className="btn-secondary px-4 py-2 text-sm"
@@ -697,6 +735,15 @@ export default function KanbanBoard() {
 
               <div className="flex items-center space-x-2">
                 <button
+                  onClick={() => setShowDesktopFilters(prev => !prev)}
+                  className={`btn-secondary px-3 py-2 text-sm flex items-center ${
+                    showDesktopFilters ? 'bg-blue-50 text-blue-700 border-blue-200' : ''
+                  }`}
+                >
+                  <FunnelIcon className="w-4 h-4 mr-1" />
+                  <span className="hidden sm:inline">Filters</span>
+                </button>
+                <button
                   className="btn-secondary px-3 py-2 text-sm"
                   onClick={() => setIsSettingsModalOpen(true)}
                 >
@@ -715,34 +762,93 @@ export default function KanbanBoard() {
         </div>
 
         {/* Search Bar and Filters */}
-        <div className="mb-4 md:mb-6">
-          {/* Desktop/Tablet filters */}
-          <div className="hidden sm:block space-y-4">
-            <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-              <div className="flex-1">
-                <KanbanSearchBar
-                  searchQuery={searchQuery}
-                  onSearchChange={setSearchQuery}
-                  className="max-w-2xl"
-                />
-              </div>
-              <div className="lg:w-80">
-                <FilterPresets className="mb-4" />
+        <div className="mb-4">
+          {/* Desktop/Tablet filters - Collapsible Layout */}
+          <div className="hidden sm:block">
+            {/* Always Visible: Search Bar */}
+            <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <KanbanSearchBar
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    className="max-w-xl"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowDesktopFilters(prev => !prev)}
+                    className={`px-3 py-2 text-sm font-medium border rounded-lg transition-all duration-200 flex items-center ${
+                      showDesktopFilters 
+                        ? 'bg-blue-50 text-blue-700 border-blue-200 shadow-sm' 
+                        : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <FunnelIcon className="w-4 h-4 mr-2" />
+                    {showDesktopFilters ? 'Hide Filters' : 'Show Filters'}
+                    {(hasActiveFilters() || searchQuery) && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">
+                        {getActiveFilterCount() + (searchQuery ? 1 : 0)}
+                      </span>
+                    )}
+                    {showDesktopFilters ? (
+                      <ChevronUpIcon className="w-4 h-4 ml-2 transition-transform duration-200" />
+                    ) : (
+                      <ChevronDownIcon className="w-4 h-4 ml-2 transition-transform duration-200" />
+                    )}
+                  </button>
+                  {hasActiveFilters() && (
+                    <button
+                      onClick={resetFilters}
+                      className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-            
-            <QuickFilters products={currentKanban.products} />
-            <FiltersPanel products={currentKanban.products} />
-            <EnhancedFilterChips 
-              searchQuery={searchQuery}
-              onClearSearch={() => setSearchQuery('')}
-              showCount={true}
-              products={currentKanban.products.filter(product => {
-                // Apply all current filters to get the filtered count
-                const columns = getColumns();
-                return columns.some(column => getProductsByColumn(column).includes(product));
-              })}
-            />
+
+            {/* Collapsible Filter Section */}
+            <div className={`transition-all duration-300 ease-in-out overflow-hidden ${
+              showDesktopFilters 
+                ? 'max-h-[2000px] opacity-100 mb-4' 
+                : 'max-h-0 opacity-0 mb-0'
+            }`}>
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                {/* Filter Presets Row */}
+                <div className="flex items-center justify-between mb-4">
+                  <FilterPresets />
+                </div>
+
+                {/* Quick Filters Row */}
+                <div className="mb-4">
+                  <QuickFilters products={currentKanban.products} />
+                </div>
+
+                {/* Advanced Filters - Compact Grid */}
+                <div className="border-t border-gray-100 pt-4">
+                  <FiltersPanel products={currentKanban.products} showAdvanced={true} />
+                </div>
+              </div>
+            </div>
+
+            {/* Active Filters Summary - Always Visible When There Are Filters */}
+            {(hasActiveFilters() || searchQuery) && (
+              <div className="mb-4">
+                <EnhancedFilterChips 
+                  searchQuery={searchQuery}
+                  onClearSearch={() => setSearchQuery('')}
+                  showCount={true}
+                  products={currentKanban.products.filter(product => {
+                    // Apply all current filters to get the filtered count
+                    const columns = getColumns();
+                    return columns.some(column => getProductsByColumn(column).includes(product));
+                  })}
+                  className="bg-gray-50 rounded-lg border border-gray-200 p-4"
+                />
+              </div>
+            )}
           </div>
           
           {/* Mobile Bottom Sheet */}

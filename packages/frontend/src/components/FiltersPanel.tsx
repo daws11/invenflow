@@ -19,10 +19,8 @@ const FiltersPanel = React.memo(function FiltersPanel({ products, className, sho
     tagFilter, setTagFilter,
     stockLevelMin, stockLevelMax, setStockLevelRange,
     priceMin, priceMax, setPriceRange,
-    createdFrom, createdTo, createdPreset, setCreatedRange, setCreatedPreset,
+    createdFrom, createdTo, setCreatedRange,
     updatedFrom, updatedTo, setUpdatedRange,
-    resetFilters,
-    hasActiveFilters,
   } = useViewPreferencesStore();
 
   const { locations } = useLocationStore();
@@ -54,15 +52,15 @@ const FiltersPanel = React.memo(function FiltersPanel({ products, className, sho
   }, []);
 
   return (
-    <div className={`space-y-4 ${className || ''}`}>
-      {/* Basic Filters Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className={`space-y-3 ${className || ''}`}>
+      {/* Compact Filters Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {/* Supplier */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Supplier</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Supplier</label>
           <div className="relative">
             <select
-              className="w-full rounded-lg border border-gray-300 p-2.5 pr-8 appearance-none bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              className="w-full rounded-md border border-gray-300 p-2 pr-7 text-sm appearance-none bg-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
               value={supplierFilter || ''}
               onChange={(e) => setSupplierFilter(e.target.value || null)}
             >
@@ -71,55 +69,15 @@ const FiltersPanel = React.memo(function FiltersPanel({ products, className, sho
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
-            <ChevronDownIcon className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
-
-        {/* Quick Date Presets */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Quick Filters</label>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setCreatedPreset(createdPreset === '7d' ? null : '7d')}
-              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                createdPreset === '7d' 
-                  ? 'bg-blue-100 text-blue-800 border-blue-200' 
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              7d
-            </button>
-            <button
-              type="button"
-              onClick={() => setCreatedPreset(createdPreset === '30d' ? null : '30d')}
-              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                createdPreset === '30d' 
-                  ? 'bg-blue-100 text-blue-800 border-blue-200' 
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              30d
-            </button>
-            <button
-              type="button"
-              onClick={() => setCreatedPreset(createdPreset === '90d' ? null : '90d')}
-              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                createdPreset === '90d' 
-                  ? 'bg-blue-100 text-blue-800 border-blue-200' 
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              90d
-            </button>
+            <ChevronDownIcon className="absolute right-1.5 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
           </div>
         </div>
 
         {/* Stock Level Range */}
         {showAdvanced && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Stock Level</label>
-            <div className="flex gap-2">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Stock Level</label>
+            <div className="flex gap-1">
               <input
                 type="number"
                 placeholder="Min"
@@ -128,7 +86,7 @@ const FiltersPanel = React.memo(function FiltersPanel({ products, className, sho
                   e.target.value ? parseInt(e.target.value) : null,
                   stockLevelMax
                 )}
-                className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full rounded-md border border-gray-300 p-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
               />
               <input
                 type="number"
@@ -138,70 +96,132 @@ const FiltersPanel = React.memo(function FiltersPanel({ products, className, sho
                   stockLevelMin,
                   e.target.value ? parseInt(e.target.value) : null
                 )}
-                className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full rounded-md border border-gray-300 p-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
               />
             </div>
           </div>
         )}
 
-        {/* Controls */}
-        <div className="flex items-end">
-          <button
-            type="button"
-            onClick={resetFilters}
-            disabled={!hasActiveFilters()}
-            className="px-4 py-2.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-          >
-            Reset All
-          </button>
-        </div>
+        {/* Price Range */}
+        {showAdvanced && (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Price Range</label>
+            <div className="flex gap-1">
+              <input
+                type="number"
+                placeholder="Min"
+                value={priceMin || ''}
+                onChange={(e) => setPriceRange(
+                  e.target.value ? parseFloat(e.target.value) : null,
+                  priceMax
+                )}
+                className="w-full rounded-md border border-gray-300 p-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              />
+              <input
+                type="number"
+                placeholder="Max"
+                value={priceMax || ''}
+                onChange={(e) => setPriceRange(
+                  priceMin,
+                  e.target.value ? parseFloat(e.target.value) : null
+                )}
+                className="w-full rounded-md border border-gray-300 p-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Created Date Range */}
+        {showAdvanced && (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Created Date</label>
+            <div className="flex gap-1">
+              <input
+                type="date"
+                value={createdFrom || ''}
+                onChange={(e) => setCreatedRange(e.target.value || null, createdTo)}
+                className="w-full rounded-md border border-gray-300 p-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              />
+              <input
+                type="date"
+                value={createdTo || ''}
+                onChange={(e) => setCreatedRange(createdFrom, e.target.value || null)}
+                className="w-full rounded-md border border-gray-300 p-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Updated Date Range */}
+        {showAdvanced && (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Updated Date</label>
+            <div className="flex gap-1">
+              <input
+                type="date"
+                value={updatedFrom || ''}
+                onChange={(e) => setUpdatedRange(e.target.value || null, updatedTo)}
+                className="w-full rounded-md border border-gray-300 p-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              />
+              <input
+                type="date"
+                value={updatedTo || ''}
+                onChange={(e) => setUpdatedRange(updatedFrom, e.target.value || null)}
+                className="w-full rounded-md border border-gray-300 p-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Category Filter */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-        <div className="flex flex-wrap gap-2">
-          {DEFAULT_CATEGORIES.map(cat => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => setCategoryFilter(toggleInArray(categoryFilter, cat))}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                categoryFilter.includes(cat)
-                  ? 'bg-blue-100 text-blue-800 border-blue-200'
-                  : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-              }`}
-            >
-              {cat}
-              {categoryFilter.includes(cat) && (
-                <XMarkIcon className="w-3 h-3 ml-1 inline" />
-              )}
-            </button>
-          ))}
+      {/* Compact Tag Filters */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Category Filter */}
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
+          <div className="flex flex-wrap gap-1">
+            {DEFAULT_CATEGORIES.map(cat => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setCategoryFilter(toggleInArray(categoryFilter, cat))}
+                className={`px-2 py-1 rounded-md text-xs font-medium border transition-colors ${
+                  categoryFilter.includes(cat)
+                    ? 'bg-blue-100 text-blue-800 border-blue-200'
+                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                }`}
+              >
+                {cat}
+                {categoryFilter.includes(cat) && (
+                  <XMarkIcon className="w-2.5 h-2.5 ml-1 inline" />
+                )}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Priority Filter */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
-        <div className="flex flex-wrap gap-2">
-          {DEFAULT_PRIORITIES.map(priority => (
-            <button
-              key={priority}
-              type="button"
-              onClick={() => setPriorityFilter(toggleInArray(priorityFilter, priority))}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                priorityFilter.includes(priority)
-                  ? 'bg-amber-100 text-amber-800 border-amber-200'
-                  : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-              }`}
-            >
-              {priority}
-              {priorityFilter.includes(priority) && (
-                <XMarkIcon className="w-3 h-3 ml-1 inline" />
-              )}
-            </button>
-          ))}
+        {/* Priority Filter */}
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Priority</label>
+          <div className="flex flex-wrap gap-1">
+            {DEFAULT_PRIORITIES.map(priority => (
+              <button
+                key={priority}
+                type="button"
+                onClick={() => setPriorityFilter(toggleInArray(priorityFilter, priority))}
+                className={`px-2 py-1 rounded-md text-xs font-medium border transition-colors ${
+                  priorityFilter.includes(priority)
+                    ? 'bg-amber-100 text-amber-800 border-amber-200'
+                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                }`}
+              >
+                {priority}
+                {priorityFilter.includes(priority) && (
+                  <XMarkIcon className="w-2.5 h-2.5 ml-1 inline" />
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
