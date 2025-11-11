@@ -18,6 +18,7 @@ import {
 } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
+import { cacheMiddleware, invalidateCache } from '../middleware/cache';
 import { z } from 'zod';
 import { generateStableSku, buildProductFingerprint } from '../utils/sku';
 
@@ -83,7 +84,7 @@ const SORTABLE_COLUMNS = {
 } as const;
 
 // Get inventory items (products from receive kanbans with 'received' or 'stored' status)
-router.get('/', async (req, res, next) => {
+router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) => {
   try {
     const pageNumber = toNumberValue(req.query.page) ?? 1;
     const pageSizeNumber = toNumberValue(req.query.pageSize) ?? 20;
@@ -636,7 +637,7 @@ router.get('/stats', async (req, res, next) => {
 });
 
 // Get grouped inventory items (products grouped by SKU with status breakdown)
-router.get('/grouped', async (req, res, next) => {
+router.get('/grouped', cacheMiddleware({ ttl: 5 * 60 * 1000 }), async (req, res, next) => {
   try {
     const searchValue = toStringValue(req.query.search);
     const categoryValues = toStringArray(req.query.category);

@@ -5,6 +5,7 @@ import { kanbans, products, kanbanLinks, locations } from '../db/schema';
 import { eq, and, asc, sql } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
+import { cacheMiddleware, invalidateCache } from '../middleware/cache';
 import { UpdateKanbanSchema, FormFieldSettingsSchema, DEFAULT_FORM_FIELD_SETTINGS } from '@invenflow/shared';
 
 const router = Router();
@@ -13,7 +14,7 @@ const router = Router();
 router.use(authenticateToken);
 
 // Get all kanbans
-router.get('/', async (req, res, next) => {
+router.get('/', cacheMiddleware({ ttl: 10 * 60 * 1000 }), async (req, res, next) => {
   try {
     const allKanbans = await db.select().from(kanbans);
     res.json(allKanbans);

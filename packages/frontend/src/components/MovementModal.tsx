@@ -38,11 +38,12 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
   const { createMovement, loading } = useMovementStore();
   const { items: inventoryItems, fetchInventory } = useInventoryStore();
   const { locations, fetchLocations } = useLocationStore();
-  const { fetchPersons } = usePersonStore();
+  const { persons, fetchPersons } = usePersonStore();
 
   // State
   const [fromLocationId, setFromLocationId] = useState<string | null>(null);
   const [toLocationId, setToLocationId] = useState<string | null>(null);
+  const [toPersonId, setToPersonId] = useState<string | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
   const [notes, setNotes] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -86,6 +87,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
     if (!isOpen) {
       setFromLocationId(null);
       setToLocationId(null);
+      setToPersonId(null);
       setSelectedProducts([]);
       setNotes('');
       setSearchQuery('');
@@ -136,8 +138,8 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!fromLocationId || !toLocationId || selectedProducts.length === 0) {
-      alert('Please select from location, to location, and at least one product');
+    if (!fromLocationId || (!toLocationId && !toPersonId) || selectedProducts.length === 0) {
+      alert('Please select from location, destination (location or person), and at least one product');
       return;
     }
 
@@ -178,6 +180,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
         await createMovement({
           productId: product.productId,
           toLocationId,
+          toPersonId,
           quantityToMove: product.quantity,
           notes: notes || null,
         });
@@ -185,6 +188,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
         // Reset and close for single movement
         setFromLocationId(null);
         setToLocationId(null);
+        setToPersonId(null);
         setSelectedProducts([]);
         setNotes('');
         setSearchQuery('');
@@ -219,6 +223,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
     // Reset form
     setFromLocationId(null);
     setToLocationId(null);
+    setToPersonId(null);
     setSelectedProducts([]);
     setNotes('');
     setSearchQuery('');
@@ -229,6 +234,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
   const handleReset = () => {
     setFromLocationId(null);
     setToLocationId(null);
+    setToPersonId(null);
     setSelectedProducts([]);
     setNotes('');
     setSearchQuery('');
@@ -326,13 +332,15 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                 <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm">
                   <label className="block text-sm font-semibold text-gray-900 mb-3">
                     <span className="flex items-center">
-                      🎯 To Location <span className="text-red-500 ml-1">*</span>
+                      🎯 To Location
+                      <span className="ml-2 text-xs text-gray-500 font-normal">
+                        (Optional if assigning to person)
+                      </span>
                     </span>
                   </label>
                   <select
                     value={toLocationId || ''}
                     onChange={(e) => setToLocationId(e.target.value || null)}
-                    required
                     disabled={!fromLocationId}
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                   >
@@ -349,13 +357,69 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                         <strong>{toLocation.name}</strong>
                       </p>
                       <p className="text-xs text-green-700 mt-1">
-                        Destination selected
+                        Destination location selected
                       </p>
                     </div>
                   )}
                 </div>
 
-                {/* 3. SELECT PRODUCTS */}
+                {/* 3. ASSIGN TO PERSON */}
+                <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm">
+                  <label className="block text-sm font-semibold text-gray-900 mb-3">
+                    <span className="flex items-center">
+                      👤 Assign to Person
+                      <span className="ml-2 text-xs text-gray-500 font-normal">
+                        (Optional if moving to location)
+                      </span>
+                    </span>
+                  </label>
+                  <select
+                    value={toPersonId || ''}
+                    onChange={(e) => setToPersonId(e.target.value || null)}
+                    disabled={!fromLocationId}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100"
+                  >
+                    <option value="">Select person...</option>
+                    {persons.map((person) => (
+                      <option key={person.id} value={person.id}>
+                        {person.name} ({person.code})
+                        {person.department && ` - ${person.department.name}`}
+                      </option>
+                    ))}
+                  </select>
+                  {toPersonId && (() => {
+                    const selectedPerson = persons.find(p => p.id === toPersonId);
+                    return selectedPerson ? (
+                      <div className="mt-3 p-3 bg-purple-50 rounded-lg">
+                        <p className="text-sm text-purple-900">
+                          <strong>{selectedPerson.name}</strong>
+                        </p>
+                        <p className="text-xs text-purple-700 mt-1">
+                          {selectedPerson.department ? `${selectedPerson.department.name} • ` : ''}
+                          Product will be assigned to this person
+                        </p>
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+
+                {/* Destination Requirement Notice */}
+                {!toLocationId && !toPersonId && fromLocationId && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <span className="text-amber-600">⚠️</span>
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm text-amber-800">
+                          <strong>Destination Required:</strong> Please select either a destination location or assign to a person.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. SELECT PRODUCTS */}
                 {fromLocationId && (
                   <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm">
                     <label className="block text-sm font-semibold text-gray-900 mb-3">
@@ -401,7 +465,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                   </div>
                 )}
 
-                {/* 4. SELECTED PRODUCTS & QUANTITIES */}
+                {/* 5. SELECTED PRODUCTS & QUANTITIES */}
                 {selectedProducts.length > 0 && (
                   <div className="bg-white border-2 border-blue-200 rounded-lg p-4 shadow-sm">
                     <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
@@ -459,7 +523,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                   </div>
                 )}
 
-                {/* 5. NOTES */}
+                {/* 6. NOTES */}
                 <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm">
                   <label className="block text-sm font-semibold text-gray-900 mb-3">
                     📝 Notes (Optional)
@@ -490,7 +554,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                 <button
                   type="submit"
                   onClick={handleSubmit}
-                  disabled={loading || !fromLocationId || !toLocationId || selectedProducts.length === 0}
+                  disabled={loading || !fromLocationId || (!toLocationId && !toPersonId) || selectedProducts.length === 0}
                   className="px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                 >
                   {loading ? 'Creating...' : (isBulkMovement ? 'Create Bulk Movement' : 'Move Product')}

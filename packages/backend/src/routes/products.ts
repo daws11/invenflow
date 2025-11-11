@@ -5,6 +5,7 @@ import { eq, and, desc, getTableColumns } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import type { NewProduct } from '../db/schema';
 import { authenticateToken } from '../middleware/auth';
+import { invalidateCache } from '../middleware/cache';
 import { nanoid } from 'nanoid';
 
 const router = Router();
@@ -138,6 +139,10 @@ router.post('/', async (req, res, next) => {
       .values(newProduct)
       .returning();
 
+    // Invalidate relevant caches
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/kanbans');
+
     res.status(201).json(createdProduct);
   } catch (error) {
     next(error);
@@ -231,6 +236,10 @@ router.put('/:id', async (req, res, next) => {
     if (!updatedProduct) {
       throw createError('Product not found', 404);
     }
+
+    // Invalidate relevant caches
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/kanbans');
 
     res.json(updatedProduct);
   } catch (error) {
@@ -481,6 +490,10 @@ router.delete('/:id', async (req, res, next) => {
     if (!deletedProduct) {
       throw createError('Product not found', 404);
     }
+
+    // Invalidate relevant caches
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/kanbans');
 
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {

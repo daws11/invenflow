@@ -2,9 +2,11 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { existsSync } from "fs";
 import express from "express";
+import compression from "compression";
 import { env } from "./config/env";
 import { corsMiddleware } from "./middleware/cors";
 import { errorHandler } from "./middleware/errorHandler";
+import { performanceMiddleware, startPerformanceLogging } from "./middleware/performance";
 import { departmentsRouter } from "./routes/departments";
 import { healthRouter } from "./routes/health";
 import { inventoryRouter } from "./routes/inventory";
@@ -28,10 +30,38 @@ const rootDir = join(__dirname, "../..");
 
 const app = express();
 
-// Middleware
+// Compression middleware - should be early in the middleware stack
+app.use(compression({
+  level: 6, // Compression level (1-9, 6 is good balance of speed/compression)
+  threshold: 1024, // Only compress responses > 1KB
+  filter: (req, res) => {
+    // Don't compress if client doesn't support it
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    
+    // Don't compress images, videos, or already compressed files
+    const contentType = res.getHeader('content-type') as string;
+    if (contentType && (
+      contentType.includes('image/') ||
+      contentType.includes('video/') ||
+      contentType.includes('application/zip') ||
+      contentType.includes('application/gzip')
+    )) {
+      return false;
+    }
+    
+    return compression.filter(req, res);
+  }
+}));
+
+// Performance monitoring middleware (should be early)
+app.use(performanceMiddleware);
+
+// Other middleware
 app.use(corsMiddleware);
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' })); // Increased limit for bulk operations
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Static file serving for uploaded images (public access)
 app.use('/uploads', express.static('uploads', {
@@ -134,6 +164,9 @@ if (process.env.NODE_ENV === 'production') {
 
 // Error handling middleware
 app.use(errorHandler);
+
+// Start performance logging
+startPerformanceLogging(60000); // Log every minute
 
 // Start server
 app.listen(env.PORT, '0.0.0.0', () => {

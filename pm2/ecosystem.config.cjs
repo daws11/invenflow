@@ -4,8 +4,8 @@ module.exports = {
       name: 'invenflow-staging',
       script: './packages/backend/dist/index.js',
       cwd: './',
-      instances: 1, // Start with 1 instance for staging, can increase if needed
-      exec_mode: 'fork', // Use fork mode for staging (cluster mode requires proper session handling)
+      instances: 4, // Optimized for 4-8 core server (use 4 instances for better resource utilization)
+      exec_mode: 'cluster', // Enable cluster mode for better performance
       // Note: env_file is supported in PM2 5.0+, but we also load via dotenv in backend
       env_file: './.env.staging', // PM2 will load this file automatically (PM2 5.0+)
       env: {
@@ -25,32 +25,49 @@ module.exports = {
       time: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
 
-      // Process management
-      max_memory_restart: '1G',
+      // Process management - optimized for cluster mode
+      max_memory_restart: '1.5G', // Increased memory limit for better performance
       min_uptime: '10s',
-      max_restarts: 10,
-      restart_delay: 4000,
+      max_restarts: 5, // Reduced restarts in cluster mode
+      restart_delay: 2000, // Faster restart for cluster mode
       autorestart: true,
       watch: false,
 
-      // Graceful shutdown
-      kill_timeout: 5000,
-      listen_timeout: 3000,
+      // Graceful shutdown - optimized for cluster
+      kill_timeout: 10000, // Longer timeout for graceful shutdown
+      listen_timeout: 8000, // Longer listen timeout
+      wait_ready: true, // Wait for ready signal
 
       // Health check
       health_check: true,
-      health_check_grace_period: 3000,
+      health_check_grace_period: 5000, // Longer grace period for cluster
       health_check_fatal_exceptions: true,
 
-      // Environment-specific settings
-      node_args: '--max-old-space-size=1024',
+      // Performance optimization flags
+      node_args: [
+        '--max-old-space-size=2048', // Increased heap size
+        '--optimize-for-size', // Optimize for memory usage
+        '--gc-interval=100', // More frequent GC
+        '--max-semi-space-size=128' // Optimize young generation
+      ].join(' '),
 
       // Production optimizations
       pmx: true,
       instance_var: 'INSTANCE_ID',
-
-      // Custom monitoring
-      monitoring: false
+      
+      // Cluster-specific optimizations
+      merge_logs: true, // Merge logs from all instances
+      log_type: 'json', // Structured logging
+      
+      // Performance monitoring
+      monitoring: true, // Enable monitoring for performance tracking
+      
+      // Environment variables for performance
+      env_production: {
+        NODE_ENV: 'production',
+        UV_THREADPOOL_SIZE: 128, // Increase thread pool size
+        NODE_OPTIONS: '--enable-source-maps --unhandled-rejections=strict'
+      }
     }
   ],
 

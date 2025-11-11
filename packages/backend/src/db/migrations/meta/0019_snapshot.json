@@ -1,0 +1,14 @@
+{
+  "id": "0019_performance_indexes",
+  "prevId": "0018_charming_silver_surfer",
+  "version": "5",
+  "dialect": "pg",
+  "tables": {},
+  "enums": {},
+  "schemas": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  }
+}

@@ -9,6 +9,7 @@ import {
 } from '@invenflow/shared';
 import { inventoryApi } from '../utils/api';
 import { useToastStore } from './toastStore';
+import { debounce } from '../utils/debounce';
 
 interface InventoryState {
   // Data
@@ -144,13 +145,24 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     const { filters } = get();
     const updatedFilters = { ...filters, ...newFilters };
 
+    // Only update if filters actually changed (performance optimization)
+    const filtersChanged = JSON.stringify(filters) !== JSON.stringify(updatedFilters);
+    
+    if (!filtersChanged) {
+      return;
+    }
+
     set({
       filters: updatedFilters,
       currentPage: 1, // Reset to first page when filters change
     });
 
-    // Trigger fetch with new filters
-    get().fetchInventory();
+    // Debounce API calls to avoid excessive requests
+    const debouncedFetch = debounce(() => {
+      get().fetchInventory();
+    }, 300);
+    
+    debouncedFetch();
   },
 
   clearFilters: () => {
