@@ -159,7 +159,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
 
     // Debounce API calls to avoid excessive requests
     const debouncedFetch = debounce(() => {
-      get().fetchInventory();
+    get().fetchInventory();
     }, 300);
     
     debouncedFetch();

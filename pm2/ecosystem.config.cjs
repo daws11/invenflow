@@ -54,7 +54,7 @@ module.exports = {
       // Production optimizations
       pmx: true,
       instance_var: 'INSTANCE_ID',
-      
+
       // Cluster-specific optimizations
       merge_logs: true, // Merge logs from all instances
       log_type: 'json', // Structured logging

@@ -41,7 +41,7 @@ export function memoize<T extends (...args: any[]) => any>(
   const cache = new Map<string, ReturnType<T>>();
 
   return ((...args: Parameters<T>) => {
-    const key = keyGenerator ? keyGenerator(...args) : JSON.stringify(args);
+    const key = keyGenerator ? keyGenerator(...args) : JSON.stringify(args) || 'default';
     
     if (cache.has(key)) {
       return cache.get(key);
@@ -53,7 +53,9 @@ export function memoize<T extends (...args: any[]) => any>(
     // Limit cache size to prevent memory leaks
     if (cache.size > 100) {
       const firstKey = cache.keys().next().value;
-      cache.delete(firstKey);
+      if (firstKey !== undefined) {
+        cache.delete(firstKey);
+      }
     }
 
     return result;

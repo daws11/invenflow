@@ -147,7 +147,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
       if (isBulkMovement) {
         const result = await bulkMovementApi.create({
           fromLocationId,
-          toLocationId,
+          toLocationId: toLocationId || '',
           items: selectedProducts.map(item => ({
             productId: item.productId,
             quantitySent: item.quantity,
@@ -382,8 +382,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                     <option value="">Select person...</option>
                     {persons.map((person) => (
                       <option key={person.id} value={person.id}>
-                        {person.name} ({person.code})
-                        {person.department && ` - ${person.department.name}`}
+                        {person.name}
                       </option>
                     ))}
                   </select>
@@ -395,7 +394,6 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                           <strong>{selectedPerson.name}</strong>
                         </p>
                         <p className="text-xs text-purple-700 mt-1">
-                          {selectedPerson.department ? `${selectedPerson.department.name} • ` : ''}
                           Product will be assigned to this person
                         </p>
                       </div>

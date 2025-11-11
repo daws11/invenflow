@@ -70,7 +70,7 @@ export const checkDatabaseHealth = async (): Promise<boolean> => {
 // Connection pool statistics for monitoring
 export const getConnectionStats = () => {
   return {
-    totalConnections: client.options.max || 10,
+    totalConnections: (client as any).options?.max || 10,
     // Note: postgres-js doesn't expose detailed pool stats
     // These would need to be tracked manually if needed
     configured: true,

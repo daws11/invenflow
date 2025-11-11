@@ -124,9 +124,9 @@ export const performanceMiddleware = (req: Request, res: Response, next: NextFun
   const startMemory = process.memoryUsage();
 
   // Capture original end method
-  const originalEnd = res.end;
+  const originalEnd = res.end.bind(res);
   
-  res.end = function(...args: any[]) {
+  res.end = function(chunk?: any, encoding?: BufferEncoding | (() => void), cb?: () => void) {
     const endTime = Date.now();
     const responseTime = endTime - startTime;
     const endMemory = process.memoryUsage();
@@ -149,8 +149,8 @@ export const performanceMiddleware = (req: Request, res: Response, next: NextFun
     res.setHeader('X-Response-Time', `${responseTime}ms`);
     res.setHeader('X-Memory-Usage', `${Math.round(endMemory.heapUsed / 1024 / 1024)}MB`);
 
-    // Call original end method
-    originalEnd.apply(this, args);
+    // Call original end method with proper typing
+    return originalEnd(chunk, encoding as BufferEncoding, cb);
   };
 
   next();
