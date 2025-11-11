@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { products, kanbans, transferLogs, locations, productValidations, kanbanLinks } from '../db/schema';
+import { products, kanbans, transferLogs, locations, productValidations, kanbanLinks, skuAliases } from '../db/schema';
 import { eq, and, desc, getTableColumns } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import type { NewProduct } from '../db/schema';
 import { authenticateToken } from '../middleware/auth';
 import { invalidateCache } from '../middleware/cache';
 import { nanoid } from 'nanoid';
+import { generateStableSku, normalizeSku } from '../utils/sku';
 
 const router = Router();
 
@@ -108,8 +109,17 @@ router.post('/', async (req, res, next) => {
       }
     }
 
-    // Generate unique SKU
-    const generatedSku = `SKU-${nanoid(10)}`;
+    // Build final SKU (normalize provided or generate a stable SKU)
+    const providedSku: unknown = req.body?.sku;
+    const finalSku =
+      (typeof providedSku === 'string' && providedSku.trim().length > 0
+        ? normalizeSku(providedSku)
+        : generateStableSku({
+            name: productDetails,
+            supplier: (typeof supplier === 'string' && supplier) ? supplier : '',
+            category: (typeof category === 'string' && category) ? category : '',
+            dimensions: (typeof dimensions === 'string' && dimensions) ? dimensions : undefined,
+          }));
 
     const newProduct: NewProduct = {
       kanbanId,
@@ -124,11 +134,12 @@ router.post('/', async (req, res, next) => {
       category: category ?? null,
       tags: Array.isArray(tags) ? tags.map((tag: unknown) => String(tag)) : null,
       supplier: supplier ?? null,
-      sku: generatedSku,
+      sku: finalSku,
       dimensions: dimensions ?? null,
       weight: coerceDecimal(weight),
       unitPrice: coerceDecimal(unitPrice),
       notes: notes ?? null,
+      importSource: 'manual',
       columnEnteredAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -221,7 +232,19 @@ router.put('/:id', async (req, res, next) => {
         : null;
     }
     if (supplier !== undefined) updateData.supplier = supplier;
-    if (sku !== undefined) updateData.sku = sku;
+    if (sku !== undefined) {
+      const normalized = sku ? normalizeSku(sku) : null;
+      if (currentProduct.sku && normalized && normalized !== currentProduct.sku) {
+        try {
+          await db.insert(skuAliases).values({
+            productId: currentProduct.id,
+            legacySku: currentProduct.sku,
+            legacyId: null,
+          });
+        } catch {}
+      }
+      updateData.sku = normalized;
+    }
     if (dimensions !== undefined) updateData.dimensions = dimensions;
     if (weight !== undefined) updateData.weight = coerceDecimal(weight);
     if (unitPrice !== undefined) updateData.unitPrice = coerceDecimal(unitPrice);

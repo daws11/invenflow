@@ -222,6 +222,15 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
           {/* Product Info */}
           <div className="flex-1 sm:mr-3 space-y-1.5">
             <h4 className="font-medium text-gray-900">{product.productDetails}</h4>
+            {/* Time in Column - shown regardless of location to support order kanban */}
+            {timeInColumn && (
+              <div className="flex items-center text-xs text-gray-600">
+                <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{timeInColumn}</span>
+              </div>
+            )}
             {(resolvedLocation || product.locationId) && (
               <div className="flex items-start sm:items-center text-sm">
                 <svg className="w-4 h-4 mr-2 mt-0.5 sm:mt-0 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -233,12 +242,6 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
                     <span className="font-medium text-gray-900">
                       {resolvedLocation.name}
                       {resolvedLocation.area && ` - ${resolvedLocation.area}`}
-                    </span>
-                    <span className="hidden sm:inline-flex items-center bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full text-xs font-medium">
-                      <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {timeInColumn || '0m'}
                     </span>
                   </div>
                 ) : (

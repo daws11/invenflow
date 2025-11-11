@@ -4,12 +4,23 @@ import { Product, ThresholdRule, ThresholdTimeUnit } from '@invenflow/shared';
  * Calculate how long a product has been in the current column (in milliseconds)
  */
 export function calculateTimeInColumn(columnEnteredAt: Date | string): number {
-  const enteredAt = typeof columnEnteredAt === 'string' 
-    ? new Date(columnEnteredAt) 
-    : columnEnteredAt;
-  
+  // Robust parsing for backend timestamps that may lack timezone info
+  const parseEnteredAt = (value: Date | string): Date => {
+    if (value instanceof Date) return value;
+    const str = String(value).trim();
+    // If string already contains timezone info (Z or +/-hh:mm), parse directly
+    if (/[zZ]|[+-]\d{2}:\d{2}$/.test(str)) {
+      return new Date(str);
+    }
+    // Assume UTC if no timezone specified to avoid local offset issues
+    return new Date(`${str}Z`);
+  };
+
+  const enteredAt = parseEnteredAt(columnEnteredAt);
   const now = new Date();
-  return now.getTime() - enteredAt.getTime();
+  const diff = now.getTime() - enteredAt.getTime();
+  // Guard against negative values due to clock or timezone skew
+  return diff < 0 ? 0 : diff;
 }
 
 /**

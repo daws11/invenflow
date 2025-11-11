@@ -4,6 +4,7 @@ import { kanbans, products, departments, locations } from '../db/schema';
 import { eq, or, ilike, asc, sql } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { nanoid } from 'nanoid';
+import { generateStableSku, normalizeSku } from '../utils/sku';
 
 const router = Router();
 
@@ -197,8 +198,15 @@ router.post('/form/:token', async (req, res, next) => {
       ? `${requesterInfo}\n\n${notes.trim()}`
       : requesterInfo;
 
-    // Generate SKU if not provided (new product)
-    const finalSku = sku || `SKU-${nanoid(10)}`;
+    // Generate SKU if not provided (new product), normalize if provided
+    const finalSku =
+      (sku && normalizeSku(sku)) ||
+      generateStableSku({
+        name: itemName.trim(),
+        supplier: supplier ?? '',
+        category: category ?? '',
+        dimensions: undefined,
+      });
 
     // Create product in "New Request" column
     const newProduct = {
@@ -213,6 +221,7 @@ router.post('/form/:token', async (req, res, next) => {
       unitPrice: unitPrice || null,
       notes: finalNotes,
       stockLevel: parseInt(String(quantity)),
+      importSource: 'public-form',
     };
 
     const [createdProduct] = await db

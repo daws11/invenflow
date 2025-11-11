@@ -45,6 +45,23 @@ export function generateStableSku(params: GenerateSkuParams): string {
   return `${sup3}-${cat3}-${slug8}-${h4}`;
 }
 
+/**
+ * Normalize user-provided SKU to a consistent, searchable format.
+ * - Uppercase
+ * - Keep only A-Z, 0-9 and dash
+ * - Collapse duplicate dashes and trim edges
+ * - Limit length (default 100)
+ */
+export function normalizeSku(input: string, maxLen = 100): string {
+  const norm = input
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return norm.slice(0, maxLen);
+}
+
 export interface FingerprintParams {
   name: string;
   supplier: string;
