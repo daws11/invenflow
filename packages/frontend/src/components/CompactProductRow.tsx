@@ -155,6 +155,7 @@ export default function CompactProductRow({ product, onView, location, kanban }:
         isDragging ? 'opacity-50 cursor-grabbing' : 'cursor-pointer hover:cursor-grab'
       } ${appliedThreshold ? 'border-l-4' : ''}`}
       {...attributes}
+      role="listitem"
       data-dragging={isDragging ? 'true' : 'false'}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}

@@ -1,4 +1,5 @@
 import { Product, Kanban, Location } from '@invenflow/shared';
+import { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import CompactProductRow from './CompactProductRow';
@@ -27,6 +28,7 @@ export default function CompactKanbanColumn({
 
   const { isColumnCollapsed, toggleColumnCollapsed } = useViewPreferencesStore();
   const isCollapsed = kanban ? isColumnCollapsed(kanban.id, id) : false;
+  const [visibleCount, setVisibleCount] = useState(50);
 
   const handleToggle = () => {
     if (kanban) {
@@ -78,7 +80,7 @@ export default function CompactKanbanColumn({
 
       {/* Column Content */}
       {!isCollapsed && (
-        <div className="divide-y divide-gray-200">
+        <div className="divide-y divide-gray-200" role="list">
           {products.length === 0 ? (
             <div className={`text-center py-8 text-sm ${
               isOver ? 'text-blue-600 font-medium' : 'text-gray-400'
@@ -86,7 +88,7 @@ export default function CompactKanbanColumn({
               {isOver ? 'Drop product here' : 'No products in this column'}
             </div>
           ) : (
-            products.map((product) => (
+            products.slice(0, visibleCount).map((product) => (
               <CompactProductRow
                 key={product.id}
                 product={product}
@@ -95,6 +97,17 @@ export default function CompactKanbanColumn({
                 location={product.locationId ? locations.find(l => l.id === product.locationId) || null : null}
               />
             ))
+          )}
+          {products.length > visibleCount && (
+            <div className="p-3 text-center">
+              <button
+                type="button"
+                className="inline-flex items-center px-3 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 text-gray-700"
+                onClick={() => setVisibleCount((c) => c + 50)}
+              >
+                Load more ({products.length - visibleCount} remaining)
+              </button>
+            </div>
           )}
         </div>
       )}

@@ -185,6 +185,7 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
           ? 'shadow-2xl scale-105 opacity-95 border-blue-400 cursor-grabbing'
           : 'hover:shadow-lg cursor-pointer hover:cursor-grab'
       }`}
+      role="listitem"
       {...attributes}
       data-dragging={isDragging ? 'true' : 'false'}
       onPointerDown={handlePointerDown}
@@ -257,8 +258,8 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
             )}
           </div>
 
-          {/* Enhanced Action Buttons */}
-          <div className="flex space-x-2 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300 delay-100">
+          {/* Enhanced Action Buttons (hide on mobile for cleaner layout) */}
+          <div className="hidden sm:flex space-x-2 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300 delay-100">
             <button
               onClick={() => onView?.()}
               data-no-drag

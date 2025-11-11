@@ -4,6 +4,7 @@ import { useKanbanStore } from '../store/kanbanStore';
 import { useLocationStore } from '../store/locationStore';
 import { useToast } from '../store/toastStore';
 import { Slider } from './Slider';
+import { BottomSheet } from './BottomSheet';
 import { SliderTabs } from './SliderTabs';
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 
@@ -21,6 +22,7 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
   const { locations, fetchLocations } = useLocationStore();
   const { success, error } = useToast();
   const [activeTab, setActiveTab] = useState<TabType>('view');
+  const [isMobile, setIsMobile] = useState(false);
   const [formData, setFormData] = useState({
     productDetails: '',
     productLink: '',
@@ -69,6 +71,16 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
   useEffect(() => {
     fetchLocations();
   }, [fetchLocations]);
+
+  useEffect(() => {
+    const update = () => {
+      const small = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+      setIsMobile(small);
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   const handleUpdate = async () => {
     if (!product) return;
@@ -557,12 +569,20 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
     }
   ];
 
+  if (isMobile) {
+    return (
+      <BottomSheet isOpen={isOpen} onClose={onClose} title="Product Details" heightClassName="h-[85%]">
+        <SliderTabs
+          tabs={tabs}
+          activeTab={activeTab}
+          onTabChange={(tabId) => setActiveTab(tabId as TabType)}
+        />
+      </BottomSheet>
+    );
+  }
+
   return (
-    <Slider
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Product Details"
-    >
+    <Slider isOpen={isOpen} onClose={onClose} title="Product Details">
       <SliderTabs
         tabs={tabs}
         activeTab={activeTab}

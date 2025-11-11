@@ -13,12 +13,12 @@ import {
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { Product, Kanban, ORDER_COLUMNS, RECEIVE_COLUMNS, Location } from '@invenflow/shared';
 import CompactKanbanColumn from './CompactKanbanColumn';
+import { useViewPreferencesStore } from '../store/viewPreferencesStore';
 
 interface CompactBoardViewProps {
   kanban: Kanban & { products: Product[] };
   onProductView: (product: Product) => void;
   onMoveProduct: (productId: string, newColumn: string) => Promise<void>;
-  selectedLocationId: string | null;
   searchQuery: string;
   locations: Location[];
 }
@@ -27,11 +27,15 @@ export default function CompactBoardView({
   kanban,
   onProductView,
   onMoveProduct,
-  selectedLocationId,
   searchQuery,
   locations,
 }: CompactBoardViewProps) {
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
+  const {
+    supplierFilter, categoryFilter, priorityFilter,
+    createdFrom, createdTo, createdPreset,
+    updatedFrom, updatedTo, updatedPreset,
+  } = useViewPreferencesStore();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -48,12 +52,11 @@ export default function CompactBoardView({
     return kanban.type === 'order' ? ORDER_COLUMNS : RECEIVE_COLUMNS;
   };
 
-  // Filter products by search query (same logic as KanbanBoard)
+  // Filter products by search query (same logic as KanbanBoard, minus location)
   const filterProductBySearch = (product: Product): boolean => {
     if (!searchQuery.trim()) return true;
 
     const query = searchQuery.toLowerCase().trim();
-    const location = product.locationId ? locations.find(l => l.id === product.locationId) : null;
 
     // Search in productDetails (name)
     if (product.productDetails?.toLowerCase().includes(query)) return true;
@@ -77,14 +80,6 @@ export default function CompactBoardView({
 
     // Removed deprecated product.location string search
 
-    // Search in location name, code, area (if locationId exists)
-    if (location) {
-      if (location.name?.toLowerCase().includes(query)) return true;
-      if (location.code?.toLowerCase().includes(query)) return true;
-      if (location.area?.toLowerCase().includes(query)) return true;
-      if (location.description?.toLowerCase().includes(query)) return true;
-    }
-
     // Search in notes
     if (product.notes?.toLowerCase().includes(query)) return true;
 
@@ -106,12 +101,43 @@ export default function CompactBoardView({
     return false;
   };
 
+  const isWithinRange = (date: Date, from?: Date | null, to?: Date | null): boolean => {
+    if (from && date < from) return false;
+    if (to && date > to) return false;
+    return true;
+  };
+  const resolvePresetRange = (preset: '7d' | '30d' | null): [Date | null, Date | null] => {
+    if (!preset) return [null, null];
+    const now = new Date();
+    const from = new Date(now);
+    from.setDate(now.getDate() - (preset === '7d' ? 7 : 30));
+    return [from, now];
+  };
+
   const getProductsByColumn = (column: string) => {
-    return kanban.products.filter(product =>
-      product.columnStatus === column &&
-      (!selectedLocationId || product.locationId === selectedLocationId) &&
-      filterProductBySearch(product)
-    );
+    const [cFromPreset, cToPreset] = resolvePresetRange(createdPreset);
+    const [uFromPreset, uToPreset] = resolvePresetRange(updatedPreset);
+    const createdFromDate = createdFrom ? new Date(createdFrom) : cFromPreset;
+    const createdToDate = createdTo ? new Date(createdTo) : cToPreset;
+    const updatedFromDate = updatedFrom ? new Date(updatedFrom) : uFromPreset;
+    const updatedToDate = updatedTo ? new Date(updatedTo) : uToPreset;
+
+    return kanban.products.filter((product) => {
+      if (product.columnStatus !== column) return false;
+      if (!filterProductBySearch(product)) return false;
+      if (supplierFilter && product.supplier !== supplierFilter) return false;
+      if (categoryFilter.length > 0) {
+        if (!product.category || !categoryFilter.includes(product.category)) return false;
+      }
+      if (priorityFilter.length > 0) {
+        if (!product.priority || !priorityFilter.includes(product.priority)) return false;
+      }
+      const createdAt = new Date(product.createdAt as unknown as string);
+      if (!isWithinRange(createdAt, createdFromDate, createdToDate)) return false;
+      const updatedAt = new Date(product.updatedAt as unknown as string);
+      if (!isWithinRange(updatedAt, updatedFromDate, updatedToDate)) return false;
+      return true;
+    });
   };
 
   const handleDragStart = (event: DragStartEvent) => {
