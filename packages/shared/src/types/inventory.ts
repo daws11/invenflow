@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { ProductSchema } from './product';
-import { KanbanSchema } from './kanban';
+import { ProductSchema } from './product.js';
+import { KanbanSchema } from './kanban.js';
 
 // Validation data schema for inventory items
 export const InventoryValidationSchema = z.object({

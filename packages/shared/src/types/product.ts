@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { KanbanType, ColumnStatus, ORDER_COLUMNS, RECEIVE_COLUMNS } from './kanban';
+import { KanbanType, ColumnStatus, ORDER_COLUMNS, RECEIVE_COLUMNS } from './kanban.js';
 
 export const ProductSchema = z.object({
   id: z.string().uuid(),
