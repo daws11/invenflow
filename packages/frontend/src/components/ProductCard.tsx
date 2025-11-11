@@ -185,7 +185,6 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
           ? 'shadow-2xl scale-105 opacity-95 border-blue-400 cursor-grabbing'
           : 'hover:shadow-lg cursor-pointer hover:cursor-grab'
       }`}
-      role="listitem"
       {...attributes}
       data-dragging={isDragging ? 'true' : 'false'}
       onPointerDown={handlePointerDown}

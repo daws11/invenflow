@@ -106,11 +106,12 @@ export default function CompactBoardView({
     if (to && date > to) return false;
     return true;
   };
-  const resolvePresetRange = (preset: '7d' | '30d' | null): [Date | null, Date | null] => {
+  const resolvePresetRange = (preset: '7d' | '30d' | '90d' | null): [Date | null, Date | null] => {
     if (!preset) return [null, null];
     const now = new Date();
     const from = new Date(now);
-    from.setDate(now.getDate() - (preset === '7d' ? 7 : 30));
+    const days = preset === '7d' ? 7 : preset === '30d' ? 30 : 90;
+    from.setDate(now.getDate() - days);
     return [from, now];
   };
 

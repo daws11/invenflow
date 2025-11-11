@@ -20,7 +20,7 @@ const FiltersPanel = React.memo(function FiltersPanel({ products, className, sho
     stockLevelMin, stockLevelMax, setStockLevelRange,
     priceMin, priceMax, setPriceRange,
     createdFrom, createdTo, createdPreset, setCreatedRange, setCreatedPreset,
-    updatedFrom, updatedTo, updatedPreset, setUpdatedRange, setUpdatedPreset,
+    updatedFrom, updatedTo, setUpdatedRange,
     resetFilters,
     hasActiveFilters,
   } = useViewPreferencesStore();

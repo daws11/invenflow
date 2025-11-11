@@ -30,7 +30,7 @@ const MobileFiltersBottomSheet = React.memo(function MobileFiltersBottomSheet({
     stockLevelMin, stockLevelMax, setStockLevelRange,
     priceMin, priceMax, setPriceRange,
     createdFrom, createdTo, createdPreset, setCreatedRange, setCreatedPreset,
-    updatedFrom, updatedTo, updatedPreset, setUpdatedRange, setUpdatedPreset,
+    updatedFrom, updatedTo, setUpdatedRange,
     resetFilters,
     hasActiveFilters,
     getActiveFilterCount,

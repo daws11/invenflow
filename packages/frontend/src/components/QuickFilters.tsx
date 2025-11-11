@@ -3,8 +3,6 @@ import {
   ClockIcon, 
   ExclamationTriangleIcon, 
   CubeIcon,
-  TagIcon,
-  MapPinIcon,
   SparklesIcon
 } from '@heroicons/react/24/outline';
 import { Product } from '@invenflow/shared';
@@ -36,8 +34,8 @@ const QuickFilters = React.memo(function QuickFilters({ products, className }: Q
     hasActiveFilters,
   } = useViewPreferencesStore();
 
-  const quickFilters: QuickFilter[] = useMemo(() => {
-    // Calculate counts for different filter types
+  // Calculate counts for different filter types (used in both filters and suggestions)
+  const counts = useMemo(() => {
     const urgentCount = products.filter(p => p.priority?.toLowerCase() === 'urgent').length;
     const highPriorityCount = products.filter(p => p.priority?.toLowerCase() === 'high').length;
     const recentCount = products.filter(p => {
@@ -53,6 +51,11 @@ const QuickFilters = React.memo(function QuickFilters({ products, className }: Q
       p.category?.toLowerCase().includes('electronic') || 
       p.category?.toLowerCase().includes('tech')
     ).length;
+    return { urgentCount, highPriorityCount, recentCount, lowStockCount, electronicsCount };
+  }, [products]);
+
+  const quickFilters: QuickFilter[] = useMemo(() => {
+    const { urgentCount, highPriorityCount, recentCount, lowStockCount, electronicsCount } = counts;
 
     return [
       {
@@ -138,7 +141,7 @@ const QuickFilters = React.memo(function QuickFilters({ products, className }: Q
         color: 'purple',
       },
     ];
-  }, [products, priorityFilter, setPriorityFilter, createdPreset, setCreatedPreset, stockLevelMin, stockLevelMax, setStockLevelRange, categoryFilter, setCategoryFilter]);
+  }, [counts, priorityFilter, setPriorityFilter, createdPreset, setCreatedPreset, stockLevelMin, stockLevelMax, setStockLevelRange, categoryFilter, setCategoryFilter]);
 
   const getColorClasses = (color: string, isActive: boolean) => {
     const colors = {
@@ -216,14 +219,14 @@ const QuickFilters = React.memo(function QuickFilters({ products, className }: Q
         <div className="mt-4 p-3 bg-gray-50 rounded-lg">
           <p className="text-xs text-gray-600 mb-2 font-medium">💡 Smart Suggestions:</p>
           <div className="space-y-1 text-xs text-gray-500">
-            {urgentCount > 0 && (
-              <p>• You have {urgentCount} urgent item{urgentCount !== 1 ? 's' : ''} that need attention</p>
+            {counts.urgentCount > 0 && (
+              <p>• You have {counts.urgentCount} urgent item{counts.urgentCount !== 1 ? 's' : ''} that need attention</p>
             )}
-            {lowStockCount > 0 && (
-              <p>• {lowStockCount} item{lowStockCount !== 1 ? 's' : ''} running low on stock</p>
+            {counts.lowStockCount > 0 && (
+              <p>• {counts.lowStockCount} item{counts.lowStockCount !== 1 ? 's' : ''} running low on stock</p>
             )}
-            {recentCount > 0 && (
-              <p>• {recentCount} item{recentCount !== 1 ? 's' : ''} added in the last week</p>
+            {counts.recentCount > 0 && (
+              <p>• {counts.recentCount} item{counts.recentCount !== 1 ? 's' : ''} added in the last week</p>
             )}
           </div>
         </div>

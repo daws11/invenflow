@@ -2,7 +2,6 @@ import React from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { Product } from '@invenflow/shared';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
-import { useLocationStore } from '../store/locationStore';
 
 interface EnhancedFilterChipsProps {
   searchQuery: string;
@@ -34,8 +33,6 @@ const EnhancedFilterChips = React.memo(function EnhancedFilterChips({
     getActiveFilterCount,
   } = useViewPreferencesStore();
 
-  const { locations } = useLocationStore();
-
   const removeFromArray = (arr: string[], value: string) => {
     return arr.filter(item => item !== value);
   };
@@ -54,11 +51,6 @@ const EnhancedFilterChips = React.memo(function EnhancedFilterChips({
       return `Until ${to}`;
     }
     return '';
-  };
-
-  const getLocationName = (locationId: string) => {
-    const location = locations.find(loc => loc.id === locationId);
-    return location?.name || locationId;
   };
 
   if (!hasActiveFilters() && !searchQuery) {
