@@ -302,7 +302,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
       });
     } catch (error) {
       // Revert optimistic update on error
-      const { items, selectedItem } = get();
+      const { items } = get();
       const originalItem = items.find(item => item.id === productId);
       if (originalItem) {
         // We need to revert to the original value, but we don't have it

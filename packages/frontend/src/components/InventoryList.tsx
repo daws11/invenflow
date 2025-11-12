@@ -61,7 +61,7 @@ export function InventoryList({
   const { locations, fetchLocations } = useLocationStore();
   const { persons, fetchPersons } = usePersonStore();
   const { deleteProduct } = useKanbanStore();
-  const { updateProduct, updateProductStock, updateProductLocation } = useInventoryStore();
+  const { updateProduct, updateProductStock } = useInventoryStore();
   const { success, error } = useToast();
   
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
