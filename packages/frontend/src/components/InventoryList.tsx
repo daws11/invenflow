@@ -3,6 +3,7 @@ import { InventoryItem } from '@invenflow/shared';
 import { useLocationStore } from '../store/locationStore';
 import { usePersonStore } from '../store/personStore';
 import { useKanbanStore } from '../store/kanbanStore';
+import { useInventoryStore } from '../store/inventoryStore';
 import { useToast } from '../store/toastStore';
 import {
   ChevronDownIcon,
@@ -28,7 +29,7 @@ import {
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 import { MovementModal } from './MovementModal';
 import { InventoryTableActions } from './InventoryTableActions';
-import { InlineEditCell } from './InlineEditCell';
+import { BasicInlineEdit } from './BasicInlineEdit';
 
 interface InventoryListProps {
   items: InventoryItem[];
@@ -60,6 +61,7 @@ export function InventoryList({
   const { locations, fetchLocations } = useLocationStore();
   const { persons, fetchPersons } = usePersonStore();
   const { deleteProduct } = useKanbanStore();
+  const { updateProduct, updateProductStock, updateProductLocation } = useInventoryStore();
   const { success, error } = useToast();
   
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -154,30 +156,28 @@ export function InventoryList({
   };
 
   // Inline editing handlers
-  const handleUpdateProductDetails = async (_itemId: string, _newValue: string | number) => {
+  const handleUpdateProductDetails = async (itemId: string, newValue: string | number) => {
     try {
-      // TODO: Use proper update API when available
-      success('Product name updated successfully');
+      await updateProduct(itemId, { productDetails: newValue.toString() });
     } catch (err) {
       error(`Failed to update product name: ${err instanceof Error ? err.message : 'Unknown error'}`);
       throw err;
     }
   };
 
-  const handleUpdateSku = async (_itemId: string, _newValue: string | number) => {
+  const handleUpdateSku = async (itemId: string, newValue: string | number) => {
     try {
-      // TODO: Use proper update API when available
-      success('SKU updated successfully');
+      await updateProduct(itemId, { sku: newValue.toString() });
     } catch (err) {
       error(`Failed to update SKU: ${err instanceof Error ? err.message : 'Unknown error'}`);
       throw err;
     }
   };
 
-  const handleUpdateStockLevel = async (_itemId: string, _newValue: string | number) => {
+  const handleUpdateStockLevel = async (itemId: string, newValue: string | number) => {
     try {
-      // TODO: Use proper update API when available
-      success('Stock level updated successfully');
+      // Use inventory store's optimistic update for stock level
+      await updateProductStock(itemId, Number(newValue));
     } catch (err) {
       error(`Failed to update stock level: ${err instanceof Error ? err.message : 'Unknown error'}`);
       throw err;
@@ -477,7 +477,7 @@ export function InventoryList({
                   </td>
                   <td className="px-6 py-4">
                     <div>
-                      <InlineEditCell
+                      <BasicInlineEdit
                         value={item.productDetails}
                         onSave={(value) => handleUpdateProductDetails(item.id, value)}
                         placeholder="Product name"
@@ -492,7 +492,7 @@ export function InventoryList({
                           return null;
                         }}
                       />
-                      <InlineEditCell
+                      <BasicInlineEdit
                         value={item.sku || ''}
                         onSave={(value) => handleUpdateSku(item.id, value)}
                         placeholder="Enter SKU"
@@ -538,7 +538,7 @@ export function InventoryList({
                   <td className="px-6 py-4 whitespace-nowrap">
                     {item.columnStatus === 'Stored' ? (
                       <div className="flex items-center">
-                        <InlineEditCell
+                        <BasicInlineEdit
                           value={item.stockLevel || 0}
                           onSave={(value) => handleUpdateStockLevel(item.id, value)}
                           type="number"

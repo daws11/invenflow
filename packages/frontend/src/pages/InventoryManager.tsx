@@ -70,6 +70,7 @@ export default function InventoryManager() {
     fetchStats();
   }, [displayMode, fetchInventory, fetchGroupedInventory, fetchStats]);
 
+
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {

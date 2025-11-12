@@ -162,25 +162,31 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
   },
 
   updateProduct: async (id: string, data: Partial<Product>) => {
-    set({ loading: true, error: null });
+    // OPTIMISTIC UPDATE: Update UI immediately without loading state
+    set(state => ({
+      currentKanban: state.currentKanban
+        ? {
+            ...state.currentKanban,
+            products: state.currentKanban.products.map(p =>
+              p.id === id ? { ...p, ...data } : p
+            )
+          }
+        : null,
+      error: null
+    }));
+
     try {
+      // Make API call in background
       await productApi.update(id, data);
-      set(state => ({
-        currentKanban: state.currentKanban
-          ? {
-              ...state.currentKanban,
-              products: state.currentKanban.products.map(p =>
-                p.id === id ? { ...p, ...data } : p
-              )
-            }
-          : null,
-        loading: false
-      }));
     } catch (error) {
+      // Revert optimistic update on error by refreshing kanban
+      get().refreshCurrentKanban();
+      
       set({
         error: error instanceof Error ? error.message : 'Failed to update product',
-        loading: false
       });
+      
+      throw error; // Re-throw to let the component handle the error
     }
   },
 

@@ -56,6 +56,7 @@ interface InventoryState {
   setGroupedViewMode: (mode: 'grid' | 'list') => void;
   setSelectedItem: (item: InventoryItem | null) => void;
   setShowDetailModal: (show: boolean) => void;
+  updateProduct: (productId: string, updateData: Record<string, any>) => Promise<void>;
   updateProductStock: (productId: string, stockLevel: number) => Promise<void>;
   updateProductLocation: (productId: string, location: string, locationId?: string) => Promise<void>;
   setPage: (page: number) => void;
@@ -239,24 +240,60 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     }
   },
 
-  updateProductStock: async (productId, stockLevel) => {
-    set({ loading: true, error: null });
+  updateProduct: async (productId, updateData) => {
+    // OPTIMISTIC UPDATE: Update UI immediately without loading state
+    set(state => ({
+      items: state.items.map(item =>
+        item.id === productId ? { ...item, ...updateData } : item
+      ),
+      selectedItem: state.selectedItem?.id === productId
+        ? { ...state.selectedItem, ...updateData }
+        : state.selectedItem,
+      error: null,
+    }));
 
     try {
-      // Use productApi to update the stock
+      // Make API call in background
+      const { productApi } = await import('../utils/api');
+      await productApi.update(productId, updateData);
+
+      // Show success toast
+      useToastStore.getState().addToast({
+        message: 'Product updated successfully',
+        type: 'success',
+      });
+    } catch (error) {
+      // Revert optimistic update on error by fetching fresh data
+      get().fetchInventory();
+
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update product';
+      set({ error: errorMessage });
+
+      useToastStore.getState().addToast({
+        message: errorMessage,
+        type: 'error',
+      });
+      
+      throw error; // Re-throw to let the component handle the error
+    }
+  },
+
+  updateProductStock: async (productId, stockLevel) => {
+    // OPTIMISTIC UPDATE: Update UI immediately without loading state
+    set(state => ({
+      items: state.items.map(item =>
+        item.id === productId ? { ...item, stockLevel } : item
+      ),
+      selectedItem: state.selectedItem?.id === productId
+        ? { ...state.selectedItem, stockLevel }
+        : state.selectedItem,
+      error: null,
+    }));
+
+    try {
+      // Make API call in background
       const { productApi } = await import('../utils/api');
       await productApi.update(productId, { stockLevel });
-
-      // Update local state
-      set(state => ({
-        items: state.items.map(item =>
-          item.id === productId ? { ...item, stockLevel } : item
-        ),
-        selectedItem: state.selectedItem?.id === productId
-          ? { ...state.selectedItem, stockLevel }
-          : state.selectedItem,
-        loading: false,
-      }));
 
       // Show success toast
       useToastStore.getState().addToast({
@@ -264,13 +301,24 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
         type: 'success',
       });
     } catch (error) {
+      // Revert optimistic update on error
+      const { items, selectedItem } = get();
+      const originalItem = items.find(item => item.id === productId);
+      if (originalItem) {
+        // We need to revert to the original value, but we don't have it
+        // So we'll fetch fresh data instead
+        get().fetchInventory();
+      }
+
       const errorMessage = error instanceof Error ? error.message : 'Failed to update stock level';
-      set({ error: errorMessage, loading: false });
+      set({ error: errorMessage });
 
       useToastStore.getState().addToast({
         message: errorMessage,
         type: 'error',
       });
+      
+      throw error; // Re-throw to let the component handle the error
     }
   },
 

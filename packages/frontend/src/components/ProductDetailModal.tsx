@@ -44,8 +44,6 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
   }, [fetchLocations, fetchPersons]);
 
   const handleFieldUpdate = async (field: keyof UpdateProduct, value: string | number) => {
-    setIsSubmitting(true);
-
     try {
       const updateData: UpdateProduct = {
         [field]: value || undefined,
@@ -57,8 +55,6 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
       console.error('Failed to update product:', err);
       error('Failed to update product');
       throw err; // Re-throw to let BasicInlineEdit handle the error state
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
