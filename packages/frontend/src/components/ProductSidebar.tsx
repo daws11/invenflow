@@ -1,12 +1,25 @@
 import { useState, useEffect } from 'react';
-import { Product, UpdateProduct, PRODUCT_CATEGORIES } from '@invenflow/shared';
+import { Product, UpdateProduct, DEFAULT_CATEGORIES, DEFAULT_PRIORITIES, DEFAULT_UNITS } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useLocationStore } from '../store/locationStore';
 import { useToast } from '../store/toastStore';
 import { Slider } from './Slider';
 import { BottomSheet } from './BottomSheet';
-import { SliderTabs } from './SliderTabs';
+import { BasicInlineEdit } from './BasicInlineEdit';
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
+import {
+  TagIcon,
+  BuildingOfficeIcon,
+  MapPinIcon,
+  CurrencyDollarIcon,
+  CubeIcon,
+  CalendarIcon,
+  ClockIcon,
+  TrashIcon,
+  ExclamationTriangleIcon,
+  LinkIcon,
+  PhotoIcon,
+} from '@heroicons/react/24/outline';
 
 interface ProductSidebarProps {
   product: Product | null;
@@ -15,58 +28,13 @@ interface ProductSidebarProps {
   onUpdate?: (id: string, data: UpdateProduct) => void;
 }
 
-type TabType = 'view' | 'edit' | 'delete';
-
 export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: ProductSidebarProps) {
-  const { updateProduct, deleteProduct } = useKanbanStore();
+  const { updateProduct, deleteProduct, currentKanban } = useKanbanStore();
   const { locations, fetchLocations } = useLocationStore();
   const { success, error } = useToast();
-  const [activeTab, setActiveTab] = useState<TabType>('view');
   const [isMobile, setIsMobile] = useState(false);
-  const [formData, setFormData] = useState({
-    productDetails: '',
-    productLink: '',
-    location: '',
-    locationId: '',
-    priority: '',
-    stockLevel: '',
-    productImage: '',
-    category: '',
-    tags: '',
-    supplier: '',
-    sku: '',
-    dimensions: '',
-    weight: '',
-    unitPrice: '',
-    notes: '',
-  });
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // Initialize form data when product changes
-  useEffect(() => {
-    if (product) {
-      setFormData({
-        productDetails: product.productDetails || '',
-        productLink: product.productLink || '',
-        location: '',
-        locationId: product.locationId || '',
-        priority: product.priority || '',
-        stockLevel: product.stockLevel?.toString() || '',
-        productImage: product.productImage || '',
-        category: product.category || '',
-        tags: Array.isArray(product.tags) ? product.tags.join(', ') : '',
-        supplier: product.supplier || '',
-        sku: product.sku || '',
-        dimensions: product.dimensions || '',
-        weight: product.weight?.toString() || '',
-        unitPrice: product.unitPrice?.toString() || '',
-        notes: product.notes || '',
-      });
-    }
-    // Reset to view tab when product changes
-    setActiveTab('view');
-  }, [product]);
 
   useEffect(() => {
     fetchLocations();
@@ -82,43 +50,26 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
     return () => window.removeEventListener('resize', update);
   }, []);
 
-  const handleUpdate = async () => {
+  const handleFieldUpdate = async (field: keyof UpdateProduct, value: string | number) => {
     if (!product) return;
 
     const updateData: UpdateProduct = {
-      productDetails: formData.productDetails,
-      productLink: formData.productLink || undefined,
-      locationId: formData.locationId || undefined,
-      priority: formData.priority || undefined,
-      stockLevel: formData.stockLevel ? parseInt(formData.stockLevel) : undefined,
-      productImage: formData.productImage || undefined,
-      category: formData.category || undefined,
-      tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean) : undefined,
-      supplier: formData.supplier || undefined,
-      sku: formData.sku || undefined,
-      dimensions: formData.dimensions || undefined,
-      weight: formData.weight ? parseFloat(formData.weight) : undefined,
-      unitPrice: formData.unitPrice ? parseFloat(formData.unitPrice) : undefined,
-      notes: formData.notes || undefined,
+      [field]: value || undefined,
     };
 
-    setIsUpdating(true);
     try {
       await updateProduct(product.id, updateData);
       success('Product updated successfully');
       onUpdate?.(product.id, updateData);
-      onClose();
     } catch (err) {
       error(`Failed to update product: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setIsUpdating(false);
+      throw err; // Re-throw to let BasicInlineEdit handle the error state
     }
   };
 
   const handleDelete = async () => {
     if (!product) return;
 
-    if (confirm(`Are you sure you want to delete "${product.productDetails}"? This action cannot be undone.`)) {
       setIsDeleting(true);
       try {
         await deleteProduct(product.id);
@@ -128,7 +79,7 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
         error(`Failed to delete product: ${err instanceof Error ? err.message : 'Unknown error'}`);
       } finally {
         setIsDeleting(false);
-      }
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -164,20 +115,23 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
     return colors[category?.toLowerCase() || ''] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
   if (!product) return null;
 
-  // Define tabs for SliderTabs component
-  const tabs = [
-    {
-      id: 'view',
-      label: 'View',
-      content: (
-        <div className="space-y-6">
+  const categoryOptions = DEFAULT_CATEGORIES.map(cat => ({ value: cat, label: cat }));
+  const priorityOptions = DEFAULT_PRIORITIES.map(pri => ({ value: pri, label: pri }));
+  const unitOptions = DEFAULT_UNITS.filter(unit => unit !== 'Custom').map(unit => ({ value: unit, label: unit }));
+  const locationOptions = locations.map(loc => ({ 
+    value: loc.id, 
+    label: `${loc.name} (${loc.code}) - ${loc.area}` 
+  }));
+
+  const linkedKanbanOptions = currentKanban?.linkedKanbans?.map(link => ({
+    value: link.id,
+    label: `${link.name}${link.locationName ? ` - ${link.locationName}` : ''}`
+  })) || [];
+
+  const content = (
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
                 {/* Product Image */}
                 {product.productImage && (
                   <div className="rounded-lg overflow-hidden bg-gray-100">
@@ -193,401 +147,389 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
                   </div>
                 )}
 
-                {/* Basic Info */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{product.productDetails}</h3>
-                  {product.sku && (
-                    <p className="text-sm text-gray-600 mb-1">SKU: {product.sku}</p>
-                  )}
-                  {product.supplier && (
-                    <p className="text-sm text-gray-600 mb-1">Supplier: {product.supplier}</p>
-                  )}
-                  {product.locationId && (() => {
-                    const loc = locations.find(l => l.id === product.locationId);
-                    return loc ? (
-                      <div className="flex items-center text-sm text-gray-600 mb-2">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        {loc.name}
-                      </div>
-                    ) : null;
-                  })()}
+      {/* Basic Info Section */}
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Product Name *</h3>
+          <BasicInlineEdit
+            value={product.productDetails}
+            onSave={(value) => handleFieldUpdate('productDetails', value)}
+            type="textarea"
+            placeholder="Enter product name"
+            rows={2}
+            maxLength={1000}
+            className="text-lg font-semibold text-gray-900"
+            validation={(value) => {
+              if (!value || value.toString().trim().length === 0) {
+                return 'Product name is required';
+              }
+              return null;
+            }}
+          />
+        </div>
+
+        <div>
+          <h4 className="text-sm font-medium text-gray-700 mb-2">SKU</h4>
+          <BasicInlineEdit
+            value={product.sku || ''}
+            onSave={(value) => handleFieldUpdate('sku', value)}
+            placeholder="Enter SKU"
+            maxLength={100}
+            className="text-sm text-gray-600"
+          />
                 </div>
 
-                {/* Tags and Categories */}
-                <div className="flex flex-wrap gap-2">
-                  {product.category && (
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getCategoryColor(product.category)}`}>
-                      {product.category}
-                    </span>
-                  )}
-                  {product.priority && (
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getPriorityColor(product.priority)}`}>
-                      {product.priority}
-                    </span>
-                  )}
-                  {product.stockLevel !== null && (
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                      Stock: {product.stockLevel}
-                    </span>
-                  )}
-                  {product.unitPrice !== null && formatCurrency(product.unitPrice) && (
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200">
-                      {formatCurrency(product.unitPrice)}
-                    </span>
-                  )}
-                </div>
-
-                {/* Product Tags */}
-                {product.tags && Array.isArray(product.tags) && product.tags.length > 0 && (
                   <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Tags</h4>
-                    <div className="flex flex-wrap gap-1">
-                      {product.tags.map((tag, index) => (
-                        <span
-                          key={index}
-                          className="inline-flex items-center px-2 py-1 rounded text-sm bg-gray-50 text-gray-600 border border-gray-200"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Supplier</h4>
+          <BasicInlineEdit
+            value={product.supplier || ''}
+            onSave={(value) => handleFieldUpdate('supplier', value)}
+            placeholder="Enter supplier name"
+            maxLength={255}
+            className="text-sm text-gray-600"
+          />
                     </div>
+                  </div>
+
+      {/* Categories and Priority */}
+        <div className="space-y-4">
+                <div>
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Category</h4>
+          <BasicInlineEdit
+            value={product.category || ''}
+            onSave={(value) => handleFieldUpdate('category', value)}
+            type="select"
+            options={categoryOptions}
+            placeholder="Select category"
+            displayValue={product.category ? (
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getCategoryColor(product.category)}`}>
+                <TagIcon className="h-4 w-4 mr-1" />
+                {product.category}
+              </span>
+            ) : undefined}
+                  />
+                </div>
+
+                <div>
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Priority</h4>
+          <BasicInlineEdit
+            value={product.priority || ''}
+            onSave={(value) => handleFieldUpdate('priority', value)}
+            type="select"
+            options={priorityOptions}
+            placeholder="Select priority"
+            displayValue={product.priority ? (
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getPriorityColor(product.priority)}`}>
+                {product.priority}
+              </span>
+            ) : undefined}
+          />
+        </div>
+                </div>
+
+      {/* Location (only for receive kanbans) */}
+                {currentKanban?.type === 'receive' && (
+                  <div>
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Location</h4>
+          <BasicInlineEdit
+            value={product.locationId || ''}
+            onSave={(value) => handleFieldUpdate('locationId', value)}
+            type="select"
+            options={locationOptions}
+            placeholder="Select location"
+            displayValue={product.locationId ? (() => {
+              const loc = locations.find(l => l.id === product.locationId);
+              return loc ? (
+                <div className="flex items-center text-sm text-gray-600">
+                  <MapPinIcon className="w-4 h-4 mr-1" />
+                  {loc.name} ({loc.code}) - {loc.area}
+                </div>
+              ) : 'Unknown location';
+            })() : undefined}
+          />
                   </div>
                 )}
 
-                {/* Additional Details */}
-                <div className="space-y-3">
-                  {product.dimensions && (
-                    <div>
-                      <span className="font-medium text-gray-700">Dimensions:</span>
-                      <span className="ml-2 text-gray-600">{product.dimensions}</span>
-                    </div>
-                  )}
-                  {product.weight !== null && (
-                    <div>
-                      <span className="font-medium text-gray-700">Weight:</span>
-                      <span className="ml-2 text-gray-600">{product.weight} kg</span>
-                    </div>
-                  )}
-                  {product.productLink && (
-                    <div>
-                      <span className="font-medium text-gray-700">Product Link:</span>
-                      <a
-                        href={product.productLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ml-2 text-blue-600 hover:text-blue-800 break-all block"
-                      >
-                        {product.productLink}
-                      </a>
-                    </div>
-                  )}
-                  {product.notes && (
-                    <div>
-                      <span className="font-medium text-gray-700">Notes:</span>
-                      <p className="mt-1 text-gray-600 text-sm bg-gray-50 p-3 rounded">{product.notes}</p>
-                    </div>
-                  )}
-                </div>
+      {/* Transfer Destination (only for order kanbans) */}
+      {currentKanban?.type === 'order' && linkedKanbanOptions.length > 0 && (
+                  <div>
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Transfer Destination</h4>
+          <BasicInlineEdit
+            value={product.preferredReceiveKanbanId || ''}
+            onSave={(value) => handleFieldUpdate('preferredReceiveKanbanId', value)}
+            type="select"
+            options={linkedKanbanOptions}
+            placeholder="Use kanban default setting"
+            displayValue={product.preferredReceiveKanbanId ? (() => {
+              const kanban = currentKanban?.linkedKanbans?.find(k => k.id === product.preferredReceiveKanbanId);
+              return kanban ? `${kanban.name}${kanban.locationName ? ` - ${kanban.locationName}` : ''}` : 'Unknown kanban';
+            })() : 'Using kanban default'}
+          />
+                    <p className="mt-1 text-xs text-gray-500">
+                      This product will be transferred to the selected receive kanban when moved to "Purchased"
+                    </p>
+                  </div>
+                )}
 
-                {/* Metadata */}
-                <div className="pt-4 border-t border-gray-200">
-                  <p className="text-xs text-gray-500">
-                    Created: {formatDateWithTime(product.createdAt)}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Updated: {new Date(product.updatedAt).toLocaleDateString()}
-                  </p>
-                </div>
+      {/* Product Details */}
+      <div className="space-y-4">
+        <div>
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Product Link</h4>
+          <BasicInlineEdit
+            value={product.productLink || ''}
+            onSave={(value) => handleFieldUpdate('productLink', value)}
+            placeholder="Enter product URL"
+            displayValue={product.productLink ? (
+              <a
+                href={product.productLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center text-blue-600 hover:text-blue-800 text-sm break-all"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <LinkIcon className="h-4 w-4 mr-1 flex-shrink-0" />
+                {product.productLink}
+              </a>
+            ) : undefined}
+            validation={(value) => {
+              if (value && value.toString().trim()) {
+                try {
+                  new URL(value.toString());
+                  return null;
+                } catch {
+                  return 'Please enter a valid URL';
+                }
+              }
+              return null;
+            }}
+          />
+        </div>
+
+                <div>
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Product Image URL</h4>
+          <BasicInlineEdit
+            value={product.productImage || ''}
+            onSave={(value) => handleFieldUpdate('productImage', value)}
+            placeholder="Enter image URL"
+            displayValue={product.productImage ? (
+              <div className="flex items-center text-sm text-gray-600">
+                <PhotoIcon className="h-4 w-4 mr-1" />
+                Image URL set
               </div>
-      )
-    },
-    {
-      id: 'edit',
-      label: 'Edit',
-      content: (
-        <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Edit Product</h3>
-
-                {/* Form Fields */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Product Details *
-                  </label>
-                  <textarea
-                    name="productDetails"
-                    value={formData.productDetails}
-                    onChange={handleInputChange}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
+            ) : undefined}
+            validation={(value) => {
+              if (value && value.toString().trim()) {
+                try {
+                  new URL(value.toString());
+                  return null;
+                } catch {
+                  return 'Please enter a valid URL';
+                }
+              }
+              return null;
+            }}
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
-                  <input
-                    type="text"
-                    name="supplier"
-                    value={formData.supplier}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                  {locations.length > 0 ? (
-                    <select
-                      name="location"
-                      value={formData.locationId}
-                      onChange={(e) => {
-                        const selectedLocation = locations.find(loc => loc.id === e.target.value);
-                        setFormData(prev => ({
-                          ...prev,
-                          locationId: e.target.value,
-                          location: selectedLocation?.name || '',
-                        }));
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">Select a location</option>
-                      {locations.map(location => (
-                        <option key={location.id} value={location.id}>
-                          {location.name} ({location.code}) - {location.area}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      name="location"
-                      value={formData.location}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Product Link</label>
-                  <input
-                    type="url"
-                    name="productLink"
-                    value={formData.productLink}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                    <select
-                      name="category"
-                      value={formData.category}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">Select Category</option>
-                      {PRODUCT_CATEGORIES.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Weight</h4>
+            <BasicInlineEdit
+              value={product.weight || ''}
+              onSave={(value) => handleFieldUpdate('weight', value)}
+              type="number"
+              placeholder="0.00"
+              displayValue={product.weight ? `${product.weight} ${product.unit || 'kg'}` : undefined}
+              validation={(value) => {
+                if (value && (isNaN(Number(value)) || Number(value) <= 0)) {
+                  return 'Weight must be a positive number';
+                }
+                return null;
+              }}
+            />
                   </div>
+
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-                    <select
-                      name="priority"
-                      value={formData.priority}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">Select Priority</option>
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                      <option value="urgent">Urgent</option>
-                    </select>
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Unit</h4>
+            <BasicInlineEdit
+              value={product.unit || ''}
+              onSave={(value) => handleFieldUpdate('unit', value)}
+              type="select"
+              options={unitOptions}
+              allowCustom={true}
+              customPlaceholder="Enter custom unit"
+              placeholder="Select unit"
+              maxLength={20}
+            />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Stock Level</label>
-                    <input
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Stock Level</h4>
+            <BasicInlineEdit
+              value={product.stockLevel || ''}
+              onSave={(value) => handleFieldUpdate('stockLevel', value)}
                       type="number"
-                      name="stockLevel"
-                      value={formData.stockLevel}
-                      onChange={handleInputChange}
-                      min="0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="0"
+              displayValue={product.stockLevel !== null ? (
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                  <CubeIcon className="h-4 w-4 mr-1" />
+                  Stock: {product.stockLevel}
+                </span>
+              ) : undefined}
+              validation={(value) => {
+                if (value && (isNaN(Number(value)) || Number(value) < 0)) {
+                  return 'Stock level must be a non-negative number';
+                }
+                return null;
+              }}
                     />
                   </div>
+
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit Price</label>
-                    <input
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Unit Price</h4>
+            <BasicInlineEdit
+              value={product.unitPrice || ''}
+              onSave={(value) => handleFieldUpdate('unitPrice', value)}
                       type="number"
-                      name="unitPrice"
-                      value={formData.unitPrice}
-                      onChange={handleInputChange}
-                      step="0.01"
-                      min="0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="0.00"
+              displayValue={product.unitPrice ? (
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200">
+                  <CurrencyDollarIcon className="h-4 w-4 mr-1" />
+                  {formatCurrency(product.unitPrice)}
+                </span>
+              ) : undefined}
+              validation={(value) => {
+                if (value && (isNaN(Number(value)) || Number(value) <= 0)) {
+                  return 'Unit price must be a positive number';
+                }
+                return null;
+              }}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Product Image URL</label>
-                  <input
-                    type="url"
-                    name="productImage"
-                    value={formData.productImage}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Dimensions</h4>
+          <BasicInlineEdit
+            value={product.dimensions || ''}
+            onSave={(value) => handleFieldUpdate('dimensions', value)}
+            placeholder="e.g., 10x20x5 cm"
+            maxLength={255}
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Dimensions</label>
-                    <input
-                      type="text"
-                      name="dimensions"
-                      value={formData.dimensions}
-                      onChange={handleInputChange}
-                      placeholder="e.g., 10x20x5 cm"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Weight (kg)</label>
-                    <input
-                      type="number"
-                      name="weight"
-                      value={formData.weight}
-                      onChange={handleInputChange}
-                      step="0.01"
-                      min="0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
-                  <input
-                    type="text"
-                    name="tags"
-                    value={formData.tags}
-                    onChange={handleInputChange}
-                    placeholder="Separate tags with commas"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                  <textarea
-                    name="notes"
-                    value={formData.notes}
-                    onChange={handleInputChange}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                {/* Update Button */}
-                <div className="pt-4">
-                  <button
-                    onClick={handleUpdate}
-                    disabled={isUpdating}
-                    className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Tags</h4>
+          <BasicInlineEdit
+            value={Array.isArray(product.tags) ? product.tags.join(', ') : ''}
+            onSave={(value) => {
+              const tags = value.toString().split(',').map(tag => tag.trim()).filter(Boolean);
+              return handleFieldUpdate('tags', tags);
+            }}
+            placeholder="Separate tags with commas"
+            displayValue={Array.isArray(product.tags) && product.tags.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {product.tags.map((tag, index) => (
+                  <span
+                    key={index}
+                    className="inline-flex items-center px-2 py-1 rounded text-sm bg-gray-50 text-gray-600 border border-gray-200"
                   >
-                    {isUpdating ? 'Updating...' : 'Update Product'}
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            ) : undefined}
+                    />
+                  </div>
+
+                  <div>
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Notes</h4>
+          <BasicInlineEdit
+            value={product.notes || ''}
+            onSave={(value) => handleFieldUpdate('notes', value)}
+            type="textarea"
+            placeholder="Enter notes..."
+            rows={3}
+            maxLength={1000}
+            displayValue={product.notes ? (
+              <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded whitespace-pre-wrap">
+                {product.notes}
+              </div>
+            ) : undefined}
+                    />
+                  </div>
+                </div>
+
+      {/* Metadata */}
+      <div className="pt-4 border-t border-gray-200">
+        <div className="flex items-center text-xs text-gray-500 mb-1">
+          <CalendarIcon className="h-3 w-3 mr-1" />
+          Created: {formatDateWithTime(product.createdAt)}
+        </div>
+        <div className="flex items-center text-xs text-gray-500">
+          <ClockIcon className="h-3 w-3 mr-1" />
+          Updated: {new Date(product.updatedAt).toLocaleDateString()}
+                  </div>
+                </div>
+
+      {/* Delete Section */}
+      <div className="pt-4 border-t border-gray-200">
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          disabled={isDeleting}
+          className="w-full inline-flex items-center justify-center px-4 py-2 border border-red-300 shadow-sm text-sm font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <TrashIcon className="h-4 w-4 mr-2" />
+          Delete Product
+        </button>
+                </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex justify-center items-center">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center mb-4">
+              <ExclamationTriangleIcon className="h-6 w-6 text-red-600 mr-3" />
+              <h3 className="text-lg font-medium text-gray-900">Delete Product</h3>
+                </div>
+            <p className="text-sm text-gray-500 mb-6">
+              Are you sure you want to delete "{product.productDetails}"? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+                  <button
+                onClick={handleDelete}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
                   </button>
                 </div>
               </div>
-      )
-    },
-    {
-      id: 'delete',
-      label: 'Delete',
-      content: (
-        <div className="space-y-6">
-                <h3 className="text-lg font-medium text-red-900 mb-4">Delete Product</h3>
-
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <h4 className="font-medium text-red-900 mb-2">Warning</h4>
-                  <p className="text-red-700 text-sm">
-                    Deleting this product is a permanent action and cannot be undone. All data associated with this product will be permanently removed.
-                  </p>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900 mb-3">Product to be deleted:</h4>
-                  <div className="space-y-2">
-                    <div>
-                      <span className="text-sm font-medium text-gray-600">Name:</span>
-                      <p className="text-gray-900">{product.productDetails}</p>
-                    </div>
-                    {product.sku && (
-                      <div>
-                        <span className="text-sm font-medium text-gray-600">SKU:</span>
-                        <p className="text-gray-900">{product.sku}</p>
-                      </div>
-                    )}
-                    {product.supplier && (
-                      <div>
-                        <span className="text-sm font-medium text-gray-600">Supplier:</span>
-                        <p className="text-gray-900">{product.supplier}</p>
-                      </div>
-                    )}
-                    {product.category && (
-                      <div>
-                        <span className="text-sm font-medium text-gray-600">Category:</span>
-                        <p className="text-gray-900">{product.category}</p>
                       </div>
                     )}
                   </div>
-                </div>
-
-                <button
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                  className="w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors disabled:bg-red-400 disabled:cursor-not-allowed"
-                >
-                  {isDeleting ? 'Deleting...' : 'Delete Product Permanently'}
-                </button>
-              </div>
-      )
-    }
-  ];
+  );
 
   if (isMobile) {
     return (
       <BottomSheet isOpen={isOpen} onClose={onClose} title="Product Details" heightClassName="h-[85%]">
-        <SliderTabs
-          tabs={tabs}
-          activeTab={activeTab}
-          onTabChange={(tabId) => setActiveTab(tabId as TabType)}
-        />
+        {content}
       </BottomSheet>
     );
   }
 
   return (
     <Slider isOpen={isOpen} onClose={onClose} title="Product Details">
-      <SliderTabs
-        tabs={tabs}
-        activeTab={activeTab}
-        onTabChange={(tabId) => setActiveTab(tabId as TabType)}
-      />
+      {content}
     </Slider>
   );
 }

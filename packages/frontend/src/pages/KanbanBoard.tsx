@@ -49,6 +49,7 @@ export default function KanbanBoard() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isSettingsLoading, setIsSettingsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showDesktopFilters, setShowDesktopFilters] = useState(false);
@@ -126,6 +127,24 @@ export default function KanbanBoard() {
   useEffect(() => {
     fetchLocations();
   }, [fetchLocations]);
+
+  // Enhanced settings handler to ensure fresh data
+  const handleOpenSettings = async () => {
+    if (!id || isSettingsLoading) return;
+    
+    setIsSettingsLoading(true);
+    try {
+      // Pre-fetch fresh kanban data with linkedKanbans before opening modal
+      await fetchKanbanById(id);
+      // Small delay to ensure state is updated before opening modal
+      await new Promise(resolve => setTimeout(resolve, 100));
+      setIsSettingsModalOpen(true);
+    } catch (error: any) {
+      toast.error('Failed to load kanban data: ' + (error?.message || 'Unknown error'));
+    } finally {
+      setIsSettingsLoading(false);
+    }
+  };
 
   const getColumns = () => {
     if (!currentKanban) return [];
@@ -273,15 +292,27 @@ export default function KanbanBoard() {
         return;
       }
 
-      // Find the product and show transfer confirmation slider
+      // Find the product
       const product = currentKanban.products.find(p => p.id === productId);
       if (product) {
-        // First move to Purchased column
         try {
-          await moveProduct(productId, newColumn);
-          // Then show transfer slider
-          setProductToTransfer(product);
-          setShowTransferSlider(true);
+          // Move to Purchased column - backend will handle automatic transfer if configured
+          const response = await moveProduct(productId, newColumn);
+          
+          // Check if automatic transfer occurred
+          if (response?.transferInfo?.wasAutoTransferred) {
+            const { targetKanbanName, transferSource } = response.transferInfo;
+            const sourceText = transferSource === 'product-preference' ? 'product preference' : 'kanban default setting';
+            
+            toast.success(
+              `Product moved to Purchased and automatically transferred to "${targetKanbanName}" based on ${sourceText}.`,
+              { duration: 6000 }
+            );
+          } else {
+            // No automatic transfer - show manual selection slider
+            setProductToTransfer(product);
+            setShowTransferSlider(true);
+          }
         } catch (error: any) {
           toast.error('Failed to move product: ' + (error?.response?.data?.error?.message || error?.message));
         }
@@ -573,37 +604,46 @@ export default function KanbanBoard() {
                 </div>
 
                 {/* Status Badges and Stats */}
-                <div className="flex flex-wrap items-center gap-2 mb-3">
-                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                    currentKanban.type === 'order'
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-green-100 text-green-800'
-                  }`}>
-                    {currentKanban.type === 'order' ? 'Order Kanban' : 'Receive Kanban'}
-                  </span>
-                  
-                  {currentKanban.linkedKanbanId && (
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
-                      Linked Board
+                <div className="mb-3 space-y-2 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+                  <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:items-center">
+                    <span
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                        currentKanban.type === 'order'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}
+                    >
+                      {currentKanban.type === 'order' ? 'Order Kanban' : 'Receive Kanban'}
                     </span>
-                  )}
 
-                  {/* Product Count */}
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
-                    {getProductCount()} {getProductCount() === 1 ? 'item' : 'items'}
-                  </span>
+                    {currentKanban.type === 'order' &&
+                      currentKanban.linkedKanbans &&
+                      currentKanban.linkedKanbans.length > 0 && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                          {currentKanban.linkedKanbans.length} Linked Board
+                          {currentKanban.linkedKanbans.length > 1 ? 's' : ''}
+                        </span>
+                      )}
+
+                    {/* Product Count */}
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
+                      {getProductCount()} {getProductCount() === 1 ? 'item' : 'items'}
+                    </span>
+                  </div>
 
                   {/* Column Stats */}
-                  <div className="hidden md:flex items-center space-x-3 text-sm text-gray-600">
-                    {getColumns().map((column) => {
-                      const count = getProductsByColumn(column).length;
-                      return (
-                        <span key={column} className="flex items-center">
-                          <span className="w-2 h-2 rounded-full bg-gray-400 mr-1"></span>
-                          {column}: {count}
-                        </span>
-                      );
-                    })}
+                  <div className="w-full sm:w-auto">
+                    <div className="flex items-center gap-3 overflow-x-auto text-sm text-gray-600 md:gap-4 md:overflow-visible">
+                      {getColumns().map((column) => {
+                        const count = getProductsByColumn(column).length;
+                        return (
+                          <span key={column} className="flex flex-shrink-0 items-center whitespace-nowrap">
+                            <span className="mr-1 h-2 w-2 rounded-full bg-gray-400"></span>
+                            {column}: {count}
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
@@ -678,10 +718,18 @@ export default function KanbanBoard() {
                   </button>
                   <KeyboardShortcutsHelp shortcuts={shortcuts} />
                   <button
-                    className="btn-secondary px-4 py-2 text-sm"
-                    onClick={() => setIsSettingsModalOpen(true)}
+                    className="btn-secondary px-4 py-2 text-sm flex items-center"
+                    onClick={handleOpenSettings}
+                    disabled={isSettingsLoading}
                   >
-                    Settings
+                    {isSettingsLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                        Loading...
+                      </>
+                    ) : (
+                      'Settings'
+                    )}
                   </button>
                   <button
                     className="btn-primary px-4 py-2 text-sm flex items-center"
@@ -869,7 +917,7 @@ export default function KanbanBoard() {
 
         {/* Render Board or Compact View */}
         {kanbanBoardViewMode === 'board' ? (
-          <div className="flex space-x-3 md:space-x-4 overflow-x-auto pb-4 lg:overflow-visible snap-x snap-mandatory">
+          <div className="flex flex-col space-y-4 lg:flex-row lg:space-y-0 lg:space-x-4 pb-4">
             {getColumns().map((column) => (
               <KanbanColumn
                 key={column}

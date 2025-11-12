@@ -166,7 +166,7 @@ router.put('/:id', async (req, res, next) => {
       throw createError('Invalid kanban data: ' + validationResult.error.message, 400);
     }
 
-    const { name, linkedKanbanId, description, thresholdRules, formFieldSettings, locationId } = validationResult.data;
+    const { name, linkedKanbanId, defaultLinkedKanbanId, description, thresholdRules, formFieldSettings, locationId } = validationResult.data;
 
     // Check if kanban exists and get its type for validation
     const [existingKanban] = await db
@@ -197,9 +197,49 @@ router.put('/:id', async (req, res, next) => {
       }
     }
 
+    // Validate defaultLinkedKanbanId if provided
+    if (defaultLinkedKanbanId !== undefined && defaultLinkedKanbanId !== null) {
+      // Only order kanbans can have default linked kanbans
+      if (existingKanban.type !== 'order') {
+        throw createError('Default linked kanban is only available for Order kanbans', 400);
+      }
+
+      // Verify the default linked kanban exists and is a receive kanban
+      const [defaultKanban] = await db
+        .select({ type: kanbans.type })
+        .from(kanbans)
+        .where(eq(kanbans.id, defaultLinkedKanbanId))
+        .limit(1);
+
+      if (!defaultKanban) {
+        throw createError('Default linked kanban not found', 400);
+      }
+
+      if (defaultKanban.type !== 'receive') {
+        throw createError('Default linked kanban must be a receive kanban', 400);
+      }
+
+      // Verify the default kanban is among the linked kanbans
+      const [linkExists] = await db
+        .select()
+        .from(kanbanLinks)
+        .where(
+          and(
+            eq(kanbanLinks.orderKanbanId, id),
+            eq(kanbanLinks.receiveKanbanId, defaultLinkedKanbanId)
+          )
+        )
+        .limit(1);
+
+      if (!linkExists) {
+        throw createError('Default linked kanban must be among the linked receive kanbans', 400);
+      }
+    }
+
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
     if (linkedKanbanId !== undefined) updateData.linkedKanbanId = linkedKanbanId;
+    if (defaultLinkedKanbanId !== undefined) updateData.defaultLinkedKanbanId = defaultLinkedKanbanId;
     if (locationId !== undefined) updateData.locationId = locationId;
     if (description !== undefined) {
       updateData.description = typeof description === 'string' && description.trim().length > 0 ? description.trim() : null;

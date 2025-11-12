@@ -222,6 +222,7 @@ router.post('/form/:token', async (req, res, next) => {
       notes: finalNotes,
       stockLevel: parseInt(String(quantity)),
       importSource: 'public-form',
+      isDraft: true, // Public forms always create draft products in Order kanbans
     };
 
     const [createdProduct] = await db

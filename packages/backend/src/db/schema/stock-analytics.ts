@@ -110,3 +110,4 @@ export type StockSnapshot = typeof stockSnapshots.$inferSelect;
 export type NewStockSnapshot = typeof stockSnapshots.$inferInsert;
 export type StockAlert = typeof stockAlerts.$inferSelect;
 export type NewStockAlert = typeof stockAlerts.$inferInsert;
+

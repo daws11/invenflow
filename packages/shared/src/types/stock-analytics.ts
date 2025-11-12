@@ -258,3 +258,4 @@ export type StockAlertConfig = z.infer<typeof StockAlertConfigSchema>;
 export type CreateStockAlertConfig = z.infer<typeof CreateStockAlertConfigSchema>;
 export type EnhancedMovementLog = z.infer<typeof EnhancedMovementLogSchema>;
 export type CreateEnhancedMovementLog = z.infer<typeof CreateEnhancedMovementLogSchema>;
+

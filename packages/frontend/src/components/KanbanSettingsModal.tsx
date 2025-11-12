@@ -43,9 +43,11 @@ export function KanbanSettingsModal({
   productCount = 0,
 }: KanbanSettingsModalProps) {
   const toast = useToast();
-  const { togglePublicForm, currentKanban } = useKanbanStore();
+  const { togglePublicForm, currentKanban, fetchKanbanById, loading } = useKanbanStore();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDataSyncing, setIsDataSyncing] = useState(false);
+  const [dataSyncError, setDataSyncError] = useState<string | null>(null);
   
   // Edit form state
   const [editName, setEditName] = useState('');
@@ -71,6 +73,32 @@ export function KanbanSettingsModal({
   // Receive kanban default location
   const [locations, setLocations] = useState<Array<{ id: string; name: string; area?: string; code?: string }>>([]);
   const [editLocationId, setEditLocationId] = useState<string | null>(kanban?.locationId ?? null);
+
+  // Reset sync states when modal opens - data is already fresh from parent
+  useEffect(() => {
+    if (isOpen) {
+      setIsDataSyncing(false);
+      setDataSyncError(null);
+    }
+  }, [isOpen]);
+
+  // Retry data sync function
+  const retryDataSync = async () => {
+    if (!kanban?.id) return;
+    
+    setIsDataSyncing(true);
+    setDataSyncError(null);
+    try {
+      await fetchKanbanById(kanban.id);
+      toast.success('Data refreshed successfully');
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Unknown error';
+      setDataSyncError(errorMessage);
+      toast.error('Failed to refresh data: ' + errorMessage);
+    } finally {
+      setIsDataSyncing(false);
+    }
+  };
 
   // Initialize edit form when kanban changes
   useEffect(() => {
@@ -223,8 +251,11 @@ export function KanbanSettingsModal({
     }
   };
 
-  // Get linked info from currentKanban if available
-  const activeKanban = currentKanban?.id === kanban.id ? currentKanban : kanban;
+  // Get linked info from currentKanban if available and has linkedKanbans data
+  // Prioritize currentKanban from store if it matches and has complete data
+  const activeKanban = (currentKanban?.id === kanban.id && currentKanban.linkedKanbans !== undefined) 
+    ? currentKanban 
+    : kanban;
   const linkedKanbans = (activeKanban as any)?.linkedKanbans as LinkedReceiveKanban[] || [];
 
   // Tab Contents
@@ -326,12 +357,18 @@ export function KanbanSettingsModal({
           <LinkIcon className="w-5 h-5 text-gray-400 mr-3" />
           <div className="flex-1">
             <p className="text-sm font-medium text-gray-900">
-              {kanban.linkedKanbanId ? 'Manage Board Link' : 'Link Board'}
+              {kanban.type === 'order' 
+                ? (linkedKanbans.length > 0 ? 'Manage Board Links' : 'Link Boards')
+                : (kanban.locationId ? 'Manage Location' : 'Set Location')
+              }
             </p>
             <p className="text-xs text-gray-500">
-              {kanban.linkedKanbanId
-                ? 'View or modify board linking'
-                : 'Connect this board to another'}
+              {kanban.type === 'order'
+                ? (linkedKanbans.length > 0 
+                    ? `Manage ${linkedKanbans.length} linked receive kanban${linkedKanbans.length > 1 ? 's' : ''}`
+                    : 'Connect this order board to receive kanbans')
+                : 'Configure default location for received products'
+              }
             </p>
           </div>
         </button>
@@ -724,11 +761,33 @@ export function KanbanSettingsModal({
         title="Kanban Settings"
         size="large"
       >
-        <SliderTabs
-          tabs={tabs}
-          activeTab={activeTab}
-          onTabChange={(tabId) => setActiveTab(tabId as TabType)}
-        />
+        <div className="relative">
+          {dataSyncError && (
+            <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
+              <div className="text-center">
+                <div className="text-red-600 mb-4">
+                  <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-sm font-medium">Failed to load data</p>
+                  <p className="text-xs text-gray-600 mt-1">{dataSyncError}</p>
+                </div>
+                <button
+                  onClick={retryDataSync}
+                  disabled={isDataSyncing}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm disabled:opacity-50"
+                >
+                  {isDataSyncing ? 'Retrying...' : 'Retry'}
+                </button>
+              </div>
+            </div>
+          )}
+          <SliderTabs
+            tabs={tabs}
+            activeTab={activeTab}
+            onTabChange={(tabId) => setActiveTab(tabId as TabType)}
+          />
+        </div>
       </Slider>
 
       {/* Delete Modal (stays as modal) */}

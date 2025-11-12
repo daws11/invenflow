@@ -9,6 +9,7 @@ export const ProductSchema = z.object({
   productLink: z.string().url().nullable(),
   locationId: z.string().uuid().nullable(),
   assignedToPersonId: z.string().uuid().nullable(),
+  preferredReceiveKanbanId: z.string().uuid().nullable(), // Per-product preferred receive kanban
   priority: z.string().max(100).nullable(),
   stockLevel: z.number().int().min(0).nullable(),
   sourceProductId: z.string().uuid().nullable(),
@@ -20,12 +21,14 @@ export const ProductSchema = z.object({
   sku: z.string().max(100).nullable(),
   dimensions: z.string().max(255).nullable(),
   weight: z.number().positive().nullable(),
+  unit: z.string().max(20).nullable(),
   unitPrice: z.number().positive().nullable(),
   notes: z.string().max(1000).nullable(),
   // Import metadata
   importSource: z.string().nullable(),
   importBatchId: z.string().uuid().nullable(),
   originalPurchaseDate: z.date().nullable(),
+  isDraft: z.boolean(),
   columnEnteredAt: z.date(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -38,6 +41,7 @@ export const CreateProductSchema = z.object({
   productLink: z.string().url().nullable(),
   locationId: z.string().uuid().nullable(),
   assignedToPersonId: z.string().uuid().nullable(),
+  preferredReceiveKanbanId: z.string().uuid().nullable().optional(), // Per-product preferred receive kanban
   priority: z.string().max(100).nullable(),
   // Enhanced fields
   productImage: z.string().url().nullable(),
@@ -47,12 +51,14 @@ export const CreateProductSchema = z.object({
   sku: z.string().max(100).nullable(),
   dimensions: z.string().max(255).nullable(),
   weight: z.number().positive().nullable(),
+  unit: z.string().max(20).nullable(),
   unitPrice: z.number().positive().nullable(),
   notes: z.string().max(1000).nullable(),
   // Import metadata
   importSource: z.string().nullable().optional(),
   importBatchId: z.string().uuid().nullable().optional(),
   originalPurchaseDate: z.date().nullable().optional(),
+  isDraft: z.boolean().optional(),
   columnEnteredAt: z.date().optional(),
 });
 
@@ -61,6 +67,7 @@ export const UpdateProductSchema = z.object({
   productLink: z.string().url().nullable().optional(),
   locationId: z.string().uuid().nullable().optional(),
   assignedToPersonId: z.string().uuid().nullable().optional(),
+  preferredReceiveKanbanId: z.string().uuid().nullable().optional(), // Per-product preferred receive kanban
   priority: z.string().max(100).nullable().optional(),
   stockLevel: z.number().int().min(0).nullable().optional(),
   // Enhanced fields
@@ -71,12 +78,14 @@ export const UpdateProductSchema = z.object({
   sku: z.string().max(100).nullable().optional(),
   dimensions: z.string().max(255).nullable().optional(),
   weight: z.number().positive().nullable().optional(),
+  unit: z.string().max(20).nullable().optional(),
   unitPrice: z.number().positive().nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
   // Import metadata
   importSource: z.string().nullable().optional(),
   importBatchId: z.string().uuid().nullable().optional(),
   originalPurchaseDate: z.date().nullable().optional(),
+  isDraft: z.boolean().optional(),
 });
 
 export const MoveProductSchema = z.object({
@@ -138,6 +147,20 @@ export const COMMON_TAGS = [
   'popular'
 ] as const;
 
+export const DEFAULT_UNITS = [
+  'pcs',
+  'kg',
+  'g',
+  'liters',
+  'ml',
+  'meters',
+  'cm',
+  'boxes',
+  'sets',
+  'Custom'
+] as const;
+export type Unit = typeof DEFAULT_UNITS[number];
+
 export function getValidColumns(kanbanType: KanbanType): readonly string[] {
   return kanbanType === 'order' ? ORDER_COLUMNS : RECEIVE_COLUMNS;
 }
@@ -159,6 +182,7 @@ export const ImportAdjustmentItemSchema = z.object({
   supplier: z.string().min(1).max(255),
   category: z.string().min(1).max(100),
   dimensions: z.string().max(255).optional(),
+  unit: z.string().max(20).optional(),
   newStockLevel: z.number().int().min(0),
   locationId: z.string().uuid().optional(),
   locationCode: z.string().max(50).optional(),

@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { Product, CreateProduct, UpdateProduct, DEFAULT_CATEGORIES, DEFAULT_PRIORITIES } from '@invenflow/shared';
+import { useState, useEffect } from 'react';
+import { Product, CreateProduct, UpdateProduct, DEFAULT_CATEGORIES, DEFAULT_PRIORITIES, DEFAULT_UNITS } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
-import CompactLocationSelector from './LocationSelector';
+import { useLocationStore } from '../store/locationStore';
 
 interface ProductFormProps {
   kanbanId: string;
@@ -11,12 +11,14 @@ interface ProductFormProps {
 }
 
 export default function ProductForm({ kanbanId, initialColumn, product, onClose }: ProductFormProps) {
-  const { createProduct, updateProduct } = useKanbanStore();
+  const { createProduct, updateProduct, currentKanban } = useKanbanStore();
+  const { locations, fetchLocations } = useLocationStore();
   const [formData, setFormData] = useState({
     productDetails: product?.productDetails || '',
     productLink: product?.productLink || '',
     location: '',
     locationId: product?.locationId || null,
+    preferredReceiveKanbanId: product?.preferredReceiveKanbanId || '',
     priority: product?.priority || '',
     stockLevel: product?.stockLevel?.toString() || '',
     // Enhanced fields
@@ -27,12 +29,17 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
     sku: product?.sku || '',
     dimensions: product?.dimensions || '',
     weight: product?.weight?.toString() || '',
+    unit: product?.unit || '',
     unitPrice: product?.unitPrice?.toString() || '',
     notes: product?.notes || '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetchLocations();
+  }, [fetchLocations]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -89,7 +96,8 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
         const updateData: UpdateProduct = {
           productDetails: formData.productDetails,
           productLink: formData.productLink || null,
-          locationId: formData.locationId,
+          locationId: currentKanban?.type === 'receive' ? formData.locationId : null, // Only set location for receive kanbans
+          preferredReceiveKanbanId: currentKanban?.type === 'order' ? (formData.preferredReceiveKanbanId || null) : undefined,
           priority: formData.priority || null,
           // Enhanced fields
           productImage: formData.productImage || null,
@@ -99,6 +107,7 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
           sku: formData.sku || null,
           dimensions: formData.dimensions || null,
           weight: formData.weight ? parseFloat(formData.weight) : null,
+          unit: formData.unit || null,
           unitPrice: formData.unitPrice ? parseFloat(formData.unitPrice) : null,
           notes: formData.notes || null,
         };
@@ -116,8 +125,9 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
           columnStatus: initialColumn,
           productDetails: formData.productDetails,
           productLink: formData.productLink || null,
-          locationId: formData.locationId,
+          locationId: currentKanban?.type === 'receive' ? formData.locationId : null, // Only set location for receive kanbans
           assignedToPersonId: null,
+          preferredReceiveKanbanId: currentKanban?.type === 'order' ? (formData.preferredReceiveKanbanId || undefined) : undefined,
           priority: formData.priority || null,
           // Enhanced fields
           productImage: formData.productImage || null,
@@ -127,6 +137,7 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
           sku: formData.sku || null,
           dimensions: formData.dimensions || null,
           weight: formData.weight ? parseFloat(formData.weight) : null,
+          unit: formData.unit || null,
           unitPrice: formData.unitPrice ? parseFloat(formData.unitPrice) : null,
           notes: formData.notes || null,
         };
@@ -290,7 +301,7 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">Weight (kg)</label>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">Weight</label>
                     <input
                       type="number"
                       step="0.01"
@@ -303,6 +314,38 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
                     {errors.weight && (
                       <p className="mt-1 text-sm text-red-600">{errors.weight}</p>
                     )}
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">Unit</label>
+                    <div className="flex gap-2">
+                      <select
+                        className="flex-1 rounded-lg border border-gray-300 p-3 shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
+                        value={formData.unit === 'Custom' || !DEFAULT_UNITS.includes(formData.unit as any) ? 'Custom' : formData.unit}
+                        onChange={(e) => {
+                          if (e.target.value === 'Custom') {
+                            setFormData({ ...formData, unit: '' });
+                          } else {
+                            setFormData({ ...formData, unit: e.target.value });
+                          }
+                        }}
+                      >
+                        <option value="">Select unit...</option>
+                        {DEFAULT_UNITS.filter(unit => unit !== 'Custom').map((unit) => (
+                          <option key={unit} value={unit}>{unit}</option>
+                        ))}
+                        <option value="Custom">Custom</option>
+                      </select>
+                      {(formData.unit === 'Custom' || !DEFAULT_UNITS.includes(formData.unit as any)) && formData.unit !== '' && (
+                        <input
+                          type="text"
+                          className="w-24 rounded-lg border border-gray-300 p-3 shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
+                          placeholder="Custom unit"
+                          value={formData.unit}
+                          onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                        />
+                      )}
+                    </div>
                   </div>
 
                   <div>
@@ -328,14 +371,47 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
                 <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Status & Priority</h4>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">Location</label>
-                    <CompactLocationSelector
-                      value={formData.locationId}
-                      onChange={(locationId) => setFormData({ ...formData, locationId })}
-                      placeholder="Select a location..."
-                    />
-                  </div>
+                  {/* Location dropdown only for receive kanbans */}
+                  {currentKanban?.type === 'receive' && (
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-gray-700">Location</label>
+                      <select
+                        className="w-full rounded-lg border border-gray-300 p-3 shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
+                        value={formData.locationId || ''}
+                        onChange={(e) => setFormData({ ...formData, locationId: e.target.value || null })}
+                      >
+                        <option value="">Select a location...</option>
+                        {locations.map(location => (
+                          <option key={location.id} value={location.id}>
+                            {location.name} ({location.code}) - {location.area}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Preferred receive kanban dropdown only for order kanbans */}
+                  {currentKanban?.type === 'order' && currentKanban.linkedKanbans && currentKanban.linkedKanbans.length > 0 && (
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-gray-700">Preferred Transfer Destination</label>
+                      <select
+                        className="w-full rounded-lg border border-gray-300 p-3 shadow-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
+                        value={formData.preferredReceiveKanbanId || ''}
+                        onChange={(e) => setFormData({ ...formData, preferredReceiveKanbanId: e.target.value || '' })}
+                      >
+                        <option value="">Use kanban default setting</option>
+                        {currentKanban.linkedKanbans.map((link) => (
+                          <option key={link.id} value={link.id}>
+                            {link.name}
+                            {link.locationName && ` - ${link.locationName}`}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        This product will be transferred to the selected receive kanban when moved to "Purchased"
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <label className="mb-1 block text-sm font-medium text-gray-700">Priority</label>
                     <select

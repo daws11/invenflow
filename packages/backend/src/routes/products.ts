@@ -96,6 +96,17 @@ router.post('/', async (req, res, next) => {
       throw createError('Missing required fields', 400);
     }
 
+    // Get kanban info to determine if product should be draft
+    const [kanban] = await db
+      .select({ type: kanbans.type })
+      .from(kanbans)
+      .where(eq(kanbans.id, kanbanId))
+      .limit(1);
+
+    if (!kanban) {
+      throw createError('Kanban not found', 404);
+    }
+
     // Validate locationId if provided
     if (locationId) {
       const [locationExists] = await db
@@ -121,13 +132,21 @@ router.post('/', async (req, res, next) => {
             dimensions: (typeof dimensions === 'string' && dimensions) ? dimensions : undefined,
           }));
 
+    // Determine if product should be draft
+    const isDraft = kanban.type === 'order' && ['New Request', 'In Review'].includes(columnStatus);
+
+    // For order kanbans, don't set locationId - products should only have preferred receive kanban
+    // For receive kanbans, locationId is required
+    const finalLocationId = kanban.type === 'receive' ? (locationId ?? null) : null;
+
     const newProduct: NewProduct = {
       kanbanId,
       columnStatus,
       productDetails,
       productLink: productLink ?? null,
-      locationId: locationId ?? null,
+      locationId: finalLocationId,
       assignedToPersonId: assignedToPersonId ?? null,
+      preferredReceiveKanbanId: req.body.preferredReceiveKanbanId ?? null,
       priority: priority ?? null,
       stockLevel: null,
       productImage: productImage ?? null,
@@ -140,6 +159,7 @@ router.post('/', async (req, res, next) => {
       unitPrice: coerceDecimal(unitPrice),
       notes: notes ?? null,
       importSource: 'manual',
+      isDraft,
       columnEnteredAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -178,8 +198,10 @@ router.put('/:id', async (req, res, next) => {
       sku,
       dimensions,
       weight,
+      unit,
       unitPrice,
       notes,
+      assignedToPersonId,
     } = req.body;
 
     locationIdInput = req.body?.locationId as string | null | undefined;
@@ -247,8 +269,10 @@ router.put('/:id', async (req, res, next) => {
     }
     if (dimensions !== undefined) updateData.dimensions = dimensions;
     if (weight !== undefined) updateData.weight = coerceDecimal(weight);
+    if (unit !== undefined) updateData.unit = unit;
     if (unitPrice !== undefined) updateData.unitPrice = coerceDecimal(unitPrice);
     if (notes !== undefined) updateData.notes = notes;
+    if (assignedToPersonId !== undefined) updateData.assignedToPersonId = assignedToPersonId;
 
     const [updatedProduct] = await db
       .update(products)
@@ -290,10 +314,12 @@ router.put('/:id/move', async (req, res, next) => {
         productLink: products.productLink,
         locationId: products.locationId,
         assignedToPersonId: products.assignedToPersonId,
+        preferredReceiveKanbanId: products.preferredReceiveKanbanId,
         priority: products.priority,
         stockLevel: products.stockLevel,
         kanbanType: kanbans.type,
         linkedKanbanId: kanbans.linkedKanbanId,
+        defaultLinkedKanbanId: kanbans.defaultLinkedKanbanId,
       })
       .from(products)
       .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
@@ -364,8 +390,73 @@ router.put('/:id/move', async (req, res, next) => {
       updateData.stockLevel = 0; // Initialize stock level
     }
 
-    // NOTE: Automatic transfer removed - now requires explicit confirmation via /transfer endpoint
-    // When order kanban product moves to "Purchased", frontend will show confirmation slider
+    // Handle draft status for Order kanbans
+    if (currentProduct.kanbanType === 'order') {
+      // Product becomes actual when moved to "Purchased", becomes draft when moved back to "New Request" or "In Review"
+      updateData.isDraft = ['New Request', 'In Review'].includes(columnStatus);
+    }
+
+    // Handle automatic transfer for order kanbans moving to "Purchased"
+    let transferInfo = null;
+    if (currentProduct.kanbanType === 'order' && columnStatus === 'Purchased' && !currentProduct.isDraft) {
+      // Determine target kanban based on priority: per-product preference > kanban default
+      let targetKanbanId = currentProduct.preferredReceiveKanbanId || currentProduct.defaultLinkedKanbanId;
+      
+      if (targetKanbanId) {
+        // Verify the target kanban exists and is linked
+        const [targetKanban] = await db
+          .select({
+            id: kanbans.id,
+            name: kanbans.name,
+            type: kanbans.type,
+            locationId: kanbans.locationId,
+          })
+          .from(kanbans)
+          .where(eq(kanbans.id, targetKanbanId))
+          .limit(1);
+
+        if (targetKanban && targetKanban.type === 'receive') {
+          // Verify the link exists
+          const [linkExists] = await db
+            .select()
+            .from(kanbanLinks)
+            .where(
+              and(
+                eq(kanbanLinks.orderKanbanId, currentProduct.kanbanId),
+                eq(kanbanLinks.receiveKanbanId, targetKanbanId)
+              )
+            )
+            .limit(1);
+
+          if (linkExists) {
+            // Perform automatic transfer
+            updateData.kanbanId = targetKanbanId;
+            // Always use target kanban's location for automatic transfers
+            updateData.locationId = targetKanban.locationId;
+            
+            transferInfo = {
+              targetKanbanId,
+              targetKanbanName: targetKanban.name,
+              wasAutoTransferred: true,
+              transferSource: currentProduct.preferredReceiveKanbanId ? 'product-preference' : 'kanban-default'
+            };
+
+            // Create transfer log
+            await db.insert(transferLogs).values({
+              productId: id,
+              fromKanbanId: currentProduct.kanbanId,
+              toKanbanId: targetKanbanId,
+              fromColumn: currentProduct.columnStatus,
+              toColumn: columnStatus,
+              toLocationId: targetKanban.locationId,
+              transferType: 'automatic',
+              notes: `Automatically transferred to receive kanban based on ${transferInfo.transferSource === 'product-preference' ? 'product preference' : 'kanban default setting'}. Location set to target kanban default.`,
+              transferredBy: 'system',
+            });
+          }
+        }
+      }
+    }
 
     const [updatedProduct] = await db
       .update(products)
@@ -389,7 +480,13 @@ router.put('/:id/move', async (req, res, next) => {
       });
     }
 
-    res.json(updatedProduct);
+    // Include transfer info in response for frontend notifications
+    const response = {
+      ...updatedProduct,
+      ...(transferInfo && { transferInfo })
+    };
+
+    res.json(response);
   } catch (error) {
     next(error);
   }
@@ -413,6 +510,7 @@ router.post('/:id/transfer', async (req, res, next) => {
         columnStatus: products.columnStatus,
         productDetails: products.productDetails,
         kanbanType: kanbans.type,
+        isDraft: products.isDraft,
       })
       .from(products)
       .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
@@ -431,6 +529,11 @@ router.post('/:id/transfer', async (req, res, next) => {
     // Verify product is in "Purchased" column
     if (currentProduct.columnStatus !== 'Purchased') {
       throw createError('Product must be in Purchased column to transfer', 400);
+    }
+
+    // Verify product is not a draft
+    if (currentProduct.isDraft) {
+      throw createError('Cannot transfer draft products. Product must be moved to Purchased column first to become an actual product.', 400);
     }
 
     // Get target kanban and verify it's linked and is receive type
@@ -519,6 +622,97 @@ router.delete('/:id', async (req, res, next) => {
     invalidateCache('/api/kanbans');
 
     res.json({ message: 'Product deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Bulk operations
+router.post('/bulk-delete', async (req, res, next) => {
+  try {
+    const { productIds } = req.body;
+
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      throw createError('Product IDs array is required', 400);
+    }
+
+    const deletedProducts = await db
+      .delete(products)
+      .where(eq(products.id, productIds[0])) // This would need to be updated to handle multiple IDs
+      .returning();
+
+    // For now, delete one by one (not optimal, but works)
+    const results = [];
+    for (const id of productIds) {
+      try {
+        const [deleted] = await db
+          .delete(products)
+          .where(eq(products.id, id))
+          .returning();
+        if (deleted) {
+          results.push(deleted);
+        }
+      } catch (err) {
+        console.error(`Failed to delete product ${id}:`, err);
+      }
+    }
+
+    // Invalidate relevant caches
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/kanbans');
+
+    res.json({ 
+      message: `${results.length} products deleted successfully`,
+      deletedCount: results.length,
+      requestedCount: productIds.length
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/bulk-update', async (req, res, next) => {
+  try {
+    const { productIds, updateData } = req.body;
+
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      throw createError('Product IDs array is required', 400);
+    }
+
+    if (!updateData || typeof updateData !== 'object') {
+      throw createError('Update data is required', 400);
+    }
+
+    // Update products one by one (not optimal, but works for now)
+    const results = [];
+    for (const id of productIds) {
+      try {
+        const [updated] = await db
+          .update(products)
+          .set({
+            ...updateData,
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, id))
+          .returning();
+        if (updated) {
+          results.push(updated);
+        }
+      } catch (err) {
+        console.error(`Failed to update product ${id}:`, err);
+      }
+    }
+
+    // Invalidate relevant caches
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/kanbans');
+
+    res.json({ 
+      message: `${results.length} products updated successfully`,
+      updatedProducts: results,
+      updatedCount: results.length,
+      requestedCount: productIds.length
+    });
   } catch (error) {
     next(error);
   }

@@ -19,7 +19,7 @@ export default function KanbanColumn({ id, title, products, onProductView, kanba
   return (
     <div
       ref={setNodeRef}
-      className={`kanban-column transition-all duration-200 sm:flex-1 sm:min-w-0 snap-start w-[85%] sm:w-auto flex-shrink-0 ${
+      className={`kanban-column transition-all duration-200 w-full lg:flex-1 lg:min-w-0 rounded-lg ${
         isOver
           ? 'bg-blue-50 border-2 border-dashed border-blue-300 scale-105'
           : 'bg-gray-100 border-2 border-transparent'
@@ -27,8 +27,8 @@ export default function KanbanColumn({ id, title, products, onProductView, kanba
       role="region"
       aria-label={`Column ${title}`}
     >
-      <div className="kanban-column-header sticky top-[56px] sm:static z-10 bg-gray-100">
-        <div className="flex justify-between items-center px-3 py-2">
+      <div className="kanban-column-header sticky top-[56px] lg:static z-10 bg-gray-100 rounded-t-lg">
+        <div className="flex justify-between items-center px-4 py-3">
           <span className="text-sm font-medium md:text-base">{title}</span>
           <span className={`text-[10px] md:text-xs px-2 py-0.5 rounded-full ${
             isOver
@@ -40,7 +40,7 @@ export default function KanbanColumn({ id, title, products, onProductView, kanba
         </div>
       </div>
 
-      <div className="space-y-2 min-h-[150px]" role="list">
+      <div className="space-y-2 min-h-[150px] p-3" role="list">
         {products.map((product) => (
           <ProductCard
             key={product.id}
@@ -51,10 +51,10 @@ export default function KanbanColumn({ id, title, products, onProductView, kanba
         ))}
 
         {products.length === 0 && (
-          <div className={`text-center py-8 text-sm ${
+          <div className={`text-center py-8 text-sm border-2 border-dashed rounded-lg ${
             isOver
-              ? 'text-blue-600 font-medium'
-              : 'text-gray-400'
+              ? 'text-blue-600 font-medium border-blue-300 bg-blue-50'
+              : 'text-gray-400 border-gray-300'
           }`}>
             {isOver ? 'Drop product here' : 'No products in this column'}
           </div>

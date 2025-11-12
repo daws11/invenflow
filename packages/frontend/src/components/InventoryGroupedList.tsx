@@ -95,9 +95,6 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
                 Product
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                SKU
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Category
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -131,7 +128,7 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
                 Total Stock
               </th>
               <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Available
+                Unit
               </th>
               <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Unit Price
@@ -179,16 +176,14 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
                           />
                         )}
                         <div className={item.productImage ? "ml-4" : ""}>
-                          <div className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">
+                          <div className="text-base font-semibold text-gray-900 hover:text-blue-600 transition-colors">
                             {item.productName}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {item.sku}
                           </div>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                        {item.sku}
-                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {item.category || '-'}
@@ -284,10 +279,8 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <span className={`text-sm font-semibold ${
-                        item.available > 0 ? 'text-green-600' : 'text-gray-400'
-                      }`}>
-                        {item.available}
+                      <span className="text-sm text-gray-900">
+                        {item.unit || '#'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">

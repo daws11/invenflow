@@ -6,6 +6,8 @@ import { InventoryList } from '../components/InventoryList';
 import { InventoryGroupedView } from '../components/InventoryGroupedView';
 import { InventoryGroupedList } from '../components/InventoryGroupedList';
 import { InventoryFilters } from '../components/InventoryFilters';
+import { AdvancedFilters } from '../components/AdvancedFilters';
+import { ColumnManager } from '../components/ColumnManager';
 import { ProductDetailModal } from '../components/ProductDetailModal';
 import { ViewModeDropdown } from '../components/ViewModeDropdown';
 import { StockAdjustmentImportModal } from '../components/StockAdjustmentImportModal';
@@ -53,8 +55,11 @@ export default function InventoryManager() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showColumnManager, setShowColumnManager] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [tableColumns, setTableColumns] = useState<any[]>([]);
 
   useEffect(() => {
     if (displayMode === 'individual') {
@@ -81,6 +86,25 @@ export default function InventoryManager() {
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
+  };
+
+  const handleCreateNew = () => {
+    // TODO: Implement create new product functionality
+    console.log('Create new product');
+  };
+
+  const handleShowColumnManager = () => {
+    setShowColumnManager(true);
+  };
+
+  const handleShowAdvancedFilters = () => {
+    setShowAdvancedFilters(true);
+  };
+
+  const handleExport = (items?: InventoryItem[]) => {
+    const itemsToExport = items || (displayMode === 'individual' ? items : []);
+    console.log('Export items:', itemsToExport?.length || 'all');
+    // TODO: Implement export functionality
   };
 
   
@@ -421,6 +445,10 @@ export default function InventoryManager() {
             items={items}
             loading={loading}
             onProductClick={handleProductClick}
+            onCreateNew={handleCreateNew}
+            onShowFilters={handleShowAdvancedFilters}
+            onShowColumnManager={handleShowColumnManager}
+            onExport={handleExport}
           />
         ) : (
           <InventoryGrid
@@ -522,6 +550,29 @@ export default function InventoryManager() {
           onClose={() => setShowDetailModal(false)}
         />
       )}
+
+      {/* Advanced Filters Modal */}
+      <AdvancedFilters
+        isOpen={showAdvancedFilters}
+        onClose={() => setShowAdvancedFilters(false)}
+        currentFilters={filters}
+        onApplyFilters={setFilters}
+        onClearFilters={clearFilters}
+        availableOptions={{
+          categories: ['Electronics', 'Furniture', 'Office Supplies', 'Raw Materials'], // TODO: Get from API
+          suppliers: ['Supplier A', 'Supplier B', 'Supplier C'], // TODO: Get from API
+          locations: ['Warehouse A', 'Warehouse B', 'Office'], // TODO: Get from API
+          kanbans: [{ id: '1', name: 'Main Kanban' }], // TODO: Get from API
+        }}
+      />
+
+      {/* Column Manager Modal */}
+      <ColumnManager
+        isOpen={showColumnManager}
+        onClose={() => setShowColumnManager(false)}
+        columns={tableColumns}
+        onUpdateColumns={setTableColumns}
+      />
     </div>
   );
 }

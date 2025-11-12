@@ -53,6 +53,7 @@ export const KanbanSchema = z.object({
   type: KanbanTypeSchema,
   description: z.string().max(1000).nullable(),
   linkedKanbanId: z.string().uuid().nullable(), // DEPRECATED: Use linkedKanbans array
+  defaultLinkedKanbanId: z.string().uuid().nullable(), // Default receive kanban for automatic transfers
   locationId: z.string().uuid().nullable(),
   publicFormToken: z.string().nullable(),
   isPublicFormEnabled: z.boolean(),
@@ -85,6 +86,7 @@ export const UpdateKanbanSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().max(1000).optional().nullable(),
   linkedKanbanId: z.string().uuid().nullable().optional(), // DEPRECATED
+  defaultLinkedKanbanId: z.string().uuid().nullable().optional(), // Default receive kanban for automatic transfers
   locationId: z.string().uuid().nullable().optional(),
   isPublicFormEnabled: z.boolean().optional(),
   formFieldSettings: FormFieldSettingsSchema.nullable().optional(),

@@ -121,6 +121,9 @@ router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) 
       pushCondition(inArray(products.columnStatus, ['Received', 'Stored']));
     }
 
+    // Exclude draft products from inventory
+    pushCondition(eq(products.isDraft, false));
+
     if (searchValue) {
       pushCondition(
         or(
@@ -227,6 +230,7 @@ router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) 
         .where(
           and(
             inArray(products.columnStatus, ['Received', 'Stored']),
+            eq(products.isDraft, false),
             isNotNull(products.category)
           )
         )
@@ -243,6 +247,7 @@ router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) 
         .where(
           and(
             inArray(products.columnStatus, ['Received', 'Stored']),
+            eq(products.isDraft, false),
             isNotNull(products.supplier)
           )
         )
@@ -259,6 +264,7 @@ router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) 
         .where(
           and(
             inArray(products.columnStatus, ['Received', 'Stored']),
+            eq(products.isDraft, false),
             isNotNull(products.locationId)
           )
         )
@@ -395,6 +401,8 @@ router.get('/export', authorizeRoles('admin', 'manager'), async (req, res, next)
     } else {
       pushCondition(inArray(products.columnStatus, ['Received', 'Stored']));
     }
+    // Exclude draft products
+    pushCondition(eq(products.isDraft, false));
     // Filters
     if (searchValue) {
       pushCondition(
@@ -447,7 +455,7 @@ router.get('/export', authorizeRoles('admin', 'manager'), async (req, res, next)
 
     if (grouped) {
       // Use raw grouped query similar to /grouped
-      const whereClauses: string[] = ["k.type = 'receive'", "p.sku IS NOT NULL"];
+      const whereClauses: string[] = ["k.type = 'receive'", "p.sku IS NOT NULL", "p.is_draft = false"];
       if (searchValue) {
         const escaped = searchValue.replace(/'/g, "''");
         whereClauses.push(`(p.product_details ILIKE '%${escaped}%' OR p.sku ILIKE '%${escaped}%')`);
@@ -560,7 +568,7 @@ router.get('/stats', async (req, res, next) => {
       })
       .from(products)
       .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
-      .where(eq(kanbans.type, 'receive'));
+      .where(and(eq(kanbans.type, 'receive'), eq(products.isDraft, false)));
 
     const totalsRow = rawTotalStats ?? {
       total: 0,
@@ -577,6 +585,7 @@ router.get('/stats', async (req, res, next) => {
         inner join ${kanbans} on ${products.kanbanId} = ${kanbans.id}
         where ${kanbans.type} = 'receive'
           and ${products.columnStatus} in ('Received', 'Stored')
+          and ${products.isDraft} = false
           and ${products.category} is not null
         group by ${products.category}
         order by count desc
@@ -590,6 +599,7 @@ router.get('/stats', async (req, res, next) => {
         inner join ${kanbans} on ${products.kanbanId} = ${kanbans.id}
         where ${kanbans.type} = 'receive'
           and ${products.columnStatus} in ('Received', 'Stored')
+          and ${products.isDraft} = false
           and ${products.supplier} is not null
         group by ${products.supplier}
         order by count desc
@@ -647,9 +657,10 @@ router.get('/grouped', cacheMiddleware({ ttl: 5 * 60 * 1000 }), async (req, res,
     // Build WHERE conditions manually for raw SQL (to avoid Drizzle ORM conflicts)
     const whereClauses: string[] = [];
     
-    // Base conditions: only receive kanban products with SKU
+    // Base conditions: only receive kanban products with SKU, exclude drafts
     whereClauses.push("k.type = 'receive'");
     whereClauses.push("p.sku IS NOT NULL");
+    whereClauses.push("p.is_draft = false");
 
     // Search filter
     if (searchValue) {
@@ -683,6 +694,7 @@ router.get('/grouped', cacheMiddleware({ ttl: 5 * 60 * 1000 }), async (req, res,
           MAX(p.category) as category,
           MAX(p.supplier) as supplier,
           MAX(p.product_image) as "productImage",
+          MAX(p.unit) as unit,
           COALESCE(SUM(CASE 
             WHEN p.column_status = 'Purchased' 
             THEN COALESCE(p.stock_level, 1) 
@@ -725,6 +737,7 @@ router.get('/grouped', cacheMiddleware({ ttl: 5 * 60 * 1000 }), async (req, res,
       category: row.category,
       supplier: row.supplier,
       productImage: row.productImage,
+      unit: row.unit,
       statusBreakdown: {
         incoming: Number(row.incoming ?? 0),
         received: Number(row.received ?? 0),
@@ -793,7 +806,8 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
         and(
           eq(products.sku, sku),
           eq(kanbans.type, 'receive'),
-          inArray(products.columnStatus, ['Received', 'Stored'])
+          inArray(products.columnStatus, ['Received', 'Stored']),
+          eq(products.isDraft, false)
         )
       )
       .orderBy(desc(products.updatedAt));

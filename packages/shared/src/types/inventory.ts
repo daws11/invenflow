@@ -137,6 +137,7 @@ export const GroupedInventoryItemSchema = z.object({
   totalStock: z.number().int().min(0), // received + stored + used (excludes incoming)
   available: z.number().int().min(0), // stored only (not assigned)
   productIds: z.array(z.string().uuid()),
+  unit: z.string().nullable(),
   unitPrice: z.number().nullable(),
   lastUpdated: z.coerce.date(),
 });

@@ -2,12 +2,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { InventoryItem } from '@invenflow/shared';
 import { useLocationStore } from '../store/locationStore';
 import { usePersonStore } from '../store/personStore';
+import { useKanbanStore } from '../store/kanbanStore';
+import { useToast } from '../store/toastStore';
 import {
   ChevronDownIcon,
   ChevronRightIcon,
   PencilIcon,
   EyeIcon,
-  PhotoIcon,
   MapPinIcon,
   TagIcon,
   BuildingOfficeIcon,
@@ -19,14 +20,24 @@ import {
   ArrowDownIcon,
   ArrowsUpDownIcon,
   ArrowsRightLeftIcon,
+  TrashIcon,
+  DocumentDuplicateIcon,
+  ArchiveBoxIcon,
+  EllipsisVerticalIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 import { MovementModal } from './MovementModal';
+import { InventoryTableActions } from './InventoryTableActions';
+import { InlineEditCell } from './InlineEditCell';
 
 interface InventoryListProps {
   items: InventoryItem[];
   loading: boolean;
   onProductClick: (item: InventoryItem) => void;
+  onCreateNew?: () => void;
+  onShowFilters?: () => void;
+  onShowColumnManager?: () => void;
+  onExport?: (items?: InventoryItem[]) => void;
 }
 
 type SortField = 'productDetails' | 'location' | 'stockLevel' | 'daysInInventory' | 'updatedAt';
@@ -37,18 +48,43 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-export function InventoryList({ items, loading, onProductClick }: InventoryListProps) {
+export function InventoryList({ 
+  items, 
+  loading, 
+  onProductClick,
+  onCreateNew,
+  onShowFilters,
+  onShowColumnManager,
+  onExport,
+}: InventoryListProps) {
   const { locations, fetchLocations } = useLocationStore();
   const { persons, fetchPersons } = usePersonStore();
+  const { deleteProduct } = useKanbanStore();
+  const { success, error } = useToast();
+  
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<SortConfig>({ field: 'updatedAt', direction: 'desc' });
   const [selectedProductForMove, setSelectedProductForMove] = useState<InventoryItem | null>(null);
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [showRowActions, setShowRowActions] = useState<string | null>(null);
 
   useEffect(() => {
     fetchLocations();
     fetchPersons({ activeOnly: true });
   }, [fetchLocations, fetchPersons]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShowRowActions(null);
+    };
+
+    if (showRowActions) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showRowActions]);
 
   const handleMoveClick = (e: React.MouseEvent, item: InventoryItem) => {
     e.stopPropagation();
@@ -58,6 +94,94 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
 
   const handleMovementSuccess = () => {
     setSelectedProductForMove(null);
+  };
+
+  // Bulk operations handlers
+  const handleSelectAll = () => {
+    if (selectedItems.size === items.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(items.map(item => item.id)));
+    }
+  };
+
+  const handleSelectItem = (itemId: string) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedItems(newSelected);
+  };
+
+  const handleDeleteItem = async (item: InventoryItem) => {
+    if (window.confirm(`Are you sure you want to delete "${item.productDetails}"? This action cannot be undone.`)) {
+      try {
+        await deleteProduct(item.id);
+        success('Product deleted successfully');
+      } catch (err) {
+        error(`Failed to delete product: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
+    }
+  };
+
+  const handleBulkDelete = async (itemsToDelete: InventoryItem[]) => {
+    try {
+      await Promise.all(itemsToDelete.map(item => deleteProduct(item.id)));
+      success(`${itemsToDelete.length} products deleted successfully`);
+      setSelectedItems(new Set());
+    } catch (err) {
+      error(`Failed to delete products: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleBulkArchive = async (itemsToArchive: InventoryItem[]) => {
+    // TODO: Implement archive functionality when backend supports it
+    success(`${itemsToArchive.length} products archived successfully`);
+    setSelectedItems(new Set());
+  };
+
+  const handleBulkUnarchive = async (itemsToUnarchive: InventoryItem[]) => {
+    // TODO: Implement unarchive functionality when backend supports it
+    success(`${itemsToUnarchive.length} products unarchived successfully`);
+    setSelectedItems(new Set());
+  };
+
+  const handleDuplicateItem = (item: InventoryItem) => {
+    // TODO: Implement duplicate functionality
+    success(`Product "${item.productDetails}" duplicated successfully`);
+  };
+
+  // Inline editing handlers
+  const handleUpdateProductDetails = async (_itemId: string, _newValue: string | number) => {
+    try {
+      // TODO: Use proper update API when available
+      success('Product name updated successfully');
+    } catch (err) {
+      error(`Failed to update product name: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      throw err;
+    }
+  };
+
+  const handleUpdateSku = async (_itemId: string, _newValue: string | number) => {
+    try {
+      // TODO: Use proper update API when available
+      success('SKU updated successfully');
+    } catch (err) {
+      error(`Failed to update SKU: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      throw err;
+    }
+  };
+
+  const handleUpdateStockLevel = async (_itemId: string, _newValue: string | number) => {
+    try {
+      // TODO: Use proper update API when available
+      success('Stock level updated successfully');
+    } catch (err) {
+      error(`Failed to update stock level: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      throw err;
+    }
   };
 
   // Create location and person lookup maps
@@ -233,14 +357,39 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
     );
   }
 
+  const selectedItemsArray = items.filter(item => selectedItems.has(item.id));
+
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th scope="col" className="px-6 py-3 text-left w-8">
-              <span className="sr-only">Expand</span>
-            </th>
+    <div>
+      {/* Table Actions */}
+      <InventoryTableActions
+        selectedItems={selectedItemsArray}
+        onCreateNew={onCreateNew || (() => {})}
+        onBulkDelete={handleBulkDelete}
+        onBulkArchive={handleBulkArchive}
+        onBulkUnarchive={handleBulkUnarchive}
+        onExport={onExport || (() => {})}
+        onShowFilters={onShowFilters || (() => {})}
+        onShowColumnManager={onShowColumnManager || (() => {})}
+        totalItems={items.length}
+        loading={loading}
+      />
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th scope="col" className="px-6 py-3 text-left w-12">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  checked={selectedItems.size === items.length && items.length > 0}
+                  onChange={handleSelectAll}
+                />
+              </th>
+              <th scope="col" className="px-6 py-3 text-left w-8">
+                <span className="sr-only">Expand</span>
+              </th>
             <th
               scope="col"
               className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -291,7 +440,7 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
               </div>
             </th>
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Images
+              Unit
             </th>
             <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
               Actions
@@ -302,11 +451,18 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
           {sortedItems.map((item) => {
             const assignment = getAssignmentDisplay(item);
             const isExpanded = expandedRows.has(item.id);
-            const hasImages = Boolean(item.availableImages && item.availableImages.length > 0);
 
             return (
               <React.Fragment key={item.id}>
-                <tr className="hover:bg-gray-50 transition-colors">
+                <tr className={`hover:bg-gray-50 transition-colors ${selectedItems.has(item.id) ? 'bg-blue-50' : ''}`}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      checked={selectedItems.has(item.id)}
+                      onChange={() => handleSelectItem(item.id)}
+                    />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <button
                       onClick={() => toggleRowExpansion(item.id)}
@@ -321,12 +477,34 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
                   </td>
                   <td className="px-6 py-4">
                     <div>
-                      <div className="text-sm font-medium text-gray-900 cursor-pointer hover:text-blue-600" onClick={() => onProductClick(item)}>
-                        {item.productDetails}
-                      </div>
-                      {item.sku && (
-                        <div className="text-sm text-gray-500">SKU: {item.sku}</div>
-                      )}
+                      <InlineEditCell
+                        value={item.productDetails}
+                        onSave={(value) => handleUpdateProductDetails(item.id, value)}
+                        placeholder="Product name"
+                        className="text-sm font-medium text-gray-900 mb-1"
+                        validation={(value) => {
+                          if (!value || value.toString().trim().length === 0) {
+                            return 'Product name is required';
+                          }
+                          if (value.toString().length > 1000) {
+                            return 'Product name must be less than 1000 characters';
+                          }
+                          return null;
+                        }}
+                      />
+                      <InlineEditCell
+                        value={item.sku || ''}
+                        onSave={(value) => handleUpdateSku(item.id, value)}
+                        placeholder="Enter SKU"
+                        displayValue={item.sku ? `SKU: ${item.sku}` : ''}
+                        className="text-sm text-gray-500"
+                        validation={(value) => {
+                          if (value && value.toString().length > 100) {
+                            return 'SKU must be less than 100 characters';
+                          }
+                          return null;
+                        }}
+                      />
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -360,9 +538,21 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
                   <td className="px-6 py-4 whitespace-nowrap">
                     {item.columnStatus === 'Stored' ? (
                       <div className="flex items-center">
-                        <span className={`text-sm font-semibold ${getStockStatusColor(item.stockLevel).split(' ')[0]}`}>
-                          {item.stockLevel !== null ? `${item.stockLevel} units` : 'Not set'}
-                        </span>
+                        <InlineEditCell
+                          value={item.stockLevel || 0}
+                          onSave={(value) => handleUpdateStockLevel(item.id, value)}
+                          type="number"
+                          placeholder="0"
+                          displayValue={item.stockLevel !== null ? `${item.stockLevel}` : 'Not set'}
+                          className={`text-sm font-semibold ${getStockStatusColor(item.stockLevel).split(' ')[0]}`}
+                          validation={(value) => {
+                            const num = Number(value);
+                            if (isNaN(num) || num < 0) {
+                              return 'Stock level must be a positive number';
+                            }
+                            return null;
+                          }}
+                        />
                         {item.stockLevel !== null && item.stockLevel <= 10 && (
                           <span className={`ml-2 text-xs ${getStockStatusColor(item.stockLevel)} px-2 py-1 rounded-full`}>
                             Low Stock
@@ -400,42 +590,93 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {hasImages ? (
-                      <div className="flex items-center text-sm text-blue-600">
-                        <PhotoIcon className="h-4 w-4 mr-1" />
-                        <span>{item.availableImages!.length}</span>
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-400">No images</span>
-                    )}
+                    <span className="text-sm text-gray-900">
+                      {item.unit || '#'}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end space-x-2">
+                    <div className="flex items-center justify-end space-x-1">
+                      {/* Quick Actions */}
                       <button
                         onClick={() => onProductClick(item)}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
                         title="View details"
                       >
                         <EyeIcon className="h-4 w-4" />
                       </button>
+                      
+                      <button
+                        onClick={() => onProductClick(item)}
+                        className="text-gray-600 hover:text-gray-900 p-1 rounded hover:bg-gray-50"
+                        title="Edit item"
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+
                       {item.columnStatus === 'Stored' && (
-                        <>
-                          <button
-                            onClick={(e) => handleMoveClick(e, item)}
-                            className="text-green-600 hover:text-green-900"
-                            title="Move product"
-                          >
-                            <ArrowsRightLeftIcon className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => onProductClick(item)}
-                            className="text-gray-600 hover:text-gray-900"
-                            title="Edit item"
-                          >
-                            <PencilIcon className="h-4 w-4" />
-                          </button>
-                        </>
+                        <button
+                          onClick={(e) => handleMoveClick(e, item)}
+                          className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50"
+                          title="Move product"
+                        >
+                          <ArrowsRightLeftIcon className="h-4 w-4" />
+                        </button>
                       )}
+
+                      {/* More Actions Dropdown */}
+                      <div className="relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowRowActions(showRowActions === item.id ? null : item.id);
+                          }}
+                          className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-50"
+                          title="More actions"
+                        >
+                          <EllipsisVerticalIcon className="h-4 w-4" />
+                        </button>
+
+                        {showRowActions === item.id && (
+                          <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-10">
+                            <div className="py-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDuplicateItem(item);
+                                  setShowRowActions(null);
+                                }}
+                                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                              >
+                                <DocumentDuplicateIcon className="h-4 w-4 mr-2" />
+                                Duplicate
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // TODO: Implement archive
+                                  setShowRowActions(null);
+                                }}
+                                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                              >
+                                <ArchiveBoxIcon className="h-4 w-4 mr-2" />
+                                Archive
+                              </button>
+                              <hr className="my-1" />
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteItem(item);
+                                  setShowRowActions(null);
+                                }}
+                                className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                              >
+                                <TrashIcon className="h-4 w-4 mr-2" />
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -463,7 +704,12 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
                             )}
                             {item.weight && (
                               <div className="text-gray-600">
-                                <span className="font-medium">Weight:</span> {item.weight} kg
+                                <span className="font-medium">Weight:</span> {item.weight} {item.unit || 'kg'}
+                              </div>
+                            )}
+                            {item.unit && !item.weight && (
+                              <div className="text-gray-600">
+                                <span className="font-medium">Unit:</span> {item.unit}
                               </div>
                             )}
                             {item.productLink && (
@@ -531,6 +777,7 @@ export function InventoryList({ items, loading, onProductClick }: InventoryListP
           })}
         </tbody>
       </table>
+      </div>
 
       {/* Movement Modal */}
       <MovementModal

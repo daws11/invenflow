@@ -12,6 +12,7 @@ export const kanbans = pgTable(
     type: text('type').notNull(), // 'order' | 'receive'
     description: text('description'),
     linkedKanbanId: uuid('linked_kanban_id'), // DEPRECATED: Use kanban_links table instead
+    defaultLinkedKanbanId: uuid('default_linked_kanban_id'), // Default receive kanban for automatic transfers
     locationId: uuid('location_id').references(() => locations.id, { onDelete: 'set null' }),
     publicFormToken: text('public_form_token').unique(),
     isPublicFormEnabled: boolean('is_public_form_enabled').notNull().default(true),
@@ -30,12 +31,21 @@ export const kanbans = pgTable(
       columns: [table.linkedKanbanId],
       foreignColumns: [table.id],
     }).onDelete('set null'),
+    defaultLinkedKanbanFk: foreignKey({
+      name: 'kanbans_default_linked_kanban_id_fkey',
+      columns: [table.defaultLinkedKanbanId],
+      foreignColumns: [table.id],
+    }).onDelete('set null'),
   })
 );
 
 export const kanbansRelations = relations(kanbans, ({ one, many }) => ({
   linkedKanban: one(kanbans, {
     fields: [kanbans.linkedKanbanId],
+    references: [kanbans.id],
+  }),
+  defaultLinkedKanban: one(kanbans, {
+    fields: [kanbans.defaultLinkedKanbanId],
     references: [kanbans.id],
   }),
   location: one(locations, {

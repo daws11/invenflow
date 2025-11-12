@@ -153,7 +153,11 @@ export default function CompactProductRow({ product, onView, location, kanban }:
       style={combinedStyle}
       className={`compact-product-row group relative transition-all duration-200 ${
         isDragging ? 'opacity-50 cursor-grabbing' : 'cursor-pointer hover:cursor-grab'
-      } ${appliedThreshold ? 'border-l-4' : ''}`}
+      } ${appliedThreshold ? 'border-l-4' : ''} ${
+        product.isDraft
+          ? 'border-dashed border-2 border-gray-300 bg-gray-50/50 opacity-75'
+          : 'border border-gray-200 bg-white'
+      }`}
       {...attributes}
       role="listitem"
       data-dragging={isDragging ? 'true' : 'false'}
@@ -184,6 +188,13 @@ export default function CompactProductRow({ product, onView, location, kanban }:
             )}
           </button>
 
+          {/* Draft Badge */}
+          {product.isDraft && (
+            <div className="flex-shrink-0 bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-0.5 rounded-full border border-yellow-300">
+              DRAFT
+            </div>
+          )}
+
           {/* Threshold Indicator */}
           {appliedThreshold && (
             <div 
@@ -195,7 +206,9 @@ export default function CompactProductRow({ product, onView, location, kanban }:
 
           {/* Product Name */}
           <div className="flex-1 min-w-0">
-            <h4 className="font-medium text-gray-900 truncate">{product.productDetails}</h4>
+            <h4 className={`font-medium truncate ${product.isDraft ? 'text-gray-600 italic' : 'text-gray-900'}`}>
+              {product.productDetails}
+            </h4>
             {timeInColumn && (
               <div className="mt-0.5 text-xs text-gray-500 flex items-center">
                 <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -315,7 +328,14 @@ export default function CompactProductRow({ product, onView, location, kanban }:
             {product.weight !== null && (
               <div>
                 <span className="font-medium text-gray-700">Weight:</span>
-                <span className="ml-2 text-gray-600">{product.weight} kg</span>
+                <span className="ml-2 text-gray-600">{product.weight} {product.unit || 'kg'}</span>
+              </div>
+            )}
+            
+            {product.unit && product.weight === null && (
+              <div>
+                <span className="font-medium text-gray-700">Unit:</span>
+                <span className="ml-2 text-gray-600">{product.unit}</span>
               </div>
             )}
 

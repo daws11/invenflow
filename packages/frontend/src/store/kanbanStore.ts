@@ -22,7 +22,7 @@ interface KanbanState {
 
   createProduct: (data: CreateProduct) => Promise<Product>;
   updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
-  moveProduct: (id: string, columnStatus: string, locationId?: string, skipValidation?: boolean) => Promise<void>;
+  moveProduct: (id: string, columnStatus: string, locationId?: string, skipValidation?: boolean) => Promise<Product | undefined>;
   transferProduct: (id: string, targetKanbanId: string) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
 
@@ -212,10 +212,10 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     
     try {
       // Make API call in background
-      const updatedProduct = await productApi.move(id, columnStatus, locationId, skipValidation);
+      const response = await productApi.move(id, columnStatus, locationId, skipValidation);
       
       // Update with server response
-      if (currentKanban && updatedProduct.kanbanId !== currentKanban.id) {
+      if (currentKanban && response.kanbanId !== currentKanban.id) {
         // Product transferred to another kanban
         set(state => ({
           currentKanban: state.currentKanban
@@ -232,12 +232,15 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
             ? {
                 ...state.currentKanban,
                 products: state.currentKanban.products.map(p =>
-                  p.id === id ? updatedProduct : p
+                  p.id === id ? response : p
                 )
               }
             : null
         }));
       }
+      
+      // Return the response so caller can access transferInfo
+      return response;
     } catch (error) {
       // ROLLBACK: Revert to previous state on error
       set(state => ({

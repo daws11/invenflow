@@ -5,6 +5,8 @@ import TransferHistoryViewer from './TransferHistoryViewer';
 import { getAppliedThreshold, calculateTimeInColumn, formatTimeDuration, formatThresholdRule } from '../utils/thresholdCalculator';
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 import { useLocationStore } from '../store/locationStore';
+import { useKanbanStore } from '../store/kanbanStore';
+import { useToast } from '../store/toastStore';
 
 interface ProductCardProps {
   product: Product;
@@ -20,7 +22,11 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [clickStartTime, setClickStartTime] = useState<number | null>(null);
   const [isDragIntent, setIsDragIntent] = useState(false);
+  const [preferredKanbanId, setPreferredKanbanId] = useState(product.preferredReceiveKanbanId || '');
+  const [isSavingPreference, setIsSavingPreference] = useState(false);
   const { locations } = useLocationStore();
+  const { updateProduct } = useKanbanStore();
+  const toast = useToast();
 
   const resolvedLocation: Location | null = useMemo(() => {
     if (location) return location;
@@ -36,6 +42,11 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
 
     return () => clearInterval(interval);
   }, []);
+
+  // Sync preferred kanban ID when product changes
+  useEffect(() => {
+    setPreferredKanbanId(product.preferredReceiveKanbanId || '');
+  }, [product.preferredReceiveKanbanId]);
 
   // Calculate applied threshold rule
   const appliedThreshold = useMemo(() => {
@@ -113,6 +124,27 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
     listeners?.onKeyDown?.(event);
   };
 
+  const handleSavePreferredKanban = async () => {
+    if (preferredKanbanId === (product.preferredReceiveKanbanId || '')) {
+      return; // No change
+    }
+
+    setIsSavingPreference(true);
+    try {
+      await updateProduct(product.id, {
+        preferredReceiveKanbanId: preferredKanbanId || undefined,
+      });
+      toast.success('Preferred receive kanban updated successfully');
+    } catch (error) {
+      console.error('Failed to update preferred kanban:', error);
+      toast.error('Failed to update preferred kanban');
+      // Revert on error
+      setPreferredKanbanId(product.preferredReceiveKanbanId || '');
+    } finally {
+      setIsSavingPreference(false);
+    }
+  };
+
   // Apply threshold styling
   const thresholdStyle = appliedThreshold ? {
     borderLeft: `4px solid ${appliedThreshold.color}`,
@@ -184,6 +216,10 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
         isDragging
           ? 'shadow-2xl scale-105 opacity-95 border-blue-400 cursor-grabbing'
           : 'hover:shadow-lg cursor-pointer hover:cursor-grab'
+      } ${
+        product.isDraft
+          ? 'border-dashed border-2 border-gray-300 bg-gray-50/50 opacity-75 pt-8'
+          : 'border border-gray-200 bg-white'
       }`}
       {...attributes}
       data-dragging={isDragging ? 'true' : 'false'}
@@ -194,10 +230,19 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
       onKeyDown={handleKeyDown}
       title={appliedThreshold ? `In column for ${timeInColumn} - ${formatThresholdRule(appliedThreshold)}` : undefined}
     >
+      {/* Draft indicator badge */}
+      {product.isDraft && (
+        <div className="absolute top-2 left-2 bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-1 rounded-full border border-yellow-300 shadow-sm z-10 pointer-events-none select-none">
+          DRAFT
+        </div>
+      )}
+
       {/* Threshold indicator badge */}
       {appliedThreshold && (
         <div 
-          className="absolute top-2 right-2 w-3 h-3 rounded-full shadow-lg z-10 animate-pulse"
+          className={`absolute top-2 w-3 h-3 rounded-full shadow-lg z-10 animate-pulse ${
+            product.isDraft ? 'right-2' : 'right-2'
+          }`}
           style={{ backgroundColor: appliedThreshold.color }}
           title={`${formatThresholdRule(appliedThreshold)} - In column for ${timeInColumn}`}
         />
@@ -221,7 +266,9 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
           {/* Product Info */}
           <div className="flex-1 sm:mr-3 space-y-1.5">
-            <h4 className="font-medium text-gray-900">{product.productDetails}</h4>
+            <h4 className={`font-medium ${product.isDraft ? 'text-gray-600 italic' : 'text-gray-900'}`}>
+              {product.productDetails}
+            </h4>
             {/* Time in Column - shown regardless of location to support order kanban */}
             {timeInColumn && (
               <div className="flex items-center text-xs text-gray-600">
@@ -416,7 +463,14 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
           {product.weight !== null && (
             <div>
               <span className="font-medium text-gray-700">Weight:</span>
-              <span className="ml-2 text-gray-600">{product.weight} kg</span>
+              <span className="ml-2 text-gray-600">{product.weight} {product.unit || 'kg'}</span>
+            </div>
+          )}
+          
+          {product.unit && product.weight === null && (
+            <div>
+              <span className="font-medium text-gray-700">Unit:</span>
+              <span className="ml-2 text-gray-600">{product.unit}</span>
             </div>
           )}
 
@@ -465,6 +519,7 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
               <p className="mt-1 text-gray-600 text-sm bg-gray-50 p-2 rounded">{product.notes}</p>
             </div>
           )}
+
         </div>
       )}
       </div>

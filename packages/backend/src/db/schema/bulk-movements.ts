@@ -49,6 +49,7 @@ export const bulkMovementItems = pgTable(
     sku: text('sku'), // denormalized for quick access
     productDetails: text('product_details').notNull(), // denormalized product name
     productImage: text('product_image'), // denormalized for display
+    unit: text('unit'), // denormalized unit information
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
