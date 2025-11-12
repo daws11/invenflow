@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { SimpleInlineEdit } from './SimpleInlineEdit';
 
 export function TestInlineEdit() {

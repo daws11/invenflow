@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PencilIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { PencilIcon } from '@heroicons/react/24/outline';
 
 interface SimpleInlineEditProps {
   value: string | number | null;

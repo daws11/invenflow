@@ -17,8 +17,6 @@ import {
   ExclamationTriangleIcon,
   ChevronDownIcon,
   ChevronRightIcon,
-  LinkIcon,
-  PhotoIcon,
 } from '@heroicons/react/24/outline';
 import { Slider } from './Slider';
 import { BasicInlineEdit } from './BasicInlineEdit';
@@ -33,7 +31,7 @@ interface ProductDetailModalProps {
 export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
   const { locations, fetchLocations } = useLocationStore();
   const { persons, fetchPersons } = usePersonStore();
-  const { updateProduct, deleteProduct, currentKanban, kanbans } = useKanbanStore();
+  const { updateProduct, deleteProduct, currentKanban } = useKanbanStore();
   const { success, error } = useToast();
 
   const [isSubmitting, setIsSubmitting] = useState(false);

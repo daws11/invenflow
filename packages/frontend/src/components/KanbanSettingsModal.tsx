@@ -43,7 +43,7 @@ export function KanbanSettingsModal({
   productCount = 0,
 }: KanbanSettingsModalProps) {
   const toast = useToast();
-  const { togglePublicForm, currentKanban, fetchKanbanById, loading } = useKanbanStore();
+  const { togglePublicForm, currentKanban, fetchKanbanById } = useKanbanStore();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDataSyncing, setIsDataSyncing] = useState(false);

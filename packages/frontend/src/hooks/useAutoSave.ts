@@ -21,7 +21,7 @@ export function useAutoSave({
   onSave,
   onError,
 }: AutoSaveOptions) {
-  const { success, error: showError } = useToast();
+  const { error: showError } = useToast();
   const [state, setState] = useState<AutoSaveState>({
     isSaving: false,
     lastSaved: null,
@@ -32,7 +32,7 @@ export function useAutoSave({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastValueRef = useRef<any>(null);
 
-  const clearTimeout = useCallback(() => {
+  const clearSaveTimeout = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
@@ -76,7 +76,7 @@ export function useAutoSave({
     // Don't auto-save if value hasn't changed
     if (lastValueRef.current === value) return;
 
-    clearTimeout();
+    clearSaveTimeout();
     
     setState(prev => ({ ...prev, hasUnsavedChanges: true, error: null }));
 
@@ -86,12 +86,12 @@ export function useAutoSave({
   }, [enabled, delay, save, clearTimeout]);
 
   const saveNow = useCallback((value: any) => {
-    clearTimeout();
+    clearSaveTimeout();
     return save(value);
   }, [save, clearTimeout]);
 
   const reset = useCallback(() => {
-    clearTimeout();
+    clearSaveTimeout();
     setState({
       isSaving: false,
       lastSaved: null,

@@ -5,8 +5,6 @@ import TransferHistoryViewer from './TransferHistoryViewer';
 import { getAppliedThreshold, calculateTimeInColumn, formatTimeDuration, formatThresholdRule } from '../utils/thresholdCalculator';
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 import { useLocationStore } from '../store/locationStore';
-import { useKanbanStore } from '../store/kanbanStore';
-import { useToast } from '../store/toastStore';
 
 interface ProductCardProps {
   product: Product;
@@ -22,11 +20,7 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [clickStartTime, setClickStartTime] = useState<number | null>(null);
   const [isDragIntent, setIsDragIntent] = useState(false);
-  const [preferredKanbanId, setPreferredKanbanId] = useState(product.preferredReceiveKanbanId || '');
-  const [isSavingPreference, setIsSavingPreference] = useState(false);
   const { locations } = useLocationStore();
-  const { updateProduct } = useKanbanStore();
-  const toast = useToast();
 
   const resolvedLocation: Location | null = useMemo(() => {
     if (location) return location;
@@ -43,10 +37,6 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
     return () => clearInterval(interval);
   }, []);
 
-  // Sync preferred kanban ID when product changes
-  useEffect(() => {
-    setPreferredKanbanId(product.preferredReceiveKanbanId || '');
-  }, [product.preferredReceiveKanbanId]);
 
   // Calculate applied threshold rule
   const appliedThreshold = useMemo(() => {
@@ -124,26 +114,6 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
     listeners?.onKeyDown?.(event);
   };
 
-  const handleSavePreferredKanban = async () => {
-    if (preferredKanbanId === (product.preferredReceiveKanbanId || '')) {
-      return; // No change
-    }
-
-    setIsSavingPreference(true);
-    try {
-      await updateProduct(product.id, {
-        preferredReceiveKanbanId: preferredKanbanId || undefined,
-      });
-      toast.success('Preferred receive kanban updated successfully');
-    } catch (error) {
-      console.error('Failed to update preferred kanban:', error);
-      toast.error('Failed to update preferred kanban');
-      // Revert on error
-      setPreferredKanbanId(product.preferredReceiveKanbanId || '');
-    } finally {
-      setIsSavingPreference(false);
-    }
-  };
 
   // Apply threshold styling
   const thresholdStyle = appliedThreshold ? {

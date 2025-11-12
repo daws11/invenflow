@@ -12,7 +12,7 @@ export function StockField({ value, onSave, disabled = false, className = '' }: 
   return (
     <InlineEditCell
       value={value || ''}
-      onSave={onSave}
+      onSave={async (value: string | number) => await onSave(Number(value))}
       type="number"
       placeholder="0"
       disabled={disabled}

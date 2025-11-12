@@ -22,7 +22,7 @@ export function LocationField({ value, onSave, disabled = false, className = '' 
   return (
     <InlineEditCell
       value={value || ''}
-      onSave={onSave}
+      onSave={async (value: string | number) => await onSave(String(value))}
       type="select"
       options={locationOptions}
       placeholder="Select location"

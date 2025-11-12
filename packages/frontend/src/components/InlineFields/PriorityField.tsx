@@ -29,7 +29,7 @@ export function PriorityField({ value, onSave, disabled = false, className = '' 
   return (
     <InlineEditCell
       value={value || ''}
-      onSave={onSave}
+      onSave={async (value: string | number) => await onSave(String(value))}
       type="select"
       options={priorityOptions}
       placeholder="Select priority"

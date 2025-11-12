@@ -9,7 +9,7 @@ interface InlineEditCellProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
-  displayValue?: string; // For custom display formatting
+  displayValue?: React.ReactNode; // For custom display formatting
   validation?: (value: string | number) => string | null; // Return error message or null
   rows?: number; // For textarea type
   maxLength?: number; // Character limit
@@ -70,7 +70,7 @@ export function InlineEditCell({
     setIsEditing(false);
     setEditValue(value?.toString() || '');
     setError(null);
-    setIsCustom(allowCustom && type === 'select' && value && !options.some(opt => opt.value === value.toString()));
+    setIsCustom(Boolean(allowCustom && type === 'select' && value && !options.some(opt => opt.value === value.toString())));
   };
 
   const handleSave = async () => {

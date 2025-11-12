@@ -9,7 +9,6 @@ import { BasicInlineEdit } from './BasicInlineEdit';
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 import {
   TagIcon,
-  BuildingOfficeIcon,
   MapPinIcon,
   CurrencyDollarIcon,
   CubeIcon,
@@ -50,7 +49,7 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
     return () => window.removeEventListener('resize', update);
   }, []);
 
-  const handleFieldUpdate = async (field: keyof UpdateProduct, value: string | number) => {
+  const handleFieldUpdate = async (field: keyof UpdateProduct, value: string | number | string[]) => {
     if (!product) return;
 
     const updateData: UpdateProduct = {

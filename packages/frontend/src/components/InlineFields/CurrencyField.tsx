@@ -20,7 +20,7 @@ export function CurrencyField({
   return (
     <InlineEditCell
       value={value || ''}
-      onSave={onSave}
+      onSave={async (value: string | number) => await onSave(Number(value))}
       type="number"
       placeholder={placeholder}
       disabled={disabled}

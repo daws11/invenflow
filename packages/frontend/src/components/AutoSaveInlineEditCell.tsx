@@ -101,7 +101,7 @@ export function AutoSaveInlineEditCell({
     setIsEditing(false);
     setEditValue(value?.toString() || '');
     setError(null);
-    setIsCustom(allowCustom && type === 'select' && value && !options.some(opt => opt.value === value.toString()));
+    setIsCustom(Boolean(allowCustom && type === 'select' && value && !options.some(opt => opt.value === value.toString())));
     autoSaveState.reset();
   };
 

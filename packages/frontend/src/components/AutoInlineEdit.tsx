@@ -154,7 +154,7 @@ export function AutoInlineEdit({
     setIsEditing(false);
     setEditValue(originalValueRef.current);
     setError(null);
-    setIsCustom(allowCustom && type === 'select' && value && !options.some(opt => opt.value === value.toString()));
+    setIsCustom(Boolean(allowCustom && type === 'select' && value && !options.some(opt => opt.value === value.toString())));
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

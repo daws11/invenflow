@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Kanban, Product, CreateKanban, CreateProduct, LinkedReceiveKanban } from '@invenflow/shared';
-import { kanbanApi, productApi } from '../utils/api';
+import { kanbanApi, productApi, ProductMoveResponse } from '../utils/api';
 
 interface KanbanState {
   kanbans: Kanban[];
@@ -22,7 +22,7 @@ interface KanbanState {
 
   createProduct: (data: CreateProduct) => Promise<Product>;
   updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
-  moveProduct: (id: string, columnStatus: string, locationId?: string, skipValidation?: boolean) => Promise<Product | undefined>;
+  moveProduct: (id: string, columnStatus: string, locationId?: string, skipValidation?: boolean) => Promise<ProductMoveResponse | undefined>;
   transferProduct: (id: string, targetKanbanId: string) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
 

@@ -317,6 +317,7 @@ router.put('/:id/move', async (req, res, next) => {
         preferredReceiveKanbanId: products.preferredReceiveKanbanId,
         priority: products.priority,
         stockLevel: products.stockLevel,
+        isDraft: products.isDraft,
         kanbanType: kanbans.type,
         linkedKanbanId: kanbans.linkedKanbanId,
         defaultLinkedKanbanId: kanbans.defaultLinkedKanbanId,

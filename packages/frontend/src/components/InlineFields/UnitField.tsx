@@ -17,7 +17,7 @@ export function UnitField({ value, onSave, disabled = false, className = '' }: U
   return (
     <InlineEditCell
       value={value || ''}
-      onSave={onSave}
+      onSave={async (value: string | number) => await onSave(String(value))}
       type="select"
       options={unitOptions}
       allowCustom={true}

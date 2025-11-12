@@ -20,7 +20,7 @@ export function NotesField({
   return (
     <InlineEditCell
       value={value || ''}
-      onSave={onSave}
+      onSave={async (value: string | number) => await onSave(String(value))}
       type="textarea"
       placeholder={placeholder}
       rows={rows}

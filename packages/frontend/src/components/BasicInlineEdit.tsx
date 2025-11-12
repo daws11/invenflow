@@ -10,6 +10,10 @@ interface BasicInlineEditProps {
   className?: string;
   rows?: number;
   displayValue?: React.ReactNode; // For custom display formatting
+  maxLength?: number;
+  validation?: (value: any) => string | null;
+  allowCustom?: boolean;
+  customPlaceholder?: string;
 }
 
 export function BasicInlineEdit({
@@ -21,6 +25,10 @@ export function BasicInlineEdit({
   className = '',
   rows = 3,
   displayValue,
+  maxLength,
+  validation,
+  allowCustom: _allowCustom,
+  customPlaceholder: _customPlaceholder,
 }: BasicInlineEditProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -55,6 +63,16 @@ export function BasicInlineEdit({
 
   const saveValue = async () => {
     const newValue = type === 'number' ? Number(editValue) : editValue;
+    
+    // Run validation if provided
+    if (validation) {
+      const validationError = validation(newValue);
+      if (validationError) {
+        setHasError(true);
+        setTimeout(() => setHasError(false), 3000);
+        return;
+      }
+    }
     
     // Optimistic update - show the new value immediately
     setOptimisticValue(newValue);
@@ -131,6 +149,7 @@ export function BasicInlineEdit({
             onKeyDown={handleKeyPress}
             onBlur={saveValue}
             rows={rows}
+            maxLength={maxLength}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
             placeholder={placeholder}
           />
@@ -142,6 +161,7 @@ export function BasicInlineEdit({
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleKeyPress}
             onBlur={saveValue}
+            maxLength={maxLength}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder={placeholder}
           />

@@ -136,6 +136,16 @@ export const kanbanApi = {
   },
 };
 
+// Product move response type
+export interface ProductMoveResponse extends Product {
+  transferInfo?: {
+    targetKanbanId: string;
+    targetKanbanName: string;
+    wasAutoTransferred: boolean;
+    transferSource: 'product-preference' | 'kanban-default';
+  };
+}
+
 // Product API calls
 export const productApi = {
   getById: async (id: string): Promise<Product> => {
@@ -158,7 +168,7 @@ export const productApi = {
     columnStatus: string,
     locationId?: string,
     skipValidation?: boolean,
-  ): Promise<Product> => {
+  ): Promise<ProductMoveResponse> => {
     const response = await api.put(`/api/products/${id}/move`, {
       columnStatus,
       locationId,
