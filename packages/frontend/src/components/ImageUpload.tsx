@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Upload, X, AlertCircle } from 'lucide-react';
+import React, { useState, useRef } from "react";
+import { Upload, X, AlertCircle } from "lucide-react";
 
 interface ImageUploadProps {
   value: string;
@@ -13,20 +13,20 @@ interface ImageUploadProps {
 export default function ImageUpload({
   value,
   onChange,
-  placeholder = 'Click or drag to upload image',
+  placeholder = "Click or drag to upload image",
   disabled = false,
-  accept = 'image/*',
-  maxSize = 5
+  accept = "image/*",
+  maxSize = 5,
 }: ImageUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string>('');
+  const [uploadError, setUploadError] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (file: File) => {
     // Validate file type
-    if (!file.type.startsWith('image/')) {
-      setUploadError('Only image files are allowed');
+    if (!file.type.startsWith("image/")) {
+      setUploadError("Only image files are allowed");
       return;
     }
 
@@ -36,24 +36,43 @@ export default function ImageUpload({
       return;
     }
 
-    setUploadError('');
+    setUploadError("");
     setIsUploading(true);
 
     try {
       const formData = new FormData();
-      formData.append('image', file);
+      formData.append("image", file);
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/upload`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          },
+          body: formData,
         },
-        body: formData,
-      });
+      );
 
       if (!response.ok) {
-        const errorData = await response.json();
-        const errorMessage = errorData.error?.message || errorData.error || 'Upload failed';
+        // Check if response is JSON before parsing
+        const contentType = response.headers.get("content-type");
+        let errorMessage = "Upload failed";
+
+        if (contentType && contentType.includes("application/json")) {
+          const errorData = await response.json();
+          errorMessage =
+            errorData.error?.message || errorData.error || "Upload failed";
+        } else {
+          // Handle HTML error responses
+          const text = await response.text();
+          if (text.includes("<!DOCTYPE")) {
+            errorMessage = "Server error: Please try again later";
+          } else {
+            errorMessage = text || "Upload failed";
+          }
+        }
+
         throw new Error(errorMessage);
       }
 
@@ -61,8 +80,10 @@ export default function ImageUpload({
       // Use publicUrl for better accessibility without authentication
       onChange(data.file.publicUrl || data.file.url);
     } catch (error) {
-      console.error('Upload error:', error);
-      setUploadError(error instanceof Error ? error.message : 'Failed to upload image');
+      console.error("Upload error:", error);
+      setUploadError(
+        error instanceof Error ? error.message : "Failed to upload image",
+      );
     } finally {
       setIsUploading(false);
     }
@@ -107,8 +128,8 @@ export default function ImageUpload({
 
   const handleRemove = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onChange('');
-    setUploadError('');
+    onChange("");
+    setUploadError("");
   };
 
   return (
@@ -133,9 +154,9 @@ export default function ImageUpload({
           onDragLeave={handleDragLeave}
           className={`
             relative border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
-            ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}
-            ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
-            ${isUploading ? 'pointer-events-none' : ''}
+            ${isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"}
+            ${disabled ? "opacity-50 cursor-not-allowed" : ""}
+            ${isUploading ? "pointer-events-none" : ""}
           `}
         >
           {/* Upload icon */}
@@ -148,7 +169,7 @@ export default function ImageUpload({
 
             <div>
               <p className="text-sm text-gray-600">
-                {isUploading ? 'Uploading...' : placeholder}
+                {isUploading ? "Uploading..." : placeholder}
               </p>
               <p className="text-xs text-gray-500 mt-1">
                 JPG, PNG, WebP (max {maxSize}MB)
@@ -161,7 +182,9 @@ export default function ImageUpload({
             <div className="absolute inset-0 bg-blue-500 bg-opacity-10 rounded-lg flex items-center justify-center">
               <div className="bg-white p-4 rounded-lg shadow-lg">
                 <Upload className="w-6 h-6 text-blue-600" />
-                <p className="text-sm text-blue-600 font-medium">Drop image here</p>
+                <p className="text-sm text-blue-600 font-medium">
+                  Drop image here
+                </p>
               </div>
             </div>
           )}

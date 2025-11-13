@@ -6,7 +6,10 @@ import compression from "compression";
 import { env } from "./config/env";
 import { corsMiddleware } from "./middleware/cors";
 import { errorHandler } from "./middleware/errorHandler";
-import { performanceMiddleware, startPerformanceLogging } from "./middleware/performance";
+import {
+  performanceMiddleware,
+  startPerformanceLogging,
+} from "./middleware/performance";
 import { departmentsRouter } from "./routes/departments";
 import { healthRouter } from "./routes/health";
 import { inventoryRouter } from "./routes/inventory";
@@ -31,69 +34,91 @@ const rootDir = join(__dirname, "../..");
 const app = express();
 
 // Compression middleware - should be early in the middleware stack
-app.use(compression({
-  level: 6, // Compression level (1-9, 6 is good balance of speed/compression)
-  threshold: 1024, // Only compress responses > 1KB
-  filter: (req, res) => {
-    // Don't compress if client doesn't support it
-    if (req.headers['x-no-compression']) {
-      return false;
-    }
-    
-    // Don't compress images, videos, or already compressed files
-    const contentType = res.getHeader('content-type') as string;
-    if (contentType && (
-      contentType.includes('image/') ||
-      contentType.includes('video/') ||
-      contentType.includes('application/zip') ||
-      contentType.includes('application/gzip')
-    )) {
-      return false;
-    }
-    
-    return compression.filter(req, res);
-  }
-}));
+app.use(
+  compression({
+    level: 6, // Compression level (1-9, 6 is good balance of speed/compression)
+    threshold: 1024, // Only compress responses > 1KB
+    filter: (req, res) => {
+      // Don't compress if client doesn't support it
+      if (req.headers["x-no-compression"]) {
+        return false;
+      }
+
+      // Don't compress images, videos, or already compressed files
+      const contentType = res.getHeader("content-type") as string;
+      if (
+        contentType &&
+        (contentType.includes("image/") ||
+          contentType.includes("video/") ||
+          contentType.includes("application/zip") ||
+          contentType.includes("application/gzip"))
+      ) {
+        return false;
+      }
+
+      return compression.filter(req, res);
+    },
+  }),
+);
 
 // Performance monitoring middleware (should be early)
 app.use(performanceMiddleware);
 
+// Request logging middleware for debugging
+app.use((req, res, next) => {
+  const start = Date.now();
+
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    console.log(
+      `${req.method} ${req.path} - ${res.statusCode} - ${duration}ms`,
+    );
+  });
+
+  next();
+});
+
 // Other middleware
 app.use(corsMiddleware);
-app.use(express.json({ limit: '10mb' })); // Increased limit for bulk operations
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: "10mb" })); // Increased limit for bulk operations
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Static file serving for uploaded images (public access)
-app.use('/uploads', express.static('uploads', {
-  maxAge: '1d', // Cache for 1 day
-  etag: true,
-  lastModified: true
-}));
+app.use(
+  "/uploads",
+  express.static("uploads", {
+    maxAge: "1d", // Cache for 1 day
+    etag: true,
+    lastModified: true,
+  }),
+);
 
 // Production: Serve frontend static files
-if (process.env.NODE_ENV === 'production') {
-  const frontendDistPath = join(rootDir, 'packages/frontend/dist');
+if (process.env.NODE_ENV === "production") {
+  const frontendDistPath = join(rootDir, "packages/frontend/dist");
 
   // Check if frontend build exists
   if (existsSync(frontendDistPath)) {
     // Serve static files with appropriate caching
-    app.use(express.static(frontendDistPath, {
-      maxAge: '1y', // Cache static assets for 1 year
-      etag: true,
-      lastModified: true,
-      setHeaders: (res, path) => {
-        // Set different cache headers for different file types
-        if (path.endsWith('.html')) {
-          res.setHeader('Cache-Control', 'no-cache');
-        } else if (path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg)$/)) {
-          res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year
-        }
-      }
-    }));
+    app.use(
+      express.static(frontendDistPath, {
+        maxAge: "1y", // Cache static assets for 1 year
+        etag: true,
+        lastModified: true,
+        setHeaders: (res, path) => {
+          // Set different cache headers for different file types
+          if (path.endsWith(".html")) {
+            res.setHeader("Cache-Control", "no-cache");
+          } else if (path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg)$/)) {
+            res.setHeader("Cache-Control", "public, max-age=31536000"); // 1 year
+          }
+        },
+      }),
+    );
 
-    console.log('📦 Serving frontend static files from:', frontendDistPath);
+    console.log("📦 Serving frontend static files from:", frontendDistPath);
   } else {
-    console.warn('⚠️  Frontend build directory not found:', frontendDistPath);
+    console.warn("⚠️  Frontend build directory not found:", frontendDistPath);
   }
 }
 
@@ -122,9 +147,9 @@ app.use("/api/public/bulk-movements", publicBulkMovementsRouter);
 // Health check endpoint
 app.get("/", (req, res) => {
   // In production, serve the React app
-  if (process.env.NODE_ENV === 'production') {
-    const frontendDistPath = join(rootDir, 'packages/frontend/dist');
-    const indexPath = join(frontendDistPath, 'index.html');
+  if (process.env.NODE_ENV === "production") {
+    const frontendDistPath = join(rootDir, "packages/frontend/dist");
+    const indexPath = join(frontendDistPath, "index.html");
 
     if (existsSync(indexPath)) {
       res.sendFile(indexPath);
@@ -137,20 +162,20 @@ app.get("/", (req, res) => {
 });
 
 // Production: SPA fallback - serve React app for all non-API routes
-if (process.env.NODE_ENV === 'production') {
-  const frontendDistPath = join(rootDir, 'packages/frontend/dist');
-  const indexPath = join(frontendDistPath, 'index.html');
+if (process.env.NODE_ENV === "production") {
+  const frontendDistPath = join(rootDir, "packages/frontend/dist");
+  const indexPath = join(frontendDistPath, "index.html");
 
   if (existsSync(indexPath)) {
     // Catch-all handler for SPA routing
-    app.get('*', (req, res, next) => {
+    app.get("*", (req, res, next) => {
       // Don't intercept API routes or static file requests
-      if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+      if (req.path.startsWith("/api") || req.path.startsWith("/uploads")) {
         return next();
       }
 
       // Check if it's a file request (has extension)
-      if (req.path.includes('.')) {
+      if (req.path.includes(".")) {
         return next();
       }
 
@@ -158,7 +183,7 @@ if (process.env.NODE_ENV === 'production') {
       res.sendFile(indexPath);
     });
 
-    console.log('🔄 SPA fallback route enabled');
+    console.log("🔄 SPA fallback route enabled");
   }
 }
 
@@ -169,11 +194,13 @@ app.use(errorHandler);
 startPerformanceLogging(60000); // Log every minute
 
 // Start server
-app.listen(env.PORT, '0.0.0.0', () => {
+app.listen(env.PORT, "0.0.0.0", () => {
   console.log(`🚀 InvenFlow server running on port ${env.PORT}`);
   console.log(`📊 Health check: http://localhost:${env.PORT}/api/health`);
   console.log(`🌍 Environment: ${env.NODE_ENV}`);
-  console.log(`🌐 Server listening on: 0.0.0.0:${env.PORT} (accessible from all network interfaces)`);
+  console.log(
+    `🌐 Server listening on: 0.0.0.0:${env.PORT} (accessible from all network interfaces)`,
+  );
 
   // Show CORS configuration
   if (process.env.CORS_ORIGIN) {
@@ -186,7 +213,7 @@ app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`🎨 Frontend URL: ${process.env.FRONTEND_URL}`);
   }
 
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === "production") {
     console.log(`🌐 Full application: http://localhost:${env.PORT}/`);
     console.log(`📡 API endpoints: http://localhost:${env.PORT}/api/`);
     console.log(`📁 File uploads: http://localhost:${env.PORT}/uploads/`);
