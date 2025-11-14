@@ -19,15 +19,8 @@ export default function CompactKanbanListRow({
   const { isKanbanCollapsed, toggleKanbanCollapsed } = useViewPreferencesStore();
   const isCollapsed = isKanbanCollapsed(kanban.id);
 
-  const getProductCount = () => {
-    if (typeof kanban.productCount === 'number') {
-      return kanban.productCount;
-    }
-    if (Array.isArray(kanban.products)) {
-      return kanban.products.length;
-    }
-    return 0;
-  };
+  // Use centralized product count utility
+  // const productCount = getProductCount(kanban); // Not used in this component
 
   // Get linked status
   const getLinkedStatus = () => {
@@ -134,11 +127,6 @@ export default function CompactKanbanListRow({
             </span>
           )}
 
-          {/* Product Count */}
-          <div className="hidden lg:flex items-center text-sm text-gray-600">
-            <span className="font-medium">{getProductCount()}</span>
-            <span className="ml-1">products</span>
-          </div>
 
           {/* Description (truncated) */}
           <div className="hidden xl:block flex-1 min-w-0 max-w-md">

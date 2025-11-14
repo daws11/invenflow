@@ -16,10 +16,18 @@ export const AvailableImageSchema = z.object({
   validatedAt: z.string(),
 });
 
+// Virtual kanban schema for direct import items
+export const VirtualKanbanSchema = z.object({
+  id: z.string(), // Can be 'direct-import' or UUID
+  name: z.string(),
+  type: z.string(), // Can be 'direct-import' or KanbanType
+  linkedKanbanId: z.string().uuid().nullable(),
+});
+
 // Enhanced product type for inventory with additional computed fields
 export const InventoryItemSchema = ProductSchema.extend({
-  kanban: KanbanSchema,
-  kanbanId: z.string().uuid(),
+  kanban: VirtualKanbanSchema, // Use VirtualKanbanSchema instead of KanbanSchema
+  kanbanId: z.string().uuid().nullable(), // Allow null for direct import items
   daysInInventory: z.number(),
   validations: z.array(InventoryValidationSchema).nullable(),
   displayImage: z.string().url().nullable(),
@@ -64,7 +72,7 @@ export const InventoryResponseSchema = z.object({
     suppliers: z.array(z.string()),
     locations: z.array(z.string()),
     kanbans: z.array(z.object({
-      id: z.string().uuid(),
+      id: z.string(), // Allow non-UUID for virtual kanbans like 'direct-import'
       name: z.string(),
     })),
   }),
@@ -160,7 +168,7 @@ export const ProductLocationDetailSchema = z.object({
   stockLevel: z.number().nullable(),
   locationId: z.string().uuid().nullable(),
   assignedToPersonId: z.string().uuid().nullable(),
-  kanbanId: z.string().uuid(),
+  kanbanId: z.string().uuid().nullable(),
   updatedAt: z.coerce.date(),
   location: z.object({
     id: z.string().uuid(),
@@ -172,13 +180,12 @@ export const ProductLocationDetailSchema = z.object({
   person: z.object({
     id: z.string().uuid(),
     name: z.string(),
-    code: z.string(),
     department: z.string().nullable(),
   }).nullable(),
   kanban: z.object({
     id: z.string().uuid(),
     name: z.string(),
-  }),
+  }).nullable(),
 });
 
 export type ProductLocationDetail = z.infer<typeof ProductLocationDetailSchema>;

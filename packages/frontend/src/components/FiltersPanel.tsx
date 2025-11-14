@@ -1,4 +1,4 @@
-import { DEFAULT_CATEGORIES, DEFAULT_PRIORITIES, Product } from '@invenflow/shared';
+import { DEFAULT_PRIORITIES, Product } from '@invenflow/shared';
 import React, { useMemo, useCallback } from 'react';
 import { ChevronDownIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
@@ -29,6 +29,14 @@ const FiltersPanel = React.memo(function FiltersPanel({ products, className, sho
     const set = new Set<string>();
     for (const p of products) {
       if (p.supplier) set.add(p.supplier);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [products]);
+
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of products) {
+      if (p.category) set.add(p.category);
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [products]);
@@ -180,7 +188,7 @@ const FiltersPanel = React.memo(function FiltersPanel({ products, className, sho
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
           <div className="flex flex-wrap gap-1">
-            {DEFAULT_CATEGORIES.map(cat => (
+            {categoryOptions.length > 0 ? categoryOptions.map(cat => (
               <button
                 key={cat}
                 type="button"
@@ -196,7 +204,9 @@ const FiltersPanel = React.memo(function FiltersPanel({ products, className, sho
                   <XMarkIcon className="w-2.5 h-2.5 ml-1 inline" />
                 )}
               </button>
-            ))}
+            )) : (
+              <span className="text-xs text-gray-400">No categories</span>
+            )}
           </div>
         </div>
 

@@ -16,7 +16,27 @@ router.use(authenticateToken);
 // Get all kanbans
 router.get('/', cacheMiddleware({ ttl: 10 * 60 * 1000 }), async (req, res, next) => {
   try {
-    const allKanbans = await db.select().from(kanbans);
+    const allKanbans = await db
+      .select({
+        id: kanbans.id,
+        name: kanbans.name,
+        type: kanbans.type,
+        description: kanbans.description,
+        linkedKanbanId: kanbans.linkedKanbanId,
+        locationId: kanbans.locationId,
+        publicFormToken: kanbans.publicFormToken,
+        isPublicFormEnabled: kanbans.isPublicFormEnabled,
+        formFieldSettings: kanbans.formFieldSettings,
+        thresholdRules: kanbans.thresholdRules,
+        createdAt: kanbans.createdAt,
+        updatedAt: kanbans.updatedAt,
+        productCount: sql<number>`cast(count(${products.id}) as integer)`.as('productCount'),
+      })
+      .from(kanbans)
+      .leftJoin(products, eq(kanbans.id, products.kanbanId))
+      .groupBy(kanbans.id)
+      .orderBy(asc(kanbans.createdAt));
+
     res.json(allKanbans);
   } catch (error) {
     next(error);
@@ -42,9 +62,12 @@ router.get('/:id', async (req, res, next) => {
         thresholdRules: kanbans.thresholdRules,
         createdAt: kanbans.createdAt,
         updatedAt: kanbans.updatedAt,
+        productCount: sql<number>`cast(count(${products.id}) as integer)`.as('productCount'),
       })
       .from(kanbans)
+      .leftJoin(products, eq(kanbans.id, products.kanbanId))
       .where(eq(kanbans.id, id))
+      .groupBy(kanbans.id)
       .limit(1);
 
     if (kanbanData.length === 0) {
@@ -441,7 +464,7 @@ router.post('/:id/links', async (req, res, next) => {
       })
       .returning();
 
-    // Return updated links list with location info
+    // Get updated links list with location info
     const linkedKanbans = await db
       .select({
         id: kanbans.id,
@@ -457,6 +480,22 @@ router.post('/:id/links', async (req, res, next) => {
       .innerJoin(kanbans, eq(kanbanLinks.receiveKanbanId, kanbans.id))
       .leftJoin(locations, eq(kanbans.locationId, locations.id))
       .where(eq(kanbanLinks.orderKanbanId, id));
+
+    // Auto-set as default if this is the first link and no default exists
+    if (linkedKanbans.length === 1) {
+      const [orderKanbanCheck] = await db
+        .select({ defaultLinkedKanbanId: kanbans.defaultLinkedKanbanId })
+        .from(kanbans)
+        .where(eq(kanbans.id, id))
+        .limit(1);
+
+      if (!orderKanbanCheck?.defaultLinkedKanbanId) {
+        await db
+          .update(kanbans)
+          .set({ defaultLinkedKanbanId: receiveKanbanId })
+          .where(eq(kanbans.id, id));
+      }
+    }
 
     res.status(201).json(linkedKanbans);
   } catch (error) {
@@ -489,6 +528,20 @@ router.delete('/:id/links/:linkId', async (req, res, next) => {
     await db
       .delete(kanbanLinks)
       .where(eq(kanbanLinks.id, linkId));
+
+    // Clear default linked kanban if the removed kanban was the default
+    const [orderKanban] = await db
+      .select({ defaultLinkedKanbanId: kanbans.defaultLinkedKanbanId })
+      .from(kanbans)
+      .where(eq(kanbans.id, id))
+      .limit(1);
+
+    if (orderKanban?.defaultLinkedKanbanId === link.receiveKanbanId) {
+      await db
+        .update(kanbans)
+        .set({ defaultLinkedKanbanId: null })
+        .where(eq(kanbans.id, id));
+    }
 
     // Return updated links list
     const linkedKanbans = await db

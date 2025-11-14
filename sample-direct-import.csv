@@ -1,0 +1,4 @@
+SKU,LegacySKU,LegacyID,Product Name,Supplier,Category,Dimensions,New Stock Level,Unit,Location Code,Area,Location Name,Unit Price,Notes,Original Purchase Date
+PROD001,,,"Laptop Dell Inspiron 15","Dell","Electronics","35x25x2 cm",5,"pcs",,"Office","Shelf A1",15000000,"New laptops for office",2024-01-15
+PROD002,,,"Mouse Wireless Logitech","Logitech","Electronics","12x8x4 cm",25,"pcs",WH-SHELF1-001,,,150000,"Wireless mouse stock",2024-01-10
+PROD003,,,"Kertas A4 80gsm","Sinar Dunia","Office Supplies","21x29.7 cm",100,"ream",,"Warehouse","Storage Rack B2",50000,"Office paper supply",2024-01-05

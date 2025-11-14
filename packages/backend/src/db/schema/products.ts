@@ -9,7 +9,6 @@ export const products = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     kanbanId: uuid('kanban_id')
-      .notNull()
       .references(() => kanbans.id, { onDelete: 'cascade' }),
     columnStatus: text('column_status').notNull(),
     productDetails: text('product_details').notNull(),

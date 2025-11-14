@@ -256,12 +256,6 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
       // Make API call in background
       const { productApi } = await import('../utils/api');
       await productApi.update(productId, updateData);
-
-      // Show success toast
-      useToastStore.getState().addToast({
-        message: 'Product updated successfully',
-        type: 'success',
-      });
     } catch (error) {
       // Revert optimistic update on error by fetching fresh data
       get().fetchInventory();

@@ -189,7 +189,7 @@ const MobileFiltersBottomSheet = React.memo(function MobileFiltersBottomSheet({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <div className="flex-1 overflow-y-scroll p-4 space-y-6 max-h-[calc(85vh-120px)]">
           {/* Quick Filters Section */}
           {filterSections.find(s => s.id === 'quick')?.isExpanded && (
             <div className="space-y-4">

@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { inventoryApi, kanbanApi } from '../utils/api';
-import type { Kanban } from '@invenflow/shared';
+import { useMemo, useState } from 'react';
+import { inventoryApi } from '../utils/api';
 import { ArrowUpTrayIcon, DocumentArrowDownIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 type PreviewRow = {
@@ -12,7 +11,10 @@ type PreviewRow = {
   category: string;
   dimensions?: string | null;
   newStockLevel: number;
+  unit?: string;
   locationCode?: string;
+  area?: string;
+  locationName?: string;
   unitPrice?: number;
   notes?: string;
   originalPurchaseDate?: string;
@@ -63,7 +65,10 @@ function parseCsv(text: string): PreviewRow[] {
       category: obj['Category'] || obj['category'],
       dimensions: obj['Dimensions'] || obj['dimensions'] || undefined,
       newStockLevel: toNum(obj['New Stock Level'] ?? obj['newStockLevel']) ?? 0,
+      unit: obj['Unit'] || obj['unit'] || undefined,
       locationCode: obj['Location'] || obj['Location Code'] || obj['locationCode'] || undefined,
+      area: obj['Area'] || obj['area'] || undefined,
+      locationName: obj['Location Name'] || obj['locationName'] || undefined,
       unitPrice: toNum(obj['Unit Price'] ?? obj['unitPrice']),
       notes: obj['Notes'] || obj['notes'] || undefined,
       originalPurchaseDate: obj['Original Purchase Date'] || obj['originalPurchaseDate'] || undefined,
@@ -72,37 +77,17 @@ function parseCsv(text: string): PreviewRow[] {
   return rows;
 }
 
-export function StockAdjustmentImport() {
-  const [receiveKanbans, setReceiveKanbans] = useState<Kanban[]>([]);
-  const [targetKanbanId, setTargetKanbanId] = useState<string>('');
-  const [targetKanbanDetail, setTargetKanbanDetail] = useState<any | null>(null);
+interface StockAdjustmentImportProps {
+  onSuccess?: () => void;
+}
+
+export function StockAdjustmentImport({ onSuccess }: StockAdjustmentImportProps) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PreviewRow[]>([]);
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
-
-  useEffect(() => {
-    kanbanApi.getAll().then(ks => {
-      const receives = ks.filter(k => (k as any).type === 'receive');
-      setReceiveKanbans(receives);
-      if (receives.length > 0) {
-        setTargetKanbanId(receives[0]!.id);
-      }
-    }).catch(() => {});
-  }, []);
-
-  // Load selected receive kanban details (includes location object)
-  useEffect(() => {
-    if (!targetKanbanId) {
-      setTargetKanbanDetail(null);
-      return;
-    }
-    kanbanApi.getById(targetKanbanId).then((data) => {
-      setTargetKanbanDetail(data);
-    }).catch(() => setTargetKanbanDetail(null));
-  }, [targetKanbanId]);
 
   const handleFile = async (f: File) => {
     setFile(f);
@@ -113,12 +98,11 @@ export function StockAdjustmentImport() {
   };
 
   const canImport = useMemo(() => {
-    return Boolean(targetKanbanId) && preview.length > 0 && !processing;
-  }, [targetKanbanId, preview, processing]);
+    return preview.length > 0 && !processing;
+  }, [preview, processing]);
 
   // Basic per-row validation
   const validations = useMemo(() => {
-    const hasDefaultLocation = Boolean(targetKanbanDetail?.location?.id || targetKanbanDetail?.locationId);
     return preview.map(row => {
       const errors: string[] = [];
       if (!row.productName) errors.push('Missing Product Name');
@@ -126,11 +110,14 @@ export function StockAdjustmentImport() {
       if (!row.category) errors.push('Missing Category');
       if (row.newStockLevel === undefined || row.newStockLevel === null || Number.isNaN(row.newStockLevel)) errors.push('Missing New Stock Level');
       if (typeof row.newStockLevel === 'number' && row.newStockLevel < 0) errors.push('Stock cannot be negative');
-      // Only require per-row location when no default location on receive kanban
-      if (!hasDefaultLocation && !row.locationCode) errors.push('Missing Location Code (no default location on kanban)');
+      
+      // For direct import, require location information
+      const hasLocationInfo = row.locationCode || (row.area && row.locationName);
+      if (!hasLocationInfo) errors.push('Missing location: provide Location Code or Area+Location Name');
+      
       return { ok: errors.length === 0, errors };
     });
-  }, [preview, targetKanbanDetail]);
+  }, [preview]);
   const invalidCount = validations.filter(v => !v.ok).length;
 
   const onImport = async () => {
@@ -140,8 +127,8 @@ export function StockAdjustmentImport() {
     setResult(null);
     try {
       const payload = {
-        importBatchLabel: `Import ${new Date().toISOString().slice(0,19).replace('T',' ')}`,
-        targetReceiveKanbanId: targetKanbanId,
+        importBatchLabel: `Direct Import ${new Date().toISOString().slice(0,19).replace('T',' ')}`,
+        bypassKanban: true,
         items: preview.map(r => ({
           sku: r.sku,
           legacySku: r.legacySku,
@@ -151,7 +138,10 @@ export function StockAdjustmentImport() {
           category: r.category,
           dimensions: r.dimensions ?? undefined,
           newStockLevel: r.newStockLevel,
+          unit: r.unit,
           locationCode: r.locationCode,
+          area: r.area,
+          locationName: r.locationName,
           unitPrice: r.unitPrice,
           notes: r.notes,
           originalPurchaseDate: r.originalPurchaseDate,
@@ -159,6 +149,7 @@ export function StockAdjustmentImport() {
       };
       const res = await inventoryApi.importStored(payload);
       setResult(res);
+      onSuccess?.(); // Trigger refresh after successful import
     } catch (e: any) {
       setError(e?.response?.data?.error || e?.message || 'Import failed');
     } finally {
@@ -167,7 +158,7 @@ export function StockAdjustmentImport() {
   };
 
   const templateHeaders = [
-    'SKU','LegacySKU','LegacyID','Product Name','Supplier','Category','Dimensions','New Stock Level','Location','Unit Price','Notes','Original Purchase Date'
+    'SKU','LegacySKU','LegacyID','Product Name','Supplier','Category','Dimensions','New Stock Level','Unit','Location Code','Area','Location Name','Unit Price','Notes','Original Purchase Date'
   ];
 
   const downloadTemplate = () => {
@@ -176,7 +167,7 @@ export function StockAdjustmentImport() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'stock-adjustment-template.csv';
+    a.download = 'direct-import-template.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -187,8 +178,10 @@ export function StockAdjustmentImport() {
       <div className="sticky top-0 z-10 px-4 py-4 border-b bg-white">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Import Stock (Stored)</h2>
-            <p className="text-xs text-gray-500 mt-1">Upload CSV to create/update Stored items with movement logs.</p>
+            <h2 className="text-lg font-semibold text-gray-900">Direct Import</h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Upload CSV to create products directly to locations without kanban association.
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -202,27 +195,11 @@ export function StockAdjustmentImport() {
             </button>
           </div>
         </div>
+
         <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-600">Target Receive Kanban</label>
-            <select
-              value={targetKanbanId}
-              onChange={e => setTargetKanbanId(e.target.value)}
-              className="border border-gray-300 rounded-md px-2 py-1 text-sm"
-            >
-              {receiveKanbans.map(k => (
-                <option key={k.id} value={k.id}>{k.name}</option>
-              ))}
-            </select>
-            {targetKanbanDetail?.location ? (
-              <span className="ml-2 inline-flex items-center px-2 py-1 text-[10px] rounded bg-green-50 text-green-700 border border-green-200">
-                Default Location: {targetKanbanDetail.location.name}
-              </span>
-            ) : (
-              <span className="ml-2 inline-flex items-center px-2 py-1 text-[10px] rounded bg-amber-50 text-amber-700 border border-amber-200">
-                No default location set
-              </span>
-            )}
+          <div className="text-xs text-gray-600 bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
+            <strong>Direct Import:</strong> Products will be created directly to locations without kanban association. 
+            Provide Location Code or Area+Location Name in CSV for each product. Locations will be auto-created if they don't exist.
           </div>
           <div className="flex items-center gap-2">
             <label className="text-xs text-gray-600">CSV File</label>
@@ -248,7 +225,11 @@ export function StockAdjustmentImport() {
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {preview.length === 0 && (
           <div className="text-xs text-gray-500 border border-dashed border-gray-300 rounded-md p-4">
-            Upload a CSV file to see a preview here. Use the template for correct columns. If your receive kanban has a default location, the Location column can be left blank.
+            Upload a CSV file to see a preview here. Use the template for correct columns.
+            <div className="mt-2">
+              <strong>Direct Import:</strong> Provide Location Code or Area+Location Name for each product. 
+              Locations will be auto-created if they don't exist.
+            </div>
           </div>
         )}
 
@@ -298,7 +279,10 @@ export function StockAdjustmentImport() {
                         <td className="px-2 py-1">{r.category}</td>
                         <td className="px-2 py-1">{r.dimensions || ''}</td>
                         <td className="px-2 py-1">{r.newStockLevel}</td>
+                        <td className="px-2 py-1">{r.unit || ''}</td>
                         <td className="px-2 py-1">{r.locationCode || ''}</td>
+                        <td className="px-2 py-1">{r.area || ''}</td>
+                        <td className="px-2 py-1">{r.locationName || ''}</td>
                         <td className="px-2 py-1">{r.unitPrice ?? ''}</td>
                         <td className="px-2 py-1">{r.notes || ''}</td>
                         <td className="px-2 py-1">{r.originalPurchaseDate || ''}</td>

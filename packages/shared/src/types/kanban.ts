@@ -61,6 +61,7 @@ export const KanbanSchema = z.object({
   thresholdRules: z.array(ThresholdRuleSchema).nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
+  productCount: z.number().optional(),
 });
 
 export const CreateKanbanSchema = z.object({

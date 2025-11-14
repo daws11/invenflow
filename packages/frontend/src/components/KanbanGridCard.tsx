@@ -72,6 +72,11 @@ export function KanbanGridCard({
                 )}
               </span>
             )}
+
+            {/* Product Count Badge */}
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
+              {productCount} {productCount === 1 ? 'item' : 'items'}
+            </span>
           </div>
 
           {/* Linked Kanbans List for Order Kanbans */}
@@ -117,14 +122,7 @@ export function KanbanGridCard({
         </button>
       </div>
 
-      <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-        <div>
-          <span className="text-sm font-medium text-gray-900">{productCount}</span>
-          <span className="text-sm text-gray-600 ml-1">
-            {productCount === 1 ? 'product' : 'products'}
-          </span>
-        </div>
-
+      <div className="flex justify-end items-center pt-4 border-t border-gray-200">
         <div className="flex space-x-2">
           <Link
             to={`/kanban/${kanban.id}`}

@@ -51,14 +51,14 @@ export function Slider({ isOpen, onClose, title, children, footer, size = 'defau
 
       {/* Slider */}
       <div
-        className={`fixed top-0 right-0 h-full ${sizeClasses[size]} bg-white shadow-2xl z-50 transform transition-all duration-300 ease-out ${
+        className={`fixed top-0 right-0 min-h-full ${sizeClasses[size]} bg-white shadow-2xl z-50 transform transition-all duration-300 ease-out ${
           isOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
         }`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="slider-title"
       >
-        <div className="flex flex-col h-full animate-fade-in">
+        <div className="flex flex-col min-h-full animate-fade-in">
           {/* Header */}
           <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
             <h2 id="slider-title" className="text-lg sm:text-xl font-semibold text-gray-900 truncate pr-4">
@@ -75,7 +75,7 @@ export function Slider({ isOpen, onClose, title, children, footer, size = 'defau
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+          <div className="flex-grow overflow-y-scroll p-4 sm:p-6 max-h-[calc(100vh-200px)]">
             {children}
           </div>
 

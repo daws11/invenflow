@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Product, UpdateProduct, DEFAULT_CATEGORIES, DEFAULT_PRIORITIES, DEFAULT_UNITS } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useLocationStore } from '../store/locationStore';
+import { useInventoryStore } from '../store/inventoryStore';
 import { useToast } from '../store/toastStore';
 import { Slider } from './Slider';
 import { BottomSheet } from './BottomSheet';
@@ -28,7 +29,8 @@ interface ProductSidebarProps {
 }
 
 export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: ProductSidebarProps) {
-  const { updateProduct, deleteProduct, currentKanban } = useKanbanStore();
+  const { updateProduct: kanbanUpdateProduct, deleteProduct, currentKanban } = useKanbanStore();
+  const { updateProduct: inventoryUpdateProduct } = useInventoryStore();
   const { locations, fetchLocations } = useLocationStore();
   const { success, error } = useToast();
   const [isMobile, setIsMobile] = useState(false);
@@ -57,7 +59,21 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
     };
 
     try {
-      await updateProduct(product.id, updateData);
+      // Update both kanban and inventory stores for optimistic updates
+      // Use Promise.all to update both stores simultaneously
+      await Promise.all([
+        kanbanUpdateProduct(product.id, updateData),
+        inventoryUpdateProduct(product.id, updateData)
+      ]);
+
+      // For grouped view, we need to refresh the grouped data since it's aggregated
+      // and can't be easily updated optimistically
+      const { displayMode, fetchGroupedInventory } = useInventoryStore.getState();
+      if (displayMode === 'grouped') {
+        // Refresh grouped inventory to reflect the changes
+        fetchGroupedInventory();
+      }
+
       success('Product updated successfully');
       onUpdate?.(product.id, updateData);
     } catch (err) {
@@ -130,14 +146,14 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
   })) || [];
 
   const content = (
-    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
+    <div className="space-y-2 sm:space-y-3 p-3 sm:p-4">
                 {/* Product Image */}
                 {product.productImage && (
-                  <div className="rounded-lg overflow-hidden bg-gray-100">
+                  <div className="rounded-lg overflow-hidden bg-gray-100 mb-3">
                     <img
                       src={product.productImage}
                       alt={product.productDetails}
-                      className="w-full h-48 object-cover"
+                      className="w-full h-32 sm:h-40 object-cover"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
                         target.style.display = 'none';
@@ -147,9 +163,9 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
                 )}
 
       {/* Basic Info Section */}
-      <div className="space-y-4">
+      <div className="space-y-2">
         <div>
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Product Name *</h3>
+          <h3 className="text-sm font-medium text-gray-700 mb-1">Product Name *</h3>
           <BasicInlineEdit
             value={product.productDetails}
             onSave={(value) => handleFieldUpdate('productDetails', value)}
@@ -157,7 +173,7 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
             placeholder="Enter product name"
             rows={2}
             maxLength={1000}
-            className="text-lg font-semibold text-gray-900"
+            className="text-base sm:text-lg font-semibold text-gray-900"
             validation={(value) => {
               if (!value || value.toString().trim().length === 0) {
                 return 'Product name is required';
@@ -167,33 +183,35 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
           />
         </div>
 
+        {/* Compact SKU and Supplier row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <h4 className="text-xs font-medium text-gray-600 mb-1">SKU</h4>
+            <BasicInlineEdit
+              value={product.sku || ''}
+              onSave={(value) => handleFieldUpdate('sku', value)}
+              placeholder="Enter SKU"
+              maxLength={100}
+              className="text-sm text-gray-600"
+            />
+          </div>
+          <div>
+            <h4 className="text-xs font-medium text-gray-600 mb-1">Supplier</h4>
+            <BasicInlineEdit
+              value={product.supplier || ''}
+              onSave={(value) => handleFieldUpdate('supplier', value)}
+              placeholder="Enter supplier"
+              maxLength={255}
+              className="text-sm text-gray-600"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Categories and Priority - Compact row */}
+      <div className="grid grid-cols-2 gap-2">
         <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">SKU</h4>
-          <BasicInlineEdit
-            value={product.sku || ''}
-            onSave={(value) => handleFieldUpdate('sku', value)}
-            placeholder="Enter SKU"
-            maxLength={100}
-            className="text-sm text-gray-600"
-          />
-                </div>
-
-                  <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Supplier</h4>
-          <BasicInlineEdit
-            value={product.supplier || ''}
-            onSave={(value) => handleFieldUpdate('supplier', value)}
-            placeholder="Enter supplier name"
-            maxLength={255}
-            className="text-sm text-gray-600"
-          />
-                    </div>
-                  </div>
-
-      {/* Categories and Priority */}
-        <div className="space-y-4">
-                <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Category</h4>
+          <h4 className="text-xs font-medium text-gray-600 mb-1">Category</h4>
           <BasicInlineEdit
             value={product.category || ''}
             onSave={(value) => handleFieldUpdate('category', value)}
@@ -201,16 +219,16 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
             options={categoryOptions}
             placeholder="Select category"
             displayValue={product.category ? (
-              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getCategoryColor(product.category)}`}>
-                <TagIcon className="h-4 w-4 mr-1" />
+              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getCategoryColor(product.category)}`}>
+                <TagIcon className="h-3 w-3 mr-1" />
                 {product.category}
               </span>
             ) : undefined}
-                  />
-                </div>
+          />
+        </div>
 
-                <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Priority</h4>
+        <div>
+          <h4 className="text-xs font-medium text-gray-600 mb-1">Priority</h4>
           <BasicInlineEdit
             value={product.priority || ''}
             onSave={(value) => handleFieldUpdate('priority', value)}
@@ -218,18 +236,18 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
             options={priorityOptions}
             placeholder="Select priority"
             displayValue={product.priority ? (
-              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getPriorityColor(product.priority)}`}>
+              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(product.priority)}`}>
                 {product.priority}
               </span>
             ) : undefined}
           />
         </div>
-                </div>
+      </div>
 
       {/* Location (only for receive kanbans) */}
-                {currentKanban?.type === 'receive' && (
-                  <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Location</h4>
+      {currentKanban?.type === 'receive' && (
+        <div>
+          <h4 className="text-xs font-medium text-gray-600 mb-1">Location</h4>
           <BasicInlineEdit
             value={product.locationId || ''}
             onSave={(value) => handleFieldUpdate('locationId', value)}
@@ -239,100 +257,104 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
             displayValue={product.locationId ? (() => {
               const loc = locations.find(l => l.id === product.locationId);
               return loc ? (
-                <div className="flex items-center text-sm text-gray-600">
-                  <MapPinIcon className="w-4 h-4 mr-1" />
-                  {loc.name} ({loc.code}) - {loc.area}
+                <div className="flex items-center text-xs text-gray-600">
+                  <MapPinIcon className="w-3 h-3 mr-1" />
+                  {loc.name} ({loc.code})
                 </div>
               ) : 'Unknown location';
             })() : undefined}
           />
-                  </div>
-                )}
+        </div>
+      )}
 
       {/* Transfer Destination (only for order kanbans) */}
       {currentKanban?.type === 'order' && linkedKanbanOptions.length > 0 && (
-                  <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Transfer Destination</h4>
+        <div>
+          <h4 className="text-xs font-medium text-gray-600 mb-1">Transfer Destination</h4>
           <BasicInlineEdit
             value={product.preferredReceiveKanbanId || ''}
             onSave={(value) => handleFieldUpdate('preferredReceiveKanbanId', value)}
             type="select"
             options={linkedKanbanOptions}
-            placeholder="Use kanban default setting"
+            placeholder="Use kanban default"
             displayValue={product.preferredReceiveKanbanId ? (() => {
               const kanban = currentKanban?.linkedKanbans?.find(k => k.id === product.preferredReceiveKanbanId);
               return kanban ? `${kanban.name}${kanban.locationName ? ` - ${kanban.locationName}` : ''}` : 'Unknown kanban';
             })() : 'Using kanban default'}
           />
-                    <p className="mt-1 text-xs text-gray-500">
-                      This product will be transferred to the selected receive kanban when moved to "Purchased"
-                    </p>
-                  </div>
-                )}
+          <p className="mt-1 text-xs text-gray-500">
+            Transfers when moved to "Purchased"
+          </p>
+        </div>
+      )}
 
-      {/* Product Details */}
-      <div className="space-y-4">
-        <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Product Link</h4>
-          <BasicInlineEdit
-            value={product.productLink || ''}
-            onSave={(value) => handleFieldUpdate('productLink', value)}
-            placeholder="Enter product URL"
-            displayValue={product.productLink ? (
-              <a
-                href={product.productLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center text-blue-600 hover:text-blue-800 text-sm break-all"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <LinkIcon className="h-4 w-4 mr-1 flex-shrink-0" />
-                {product.productLink}
-              </a>
-            ) : undefined}
-            validation={(value) => {
-              if (value && value.toString().trim()) {
-                try {
-                  new URL(value.toString());
-                  return null;
-                } catch {
-                  return 'Please enter a valid URL';
+      {/* Product Details - Compact Layout */}
+      <div className="space-y-2">
+        {/* Links Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <h4 className="text-xs font-medium text-gray-600 mb-1">Product Link</h4>
+            <BasicInlineEdit
+              value={product.productLink || ''}
+              onSave={(value) => handleFieldUpdate('productLink', value)}
+              placeholder="Enter product URL"
+              displayValue={product.productLink ? (
+                <a
+                  href={product.productLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center text-blue-600 hover:text-blue-800 text-xs break-all"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <LinkIcon className="h-3 w-3 mr-1 flex-shrink-0" />
+                  Link
+                </a>
+              ) : undefined}
+              validation={(value) => {
+                if (value && value.toString().trim()) {
+                  try {
+                    new URL(value.toString());
+                    return null;
+                  } catch {
+                    return 'Please enter a valid URL';
+                  }
                 }
-              }
-              return null;
-            }}
-          />
+                return null;
+              }}
+            />
+          </div>
+
+          <div>
+            <h4 className="text-xs font-medium text-gray-600 mb-1">Image URL</h4>
+            <BasicInlineEdit
+              value={product.productImage || ''}
+              onSave={(value) => handleFieldUpdate('productImage', value)}
+              placeholder="Enter image URL"
+              displayValue={product.productImage ? (
+                <div className="flex items-center text-xs text-gray-600">
+                  <PhotoIcon className="h-3 w-3 mr-1" />
+                  Image set
+                </div>
+              ) : undefined}
+              validation={(value) => {
+                if (value && value.toString().trim()) {
+                  try {
+                    new URL(value.toString());
+                    return null;
+                  } catch {
+                    return 'Please enter a valid URL';
+                  }
+                }
+                return null;
+              }}
+            />
+          </div>
         </div>
 
-                <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Product Image URL</h4>
-          <BasicInlineEdit
-            value={product.productImage || ''}
-            onSave={(value) => handleFieldUpdate('productImage', value)}
-            placeholder="Enter image URL"
-            displayValue={product.productImage ? (
-              <div className="flex items-center text-sm text-gray-600">
-                <PhotoIcon className="h-4 w-4 mr-1" />
-                Image URL set
-              </div>
-            ) : undefined}
-            validation={(value) => {
-              if (value && value.toString().trim()) {
-                try {
-                  new URL(value.toString());
-                  return null;
-                } catch {
-                  return 'Please enter a valid URL';
-                }
-              }
-              return null;
-            }}
-                  />
-                </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Weight</h4>
+        {/* Weight and Unit Row */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <h4 className="text-xs font-medium text-gray-600 mb-1">Weight</h4>
             <BasicInlineEdit
               value={product.weight || ''}
               onSave={(value) => handleFieldUpdate('weight', value)}
@@ -346,10 +368,10 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
                 return null;
               }}
             />
-                  </div>
+          </div>
 
-                  <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Unit</h4>
+          <div>
+            <h4 className="text-xs font-medium text-gray-600 mb-1">Unit</h4>
             <BasicInlineEdit
               value={product.unit || ''}
               onSave={(value) => handleFieldUpdate('unit', value)}
@@ -360,21 +382,22 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
               placeholder="Select unit"
               maxLength={20}
             />
-                  </div>
-                </div>
+          </div>
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Stock Level and Unit Price Row */}
+        <div className="grid grid-cols-2 gap-2">
           <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Stock Level</h4>
+            <h4 className="text-xs font-medium text-gray-600 mb-1">Stock Level</h4>
             <BasicInlineEdit
               value={product.stockLevel || ''}
               onSave={(value) => handleFieldUpdate('stockLevel', value)}
-                      type="number"
+              type="number"
               placeholder="0"
               displayValue={product.stockLevel !== null ? (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                  <CubeIcon className="h-4 w-4 mr-1" />
-                  Stock: {product.stockLevel}
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                  <CubeIcon className="h-3 w-3 mr-1" />
+                  {product.stockLevel}
                 </span>
               ) : undefined}
               validation={(value) => {
@@ -383,19 +406,19 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
                 }
                 return null;
               }}
-                    />
-                  </div>
+            />
+          </div>
 
-                  <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Unit Price</h4>
+          <div>
+            <h4 className="text-xs font-medium text-gray-600 mb-1">Unit Price</h4>
             <BasicInlineEdit
               value={product.unitPrice || ''}
               onSave={(value) => handleFieldUpdate('unitPrice', value)}
-                      type="number"
+              type="number"
               placeholder="0.00"
               displayValue={product.unitPrice ? (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200">
-                  <CurrencyDollarIcon className="h-4 w-4 mr-1" />
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                  <CurrencyDollarIcon className="h-3 w-3 mr-1" />
                   {formatCurrency(product.unitPrice)}
                 </span>
               ) : undefined}
@@ -405,22 +428,24 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
                 }
                 return null;
               }}
-                    />
-                  </div>
-                </div>
+            />
+          </div>
+        </div>
 
-                <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Dimensions</h4>
+        {/* Dimensions */}
+        <div>
+          <h4 className="text-xs font-medium text-gray-600 mb-1">Dimensions</h4>
           <BasicInlineEdit
             value={product.dimensions || ''}
             onSave={(value) => handleFieldUpdate('dimensions', value)}
             placeholder="e.g., 10x20x5 cm"
             maxLength={255}
-                  />
-                </div>
+          />
+        </div>
 
-                  <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Tags</h4>
+        {/* Tags */}
+        <div>
+          <h4 className="text-xs font-medium text-gray-600 mb-1">Tags</h4>
           <BasicInlineEdit
             value={Array.isArray(product.tags) ? product.tags.join(', ') : ''}
             onSave={(value) => {
@@ -433,57 +458,60 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
                 {product.tags.map((tag, index) => (
                   <span
                     key={index}
-                    className="inline-flex items-center px-2 py-1 rounded text-sm bg-gray-50 text-gray-600 border border-gray-200"
+                    className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-50 text-gray-600 border border-gray-200"
                   >
                     #{tag}
                   </span>
                 ))}
               </div>
             ) : undefined}
-                    />
-                  </div>
+          />
+        </div>
 
-                  <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Notes</h4>
+        {/* Notes */}
+        <div>
+          <h4 className="text-xs font-medium text-gray-600 mb-1">Notes</h4>
           <BasicInlineEdit
             value={product.notes || ''}
             onSave={(value) => handleFieldUpdate('notes', value)}
             type="textarea"
             placeholder="Enter notes..."
-            rows={3}
+            rows={2}
             maxLength={1000}
             displayValue={product.notes ? (
-              <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded whitespace-pre-wrap">
+              <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded whitespace-pre-wrap">
                 {product.notes}
               </div>
             ) : undefined}
-                    />
-                  </div>
-                </div>
-
-      {/* Metadata */}
-      <div className="pt-4 border-t border-gray-200">
-        <div className="flex items-center text-xs text-gray-500 mb-1">
-          <CalendarIcon className="h-3 w-3 mr-1" />
-          Created: {formatDateWithTime(product.createdAt)}
+          />
         </div>
-        <div className="flex items-center text-xs text-gray-500">
-          <ClockIcon className="h-3 w-3 mr-1" />
-          Updated: {new Date(product.updatedAt).toLocaleDateString()}
-                  </div>
                 </div>
 
-      {/* Delete Section */}
-      <div className="pt-4 border-t border-gray-200">
+      {/* Metadata - Compact */}
+      <div className="pt-2 border-t border-gray-200">
+        <div className="flex items-center justify-between text-xs text-gray-500">
+          <div className="flex items-center">
+            <CalendarIcon className="h-3 w-3 mr-1" />
+            Created: {formatDateWithTime(product.createdAt)}
+          </div>
+          <div className="flex items-center">
+            <ClockIcon className="h-3 w-3 mr-1" />
+            Updated: {new Date(product.updatedAt).toLocaleDateString()}
+          </div>
+        </div>
+      </div>
+
+      {/* Delete Section - Less Prominent */}
+      <div className="pt-2 border-t border-gray-200">
         <button
           onClick={() => setShowDeleteConfirm(true)}
           disabled={isDeleting}
-          className="w-full inline-flex items-center justify-center px-4 py-2 border border-red-300 shadow-sm text-sm font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full inline-flex items-center justify-center px-3 py-1.5 border border-red-300 shadow-sm text-xs font-medium rounded text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <TrashIcon className="h-4 w-4 mr-2" />
+          <TrashIcon className="h-3 w-3 mr-1.5" />
           Delete Product
         </button>
-                </div>
+      </div>
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
@@ -520,7 +548,7 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
 
   if (isMobile) {
     return (
-      <BottomSheet isOpen={isOpen} onClose={onClose} title="Product Details" heightClassName="h-[85%]">
+      <BottomSheet isOpen={isOpen} onClose={onClose} title="Product Details">
         {content}
       </BottomSheet>
     );

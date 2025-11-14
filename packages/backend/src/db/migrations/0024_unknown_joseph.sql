@@ -1,0 +1,1 @@
+ALTER TABLE "products" ALTER COLUMN "kanban_id" DROP NOT NULL;

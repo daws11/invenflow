@@ -202,6 +202,7 @@ router.put('/:id', async (req, res, next) => {
       unitPrice,
       notes,
       assignedToPersonId,
+      preferredReceiveKanbanId,
     } = req.body;
 
     locationIdInput = req.body?.locationId as string | null | undefined;
@@ -273,6 +274,7 @@ router.put('/:id', async (req, res, next) => {
     if (unitPrice !== undefined) updateData.unitPrice = coerceDecimal(unitPrice);
     if (notes !== undefined) updateData.notes = notes;
     if (assignedToPersonId !== undefined) updateData.assignedToPersonId = assignedToPersonId;
+    if (preferredReceiveKanbanId !== undefined) updateData.preferredReceiveKanbanId = preferredReceiveKanbanId;
 
     const [updatedProduct] = await db
       .update(products)
@@ -416,7 +418,7 @@ router.put('/:id/move', async (req, res, next) => {
           .where(eq(kanbans.id, targetKanbanId))
           .limit(1);
 
-        if (targetKanban && targetKanban.type === 'receive') {
+        if (targetKanban && targetKanban.type === 'receive' && currentProduct.kanbanId) {
           // Verify the link exists
           const [linkExists] = await db
             .select()
@@ -466,7 +468,7 @@ router.put('/:id/move', async (req, res, next) => {
       .returning();
 
     // Log location change if happened
-    if (locationId !== undefined && locationId !== currentProduct.locationId) {
+    if (locationId !== undefined && locationId !== currentProduct.locationId && currentProduct.kanbanId) {
       await db.insert(transferLogs).values({
         productId: id,
         fromKanbanId: currentProduct.kanbanId,
@@ -554,6 +556,10 @@ router.post('/:id/transfer', async (req, res, next) => {
 
     if (targetKanban.type !== 'receive') {
       throw createError('Target must be a receive kanban', 400);
+    }
+
+    if (!currentProduct.kanbanId) {
+      throw createError('Product has no kanban association and cannot be transferred', 400);
     }
 
     // Verify the link exists

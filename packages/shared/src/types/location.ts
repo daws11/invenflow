@@ -45,7 +45,6 @@ export const DEFAULT_AREAS = [
   'Gudang Utama',
   'Gudang A',
   'Gudang B',
-  'Gudang C',
   'Workshop',
   'Kantor',
   'Showroom',

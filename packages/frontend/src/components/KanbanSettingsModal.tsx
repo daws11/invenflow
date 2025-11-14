@@ -27,7 +27,6 @@ interface KanbanSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   kanban: Kanban | null;
-  onUpdate: (id: string, name: string, description?: string | null) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   productCount?: number;
 }
@@ -38,7 +37,6 @@ export function KanbanSettingsModal({
   isOpen,
   onClose,
   kanban,
-  onUpdate,
   onDelete,
   productCount = 0,
 }: KanbanSettingsModalProps) {
@@ -210,18 +208,18 @@ export function KanbanSettingsModal({
     setIsSubmittingEdit(true);
     try {
       const normalizedDescription = editDescription.trim();
-      await onUpdate(
-        kanban.id,
-        editName.trim(),
-        normalizedDescription.length > 0 ? normalizedDescription : null
-      );
-      // Update default location for receive kanban if changed
+      const updatePayload: any = {
+        name: editName.trim(),
+        description: normalizedDescription.length > 0 ? normalizedDescription : null,
+      };
+
+      // Add locationId for receive kanbans
       if (kanban.type === 'receive') {
-        const newLocationId = editLocationId || null;
-        if (newLocationId !== kanban.locationId) {
-          await api.put(`/api/kanbans/${kanban.id}`, { locationId: newLocationId });
-        }
+        updatePayload.locationId = editLocationId || null;
       }
+
+      await api.put(`/api/kanbans/${kanban.id}`, updatePayload);
+
       toast.success('Kanban updated successfully!');
       setActiveTab('overview');
     } catch (error) {
@@ -241,8 +239,10 @@ export function KanbanSettingsModal({
       await api.put(`/api/kanbans/${kanban.id}`, {
         thresholdRules: thresholdRules,
       });
+      // Refresh kanban data to reflect changes
+      await fetchKanbanById(kanban.id);
       toast.success('Threshold rules saved successfully!');
-      window.location.reload();
+      setActiveTab('overview');
     } catch (error) {
       console.error('Failed to save threshold rules:', error);
       toast.error('Failed to save threshold rules');

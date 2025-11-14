@@ -4,9 +4,10 @@ import { StockAdjustmentImport } from './StockAdjustmentImport';
 interface StockAdjustmentImportModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-export function StockAdjustmentImportModal({ isOpen, onClose }: StockAdjustmentImportModalProps) {
+export function StockAdjustmentImportModal({ isOpen, onClose, onSuccess }: StockAdjustmentImportModalProps) {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
@@ -37,7 +38,7 @@ export function StockAdjustmentImportModal({ isOpen, onClose }: StockAdjustmentI
 
             {/* Content */}
             <div className="flex-1 overflow-hidden">
-              <StockAdjustmentImport />
+              <StockAdjustmentImport onSuccess={onSuccess} />
             </div>
           </div>
         </div>

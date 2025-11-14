@@ -54,7 +54,7 @@ export function SliderTabs({ tabs, defaultTab, activeTab: controlledActiveTab, o
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-y-auto py-6" role="tabpanel" id={`panel-${activeTab}`}>
+      <div className="flex-1 overflow-y-scroll py-6 max-h-[calc(100vh-200px)]" role="tabpanel" id={`panel-${activeTab}`}>
         {activeTabContent}
       </div>
     </div>

@@ -5,7 +5,7 @@ import { useMovementStore } from '../store/movementStore';
 import { useInventoryStore } from '../store/inventoryStore';
 import { useLocationStore } from '../store/locationStore';
 import { usePersonStore } from '../store/personStore';
-import { bulkMovementApi } from '../utils/api';
+import { bulkMovementApi, inventoryApi } from '../utils/api';
 import { nanoid } from 'nanoid';
 
 interface MovementModalProps {
@@ -36,7 +36,7 @@ interface SelectedProduct {
 
 export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }: MovementModalProps) {
   const { createMovement, loading } = useMovementStore();
-  const { items: inventoryItems, fetchInventory } = useInventoryStore();
+  const { fetchInventory } = useInventoryStore();
   const { locations, fetchLocations } = useLocationStore();
   const { persons, fetchPersons } = usePersonStore();
 
@@ -50,6 +50,8 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [bulkMovementResult, setBulkMovementResult] = useState<BulkMovementResult | null>(null);
   const [linkCopied, setLinkCopied] = useState<boolean>(false);
+  const [availableAtLocation, setAvailableAtLocation] = useState<InventoryItem[]>([]);
+  const [loadingAvailable, setLoadingAvailable] = useState<boolean>(false);
 
   // Load data on mount
   useEffect(() => {
@@ -59,6 +61,34 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
       fetchPersons({ activeOnly: true });
     }
   }, [isOpen, fetchInventory, fetchLocations, fetchPersons]);
+
+  // Load available products for selected source location directly from server (avoid pagination/stale data)
+  useEffect(() => {
+    const loadAvailable = async () => {
+      if (!isOpen || !fromLocationId) {
+        setAvailableAtLocation([]);
+        return;
+      }
+      setLoadingAvailable(true);
+      try {
+        const res = await inventoryApi.getInventory({
+          location: [fromLocationId],
+          columnStatus: ['Stored'],
+          page: 1,
+          pageSize: 1000,
+          sortBy: 'updatedAt',
+          sortOrder: 'desc',
+          viewMode: 'unified',
+        });
+        setAvailableAtLocation(res.items);
+      } catch (_e) {
+        setAvailableAtLocation([]);
+      } finally {
+        setLoadingAvailable(false);
+      }
+    };
+    void loadAvailable();
+  }, [isOpen, fromLocationId]);
 
   // Initialize from preselected product
   useEffect(() => {
@@ -98,11 +128,8 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
     }
   }, [isOpen]);
 
-  // Filter products
-  const storedProducts = inventoryItems.filter(item => item.columnStatus === 'Stored');
-  const availableProducts = fromLocationId 
-    ? storedProducts.filter(item => item.locationId === fromLocationId)
-    : [];
+  // Filter products sourced from server by location
+  const availableProducts = fromLocationId ? availableAtLocation : [];
   const filteredProducts = availableProducts.filter(item =>
     !selectedProducts.some(sp => sp.productId === item.id) &&
     (item.productDetails.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -341,7 +368,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                         <strong>{fromLocation.name}</strong>
                       </p>
                       <p className="text-xs text-blue-700 mt-1">
-                        {availableProducts.length} products available
+                        {loadingAvailable ? 'Loading...' : `${availableProducts.length} products available`}
                       </p>
                     </div>
                   )}

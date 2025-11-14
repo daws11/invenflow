@@ -8,6 +8,7 @@ import CompactKanbanListRow from '../components/CompactKanbanListRow';
 import { KanbanGridCard } from '../components/KanbanGridCard';
 import CreateKanbanPlaceholder from '../components/CreateKanbanPlaceholder';
 import { useToast } from '../store/toastStore';
+import { getProductCount } from '../utils/productCount';
 import {
   MagnifyingGlassIcon,
   FunnelIcon,
@@ -19,7 +20,7 @@ type SortField = 'name' | 'createdAt';
 type SortOrder = 'asc' | 'desc';
 
 export default function KanbanReceivingPage() {
-  const { kanbans, loading, error, fetchKanbans, createKanban, updateKanban, deleteKanban } = useKanbanStore();
+  const { kanbans, loading, error, fetchKanbans, createKanban, deleteKanban } = useKanbanStore();
   const { kanbanListViewMode, setKanbanListViewMode } = useViewPreferencesStore();
   const toast = useToast();
   
@@ -75,22 +76,7 @@ export default function KanbanReceivingPage() {
     return filtered;
   }, [kanbans, searchTerm, sortField, sortOrder]);
 
-  // Get product count for a kanban
-  type KanbanWithExtras = Kanban & { products?: { id: string }[]; productCount?: number };
-
-  const getProductCount = (kanban: Kanban) => {
-    const kanbanWithExtras = kanban as KanbanWithExtras;
-
-    if (typeof kanbanWithExtras.productCount === 'number') {
-      return kanbanWithExtras.productCount;
-    }
-
-    if (Array.isArray(kanbanWithExtras.products)) {
-      return kanbanWithExtras.products.length;
-    }
-
-    return 0;
-  };
+  // Use centralized product count utility
 
   const getKanbanDescription = (kanban: Kanban) => {
     return kanban.description?.trim() || 'No description';
@@ -115,21 +101,6 @@ export default function KanbanReceivingPage() {
     }
   };
 
-  const handleUpdateKanban = async (id: string, name: string, description?: string | null) => {
-    try {
-      const updatePayload: Partial<Kanban> = { name };
-      if (description !== undefined) {
-        updatePayload.description = description;
-      }
-      await updateKanban(id, updatePayload);
-      toast.success('Kanban updated successfully');
-      setIsSettingsModalOpen(false);
-      setSelectedKanban(null);
-    } catch (error) {
-      toast.error('Failed to update kanban. Please try again.');
-      throw error;
-    }
-  };
 
   const handleDeleteKanban = async (id: string) => {
     try {
@@ -371,9 +342,8 @@ export default function KanbanReceivingPage() {
               setSelectedKanban(null);
             }}
             kanban={selectedKanban}
-            onUpdate={handleUpdateKanban}
             onDelete={handleDeleteKanban}
-            productCount={getProductCount(selectedKanban)}
+            productCount={selectedKanban ? getProductCount(selectedKanban) : 0}
         />
       )}
     </div>

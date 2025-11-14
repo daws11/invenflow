@@ -14,20 +14,26 @@ import { ValidationImageDisplay } from './ValidationImageDisplay';
 import { MovementModal } from './MovementModal';
 import { useLocationStore } from '../store/locationStore';
 import { usePersonStore } from '../store/personStore';
+import { useInventoryStore } from '../store/inventoryStore';
 
 interface InventoryGridProps {
-  items: InventoryItem[];
+  items?: InventoryItem[]; // Optional since we use store data primarily
   loading: boolean;
   viewMode: 'unified' | 'by-kanban';
   onProductClick: (item: InventoryItem) => void;
+  onMovementSuccess?: () => void;
 }
 
-export function InventoryGrid({ items, loading, viewMode, onProductClick }: InventoryGridProps) {
+export function InventoryGrid({ items: _items, loading, viewMode, onProductClick, onMovementSuccess }: InventoryGridProps) {
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const [selectedProductForMove, setSelectedProductForMove] = useState<InventoryItem | null>(null);
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
   const { locations, fetchLocations } = useLocationStore();
   const { persons, fetchPersons } = usePersonStore();
+  const { items: storeItems } = useInventoryStore();
+
+  // Use store items for real-time updates, fallback to props for compatibility
+  const items = storeItems.length > 0 ? storeItems : (_items || []);
 
   useEffect(() => {
     fetchLocations();
@@ -46,7 +52,7 @@ export function InventoryGrid({ items, loading, viewMode, onProductClick }: Inve
 
   const handleMovementSuccess = () => {
     setSelectedProductForMove(null);
-    // The parent component will refresh the inventory
+    onMovementSuccess?.(); // Trigger refresh after successful movement
   };
 
   const getPriorityColor = (priority: string | null) => {
@@ -92,7 +98,7 @@ export function InventoryGrid({ items, loading, viewMode, onProductClick }: Inve
   const groupItemsByKanban = (items: InventoryItem[]) => {
     const groups: Record<string, InventoryItem[]> = {};
     items.forEach(item => {
-      const kanbanId = item.kanbanId;
+      const kanbanId = item.kanban?.id || 'unknown';
       if (!groups[kanbanId]) {
         groups[kanbanId] = [];
       }
@@ -303,7 +309,20 @@ export function InventoryGrid({ items, loading, viewMode, onProductClick }: Inve
             {/* Kanban Header */}
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">{kanban.name}</h2>
+                <div className="flex items-center">
+                  {kanban.id === 'direct-import' ? (
+                    <svg className="h-5 w-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                    </svg>
+                  ) : (
+                    <svg className="h-5 w-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 002-2M9 7a2 2 0 012 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 002-2" />
+                    </svg>
+                  )}
+                  <h2 className={`text-lg font-semibold ${kanban.id === 'direct-import' ? 'text-green-700' : 'text-gray-900'}`}>
+                    {kanban.name}
+                  </h2>
+                </div>
                 <p className="text-sm text-gray-500">
                   {kanbanItems.length} items • {kanbanItems.filter(item => item.columnStatus === 'Stored').length} stored
                 </p>

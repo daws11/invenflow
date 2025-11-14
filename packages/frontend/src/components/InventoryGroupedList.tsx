@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { GroupedInventoryItem, InventoryItem } from '@invenflow/shared';
 import {
   ChevronDownIcon,
@@ -139,10 +139,9 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
             {items.map((item) => {
               const isExpanded = expandedRows.has(item.sku);
               return (
-                <>
+                <React.Fragment key={item.sku}>
                   {/* Main Row */}
                   <tr
-                    key={item.sku}
                     className="hover:bg-gray-50 transition-colors"
                   >
                     <td className="px-3 py-4 whitespace-nowrap">
@@ -301,7 +300,7 @@ export const InventoryGroupedList = ({ items, loading }: InventoryGroupedListPro
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               );
             })}
           </tbody>

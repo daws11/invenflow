@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CreateLocation, DEFAULT_AREAS } from '@invenflow/shared';
+import { CreateLocation } from '@invenflow/shared';
 
 interface CreateLocationModalProps {
   isOpen: boolean;
@@ -104,8 +104,6 @@ export function CreateLocationModal({ isOpen, onClose, onCreate }: CreateLocatio
 
   if (!isOpen) return null;
 
-  const availableAreas = DEFAULT_AREAS;
-
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
@@ -172,24 +170,6 @@ export function CreateLocationModal({ isOpen, onClose, onCreate }: CreateLocatio
                 placeholder="e.g., Gudang Utama, Workshop"
                 disabled={isSubmitting}
               />
-              <div className="mt-2">
-                <p className="text-xs text-gray-500 mb-1.5">
-                   Quick select from common areas:
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {availableAreas.map((area) => (
-                    <button
-                      key={area}
-                      type="button"
-                      onClick={() => handleFormChange('area', area)}
-                      disabled={isSubmitting}
-                      className="text-xs px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-50 bg-blue-100 hover:bg-blue-200 text-blue-700"
-                    >
-                      {area}
-                    </button>
-                  ))}
-                </div>
-              </div>
               {errors.area && (
                 <p className="mt-1 text-sm text-red-600">{errors.area}</p>
               )}
@@ -218,8 +198,8 @@ export function CreateLocationModal({ isOpen, onClose, onCreate }: CreateLocatio
               )}
             </div>
 
-            {/* Building */}
-            <div>
+            {/* Building - Temporarily Hidden */}
+            {/* <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Building (Optional)
               </label>
@@ -231,10 +211,10 @@ export function CreateLocationModal({ isOpen, onClose, onCreate }: CreateLocatio
                 placeholder="e.g., Building A, Main Warehouse"
                 disabled={isSubmitting}
               />
-            </div>
+            </div> */}
 
-            {/* Floor */}
-            <div>
+            {/* Floor - Temporarily Hidden */}
+            {/* <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Floor (Optional)
               </label>
@@ -246,10 +226,10 @@ export function CreateLocationModal({ isOpen, onClose, onCreate }: CreateLocatio
                 placeholder="e.g., Ground Floor, Floor 2"
                 disabled={isSubmitting}
               />
-            </div>
+            </div> */}
 
-            {/* Capacity */}
-            <div>
+            {/* Capacity - Temporarily Hidden */}
+            {/* <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Capacity (Optional)
               </label>
@@ -262,7 +242,7 @@ export function CreateLocationModal({ isOpen, onClose, onCreate }: CreateLocatio
                 placeholder="Maximum storage capacity"
                 disabled={isSubmitting}
               />
-            </div>
+            </div> */}
 
             {/* Active Status */}
             <div className="flex items-center">

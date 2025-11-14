@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Product, CreateProduct, UpdateProduct, DEFAULT_CATEGORIES, DEFAULT_PRIORITIES, DEFAULT_UNITS } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
+import { useInventoryStore } from '../store/inventoryStore';
 import { useLocationStore } from '../store/locationStore';
 
 interface ProductFormProps {
@@ -11,7 +12,8 @@ interface ProductFormProps {
 }
 
 export default function ProductForm({ kanbanId, initialColumn, product, onClose }: ProductFormProps) {
-  const { createProduct, updateProduct, currentKanban } = useKanbanStore();
+  const { createProduct, updateProduct: kanbanUpdateProduct, currentKanban } = useKanbanStore();
+  const { updateProduct: inventoryUpdateProduct } = useInventoryStore();
   const { locations, fetchLocations } = useLocationStore();
   const [formData, setFormData] = useState({
     productDetails: product?.productDetails || '',
@@ -117,7 +119,19 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
           updateData.stockLevel = parseInt(formData.stockLevel, 10);
         }
 
-        await updateProduct(product.id, updateData);
+        // Update both kanban and inventory stores for optimistic updates
+        await Promise.all([
+          kanbanUpdateProduct(product.id, updateData),
+          inventoryUpdateProduct(product.id, updateData)
+        ]);
+
+        // For grouped view, we need to refresh the grouped data since it's aggregated
+        // and can't be easily updated optimistically
+        const { displayMode, fetchGroupedInventory } = useInventoryStore.getState();
+        if (displayMode === 'grouped') {
+          // Refresh grouped inventory to reflect the changes
+          fetchGroupedInventory();
+        }
       } else {
         // Create new product
         const createData: CreateProduct = {

@@ -62,7 +62,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       const productsData = await tx
         .select()
         .from(products)
-        .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
+        .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
         .where(and(
           inArray(products.id, productIds),
           eq(products.locationId, fromLocationId),

@@ -145,9 +145,11 @@ export const performanceMiddleware = (req: Request, res: Response, next: NextFun
 
     performanceMonitor.logRequest(metric);
 
-    // Add performance headers
-    res.setHeader('X-Response-Time', `${responseTime}ms`);
-    res.setHeader('X-Memory-Usage', `${Math.round(endMemory.heapUsed / 1024 / 1024)}MB`);
+    // Add performance headers (pastikan header belum terkirim)
+    if (!res.headersSent) {
+      res.setHeader('X-Response-Time', `${responseTime}ms`);
+      res.setHeader('X-Memory-Usage', `${Math.round(endMemory.heapUsed / 1024 / 1024)}MB`);
+    }
 
     // Call original end method with proper typing
     return originalEnd(chunk, encoding as BufferEncoding, cb);

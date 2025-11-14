@@ -111,7 +111,7 @@ export function BasicInlineEdit({
 
   if (isEditing) {
     return (
-      <div className="space-y-2">
+      <div className="relative">
         {type === 'select' ? (
           <select
             ref={inputRef as React.RefObject<HTMLSelectElement>}
@@ -132,7 +132,7 @@ export function BasicInlineEdit({
               });
             }}
             onKeyDown={handleKeyPress}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 bg-white border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm"
           >
             <option value="">Select...</option>
             {options.map((option) => (
@@ -150,7 +150,7 @@ export function BasicInlineEdit({
             onBlur={saveValue}
             rows={rows}
             maxLength={maxLength}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+            className="w-full px-3 py-2 bg-white border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-y shadow-sm"
             placeholder={placeholder}
           />
         ) : (
@@ -162,12 +162,13 @@ export function BasicInlineEdit({
             onKeyDown={handleKeyPress}
             onBlur={saveValue}
             maxLength={maxLength}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 bg-white border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm"
             placeholder={placeholder}
           />
         )}
         
-        <div className="text-xs text-gray-500">
+        {/* Help text with smooth animation */}
+        <div className="mt-2 text-xs text-gray-500 opacity-80 transition-all duration-200 animate-fade-in">
           Press Enter to save, Escape to cancel
         </div>
       </div>
@@ -183,30 +184,36 @@ export function BasicInlineEdit({
   return (
     <div className="relative">
       <div 
-        className={`group cursor-pointer hover:bg-gray-50 rounded-md px-3 py-2 border border-transparent hover:border-gray-200 transition-colors ${
-          hasError ? 'bg-red-50 border-red-200' : ''
+        className={`group cursor-pointer rounded-md px-3 py-2 border border-transparent hover:border-blue-200 hover:bg-blue-50/50 transition-all duration-200 ease-out ${
+          hasError ? 'bg-red-50 border-red-200' : 'hover:shadow-sm'
         } ${className}`}
         onClick={startEdit}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
+        <div className="flex items-center justify-between min-h-[2rem]">
+          <div className="flex-1 min-w-0">
             {displayValue && !shouldShowOptimistic ? (
               displayValue
             ) : (
-              <span className={`text-sm ${!displayedValue ? 'text-gray-400 italic' : 'text-gray-900'} ${
+              <span className={`text-sm leading-relaxed ${!displayedValue ? 'text-gray-400 italic' : 'text-gray-900'} ${
                 optimisticValue !== null ? 'opacity-90' : ''
-              }`}>
+              } transition-opacity duration-200`}>
                 {displayedValue?.toString() || placeholder}
               </span>
             )}
           </div>
-          <PencilIcon className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="flex-shrink-0 ml-2 flex items-center space-x-1">
+            {/* Loading indicator for optimistic updates */}
+            {optimisticValue !== null && (
+              <div className="w-3 h-3 border border-blue-300 border-t-transparent rounded-full animate-spin"></div>
+            )}
+            <PencilIcon className="h-3.5 w-3.5 text-gray-400 opacity-0 group-hover:opacity-100 transition-all duration-200 group-hover:scale-110" />
+          </div>
         </div>
       </div>
       
-      {/* Error indicator */}
+      {/* Enhanced error indicator */}
       {hasError && (
-        <div className="absolute -bottom-6 left-0 text-xs text-red-600 bg-red-50 px-2 py-1 rounded shadow-sm">
+        <div className="absolute -bottom-6 left-0 text-xs text-red-600 bg-red-50 px-2 py-1 rounded-md shadow-sm border border-red-200 animate-fade-in">
           Failed to save. Click to retry.
         </div>
       )}

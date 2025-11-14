@@ -161,7 +161,7 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
                                 <svg className="w-4 h-4 mr-1 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                 </svg>
-                                <span className="font-medium text-sm text-purple-900">{movement.fromPerson.name}</span>
+                                <span className="font-medium text-sm text-purple-900">{movement.fromPerson?.name || 'Unknown'}</span>
                               </div>
                               
                             </div>
@@ -171,10 +171,10 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
                                 <svg className="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                                 </svg>
-                                <span className="font-medium text-sm text-blue-900">{movement.fromLocation.name}</span>
+                                <span className="font-medium text-sm text-blue-900">{movement.fromLocation?.name || 'Unknown'}</span>
                               </div>
                               <div className="text-xs text-gray-500 mt-0.5 ml-5">
-                                {movement.fromLocation.area}
+                                {movement.fromLocation?.area || ''}
                               </div>
                             </div>
                           ) : (
@@ -195,7 +195,7 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
                                 <svg className="w-4 h-4 mr-1 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                 </svg>
-                                <span className="font-medium text-sm text-purple-900">{movement.toPerson.name}</span>
+                                <span className="font-medium text-sm text-purple-900">{movement.toPerson?.name || 'Unknown'}</span>
                               </div>
                               
                             </div>
@@ -205,10 +205,10 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
                                 <svg className="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                                 </svg>
-                                <span className="font-medium text-sm text-blue-900">{movement.toLocation.name}</span>
+                                <span className="font-medium text-sm text-blue-900">{movement.toLocation?.name || 'Unknown'}</span>
                               </div>
                               <div className="text-xs text-gray-500 mt-0.5 ml-5">
-                                {movement.toLocation.area}
+                                {movement.toLocation?.area || ''}
                               </div>
                             </div>
                           ) : (

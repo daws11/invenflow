@@ -406,13 +406,17 @@ export const inventoryApi = {
   getInventory: async (
     params: InventoryFilters & { page?: number; pageSize?: number },
   ): Promise<InventoryResponse> => {
-    const response = await api.get("/api/inventory", { params });
+    const response = await api.get("/api/inventory", {
+      params,
+      headers: { 'Cache-Control': 'no-cache' },
+    });
     return response.data;
   },
   importStored: async (data: {
     importBatchLabel?: string;
     importBatchId?: string;
-    targetReceiveKanbanId: string;
+    targetReceiveKanbanId?: string;
+    bypassKanban?: boolean;
     items: Array<{
       sku?: string;
       legacySku?: string;
@@ -422,8 +426,11 @@ export const inventoryApi = {
       category: string;
       dimensions?: string | null;
       newStockLevel: number;
+      unit?: string;
       locationId?: string;
       locationCode?: string;
+      area?: string;
+      locationName?: string;
       unitPrice?: number;
       notes?: string;
       originalPurchaseDate?: string;
@@ -479,6 +486,7 @@ export const inventoryApi = {
   ): Promise<ProductLocationResponse> => {
     const response = await api.get(
       `/api/inventory/sku/${encodeURIComponent(sku)}/locations`,
+      { headers: { 'Cache-Control': 'no-cache' } }
     );
     return response.data;
   },

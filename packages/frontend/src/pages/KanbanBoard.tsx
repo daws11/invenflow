@@ -17,7 +17,7 @@ import { Squares2X2Icon, ListBulletIcon, FunnelIcon, PlusIcon, ChevronDownIcon, 
 import { useKanbanStore } from '../store/kanbanStore';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
 import { useLocationStore } from '../store/locationStore';
-import { ORDER_COLUMNS, RECEIVE_COLUMNS, Product, ValidationStatus, Kanban } from '@invenflow/shared';
+import { ORDER_COLUMNS, RECEIVE_COLUMNS, Product, ValidationStatus } from '@invenflow/shared';
 import KanbanColumn from '../components/KanbanColumn';
 import CompactBoardView from '../components/CompactBoardView';
 import ProductForm from '../components/ProductForm';
@@ -36,10 +36,11 @@ import QuickFilters from '../components/QuickFilters';
 import FilterPresets from '../components/FilterPresets';
 import EnhancedFilterChips from '../components/EnhancedFilterChips';
 import KeyboardShortcutsHelp from '../components/KeyboardShortcutsHelp';
+import { getProductCount } from '../utils/productCount';
 
 export default function KanbanBoard() {
   const { id } = useParams<{ id: string }>();
-  const { currentKanban, loading, error, fetchKanbanById, moveProduct, transferProduct, updateKanban, deleteKanban } = useKanbanStore();
+  const { currentKanban, loading, error, fetchKanbanById, moveProduct, transferProduct, deleteKanban } = useKanbanStore();
   const { kanbanBoardViewMode, setKanbanBoardViewMode } = useViewPreferencesStore();
   const { locations, fetchLocations } = useLocationStore();
   const toast = useToast();
@@ -116,6 +117,16 @@ export default function KanbanBoard() {
       fetchKanbanById(id);
     }
   }, [id, fetchKanbanById]);
+
+  // Update selectedProduct when the corresponding product in the store changes
+  useEffect(() => {
+    if (selectedProduct && currentKanban) {
+      const updatedProduct = currentKanban.products.find(p => p.id === selectedProduct.id);
+      if (updatedProduct && JSON.stringify(updatedProduct) !== JSON.stringify(selectedProduct)) {
+        setSelectedProduct(updatedProduct);
+      }
+    }
+  }, [currentKanban?.products, selectedProduct]);
 
   // Auto-expand filters when there are active filters
   useEffect(() => {
@@ -418,20 +429,6 @@ export default function KanbanBoard() {
     setSelectedProduct(null);
   };
 
-  const handleUpdateKanban = async (kanbanId: string, name: string, description?: string | null) => {
-    try {
-      const payload: Partial<Kanban> = { name };
-      if (description !== undefined) {
-        payload.description = description;
-      }
-      await updateKanban(kanbanId, payload);
-      toast.success('Kanban updated successfully');
-      setIsSettingsModalOpen(false);
-    } catch (error) {
-      toast.error('Failed to update kanban. Please try again.');
-      throw error;
-    }
-  };
 
   const handleDeleteKanban = async (kanbanId: string) => {
     try {
@@ -445,9 +442,6 @@ export default function KanbanBoard() {
     }
   };
 
-  const getProductCount = () => {
-    return currentKanban?.products?.length || 0;
-  };
 
   const getKanbanDescription = () => {
     return currentKanban?.description?.trim() || 'No description';
@@ -624,26 +618,21 @@ export default function KanbanBoard() {
                           {currentKanban.linkedKanbans.length > 1 ? 's' : ''}
                         </span>
                       )}
-
-                    {/* Product Count */}
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
-                      {getProductCount()} {getProductCount() === 1 ? 'item' : 'items'}
-                    </span>
                   </div>
 
                   {/* Column Stats */}
-                  <div className="w-full sm:w-auto">
-                    <div className="flex items-center gap-3 overflow-x-auto text-sm text-gray-600 md:gap-4 md:overflow-visible">
-                      {getColumns().map((column) => {
-                        const count = getProductsByColumn(column).length;
-                        return (
-                          <span key={column} className="flex flex-shrink-0 items-center whitespace-nowrap">
-                            <span className="mr-1 h-2 w-2 rounded-full bg-gray-400"></span>
-                            {column}: {count}
-                          </span>
-                        );
-                      })}
-                    </div>
+                  <div className="mb-3 space-y-2 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
+                      {getProductCount(currentKanban)} {getProductCount(currentKanban) === 1 ? 'item' : 'items'}
+                    </span>
+                    {getColumns().map((column) => {
+                      const count = getProductsByColumn(column).length;
+                      return (
+                        <span key={column} className="text-sm text-gray-600">
+                          {column}: {count}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -983,9 +972,8 @@ export default function KanbanBoard() {
             isOpen={isSettingsModalOpen}
             onClose={() => setIsSettingsModalOpen(false)}
             kanban={currentKanban}
-            onUpdate={handleUpdateKanban}
             onDelete={handleDeleteKanban}
-            productCount={getProductCount()}
+            productCount={getProductCount(currentKanban)}
           />
         )}
 

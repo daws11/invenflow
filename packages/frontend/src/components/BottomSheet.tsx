@@ -30,7 +30,7 @@ export function BottomSheet({ isOpen, onClose, title, children, heightClassName 
     <>
       <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} aria-hidden="true" />
       <div
-        className={`fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl ${heightClassName} transform transition-transform duration-300 ease-out`}
+        className={`fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl min-h-[50vh] max-h-[90vh] ${heightClassName} transform transition-transform duration-300 ease-out flex flex-col`}
         role="dialog"
         aria-modal="true"
       >
@@ -45,7 +45,7 @@ export function BottomSheet({ isOpen, onClose, title, children, heightClassName 
             <XMarkIcon className="w-5 h-5" />
           </button>
         </div>
-        <div className="h-full overflow-y-auto p-4">
+        <div className="flex-grow overflow-y-scroll p-4 max-h-[calc(90vh-120px)]">
           {children}
         </div>
       </div>

@@ -32,13 +32,14 @@ import { InventoryTableActions } from './InventoryTableActions';
 import { BasicInlineEdit } from './BasicInlineEdit';
 
 interface InventoryListProps {
-  items: InventoryItem[];
+  items?: InventoryItem[]; // Optional since we use store data primarily
   loading: boolean;
   onProductClick: (item: InventoryItem) => void;
   onCreateNew?: () => void;
   onShowFilters?: () => void;
   onShowColumnManager?: () => void;
   onExport?: (items?: InventoryItem[]) => void;
+  onMovementSuccess?: () => void;
 }
 
 type SortField = 'productDetails' | 'location' | 'stockLevel' | 'daysInInventory' | 'updatedAt';
@@ -49,20 +50,24 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-export function InventoryList({ 
-  items, 
-  loading, 
+export function InventoryList({
+  items: _items, // Keep for backward compatibility but use store data
+  loading,
   onProductClick,
   onCreateNew,
   onShowFilters,
   onShowColumnManager,
   onExport,
+  onMovementSuccess,
 }: InventoryListProps) {
   const { locations, fetchLocations } = useLocationStore();
   const { persons, fetchPersons } = usePersonStore();
   const { deleteProduct } = useKanbanStore();
-  const { updateProduct, updateProductStock } = useInventoryStore();
+  const { items: storeItems, updateProduct, updateProductStock } = useInventoryStore();
   const { success, error } = useToast();
+
+  // Use store items for real-time updates, fallback to props for compatibility
+  const items = storeItems.length > 0 ? storeItems : (_items || []);
   
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<SortConfig>({ field: 'updatedAt', direction: 'desc' });
@@ -96,6 +101,7 @@ export function InventoryList({
 
   const handleMovementSuccess = () => {
     setSelectedProductForMove(null);
+    onMovementSuccess?.(); // Trigger refresh after successful movement
   };
 
   // Bulk operations handlers
@@ -429,6 +435,9 @@ export function InventoryList({
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Supplier
             </th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Source
+            </th>
             <th
               scope="col"
               className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -578,6 +587,29 @@ export function InventoryList({
                       <div className="flex items-center text-sm text-gray-900">
                         <BuildingOfficeIcon className="h-4 w-4 text-gray-400 mr-1" />
                         {item.supplier}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {item.kanban ? (
+                      <div className="flex items-center text-sm text-gray-900">
+                        {item.kanban.id === 'direct-import' ? (
+                          <div className="flex items-center">
+                            <svg className="h-4 w-4 text-green-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                            </svg>
+                            <span className="text-green-700 font-medium">Direct Import</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center">
+                            <svg className="h-4 w-4 text-blue-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 002-2M9 7a2 2 0 012 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 002-2" />
+                            </svg>
+                            <span className="text-blue-700">{item.kanban.name}</span>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <span className="text-sm text-gray-400">—</span>

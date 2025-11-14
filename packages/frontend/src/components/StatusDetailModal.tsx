@@ -32,13 +32,9 @@ export const StatusDetailModal = ({
 
   useEffect(() => {
     if (isOpen) {
-      // Ensure locations and persons are loaded
-      if (locations.length === 0) {
-        fetchLocations();
-      }
-      if (persons.length === 0) {
-        fetchPersons();
-      }
+      // Always refresh reference data to avoid stale mapping after imports
+      fetchLocations();
+      fetchPersons();
 
       // Fetch products and filter by status
       const loadProducts = async () => {
@@ -52,7 +48,7 @@ export const StatusDetailModal = ({
       };
       loadProducts();
     }
-  }, [isOpen, sku, status, fetchProductsBySku, locations.length, persons.length, fetchLocations, fetchPersons]);
+  }, [isOpen, sku, status, fetchProductsBySku, fetchLocations, fetchPersons]);
 
   const handleProductClick = (product: InventoryItem) => {
     setSelectedItem(product);

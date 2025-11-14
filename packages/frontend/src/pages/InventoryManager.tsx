@@ -23,7 +23,6 @@ import {
 
 export default function InventoryManager() {
   const {
-    items,
     groupedItems,
     stats,
     loading,
@@ -269,7 +268,7 @@ export default function InventoryManager() {
 
         {/* Stats Cards */}
         {stats && (
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <div className="bg-gray-50 overflow-hidden rounded-lg">
               <div className="p-3">
                 <div className="flex items-center">
@@ -350,25 +349,6 @@ export default function InventoryManager() {
               </div>
             </div>
 
-            <div className="bg-gray-50 overflow-hidden rounded-lg">
-              <div className="p-3">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="bg-red-500 rounded-md p-3">
-                      <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Low Stock</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.totalStats.lowStock.toLocaleString()}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         )}
 
@@ -416,6 +396,7 @@ export default function InventoryManager() {
       <StockAdjustmentImportModal
         isOpen={showImport}
         onClose={() => setShowImport(false)}
+        onSuccess={refreshInventory}
       />
 
       {/* Filters Panel */}
@@ -443,20 +424,20 @@ export default function InventoryManager() {
           </div>
         ) : viewMode === 'list' ? (
           <InventoryList
-            items={items}
             loading={loading}
             onProductClick={handleProductClick}
             onCreateNew={handleCreateNew}
             onShowFilters={handleShowAdvancedFilters}
             onShowColumnManager={handleShowColumnManager}
             onExport={handleExport}
+            onMovementSuccess={refreshInventory}
           />
         ) : (
           <InventoryGrid
-            items={items}
             loading={loading}
             viewMode={viewMode}
             onProductClick={handleProductClick}
+            onMovementSuccess={refreshInventory}
           />
         )}
       </div>

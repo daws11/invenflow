@@ -13,6 +13,7 @@ import {
   desc,
   asc,
   isNotNull,
+  isNull,
   sql,
   getTableColumns,
 } from 'drizzle-orm';
@@ -188,7 +189,7 @@ router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) 
         },
       })
       .from(products)
-      .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
+      .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
       .where(filterCondition)
       .orderBy(sortDirection(sortColumn))
       .limit(pageSize)
@@ -217,7 +218,7 @@ router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) 
     const totalResult = await db
       .select({ value: sql<number>`count(*)` })
       .from(products)
-      .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
+      .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
       .where(filterCondition);
 
     const total = Number(totalResult[0]?.value ?? 0);
@@ -226,7 +227,7 @@ router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) 
       db
         .selectDistinct({ category: products.category })
         .from(products)
-        .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
+        .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
         .where(
           and(
             inArray(products.columnStatus, ['Received', 'Stored']),
@@ -243,7 +244,7 @@ router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) 
       db
         .selectDistinct({ supplier: products.supplier })
         .from(products)
-        .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
+        .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
         .where(
           and(
             inArray(products.columnStatus, ['Received', 'Stored']),
@@ -260,7 +261,7 @@ router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) 
       db
         .selectDistinct({ locationId: products.locationId })
         .from(products)
-        .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
+        .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
         .where(
           and(
             inArray(products.columnStatus, ['Received', 'Stored']),
@@ -344,8 +345,19 @@ router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) 
         }
       }
 
+      // Create virtual "Direct Import" kanban for items with null kanbanId
+      // item.kanban can be null when products.kanbanId is null (direct import),
+      // so guard the access safely.
+      const kanbanData = (item.kanban && (item.kanban as any).id) ? item.kanban : {
+        id: 'direct-import',
+        name: 'Direct Import',
+        type: 'direct-import',
+        linkedKanbanId: null,
+      };
+
       return {
         ...item,
+        kanban: kanbanData,
         validations: productValidations,
         daysInInventory,
         displayImage,
@@ -353,6 +365,12 @@ router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) 
         availableImages,
       };
     });
+
+    // Add virtual "Direct Import" kanban to the kanbans list if there are any direct import items
+    const hasDirectImportItems = inventoryItems.some(item => !item.kanban || !(item.kanban as any).id);
+    const enhancedKanbansList = hasDirectImportItems 
+      ? [...kanbansList, { id: 'direct-import', name: 'Direct Import' }]
+      : kanbansList;
 
     res.json({
       items: itemsWithDaysInInventory,
@@ -364,7 +382,7 @@ router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) 
         categories,
         suppliers,
         locations: locationsList,
-        kanbans: kanbansList,
+        kanbans: enhancedKanbansList,
       },
     });
   } catch (error) {
@@ -567,8 +585,16 @@ router.get('/stats', async (req, res, next) => {
         lowStock: sql<number>`sum(case when ${products.stockLevel} is not null and ${products.stockLevel} <= 10 then 1 else 0 end)`,
       })
       .from(products)
-      .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
-      .where(and(eq(kanbans.type, 'receive'), eq(products.isDraft, false)));
+      .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
+      .where(
+        and(
+          eq(products.isDraft, false),
+          or(
+            eq(kanbans.type, 'receive'),
+            isNull(products.kanbanId) // Include direct import products
+          )
+        )
+      );
 
     const totalsRow = rawTotalStats ?? {
       total: 0,
@@ -582,11 +608,11 @@ router.get('/stats', async (req, res, next) => {
       sql<{ category: string | null; count: number }>`
         select ${products.category} as category, count(*)::int as count
         from ${products}
-        inner join ${kanbans} on ${products.kanbanId} = ${kanbans.id}
-        where ${kanbans.type} = 'receive'
+        left join ${kanbans} on ${products.kanbanId} = ${kanbans.id}
+        where ${products.isDraft} = false
           and ${products.columnStatus} in ('Received', 'Stored')
-          and ${products.isDraft} = false
           and ${products.category} is not null
+          and (${kanbans.type} = 'receive' OR ${products.kanbanId} IS NULL)
         group by ${products.category}
         order by count desc
       `
@@ -596,11 +622,11 @@ router.get('/stats', async (req, res, next) => {
       sql<{ supplier: string | null; count: number }>`
         select ${products.supplier} as supplier, count(*)::int as count
         from ${products}
-        inner join ${kanbans} on ${products.kanbanId} = ${kanbans.id}
-        where ${kanbans.type} = 'receive'
+        left join ${kanbans} on ${products.kanbanId} = ${kanbans.id}
+        where ${products.isDraft} = false
           and ${products.columnStatus} in ('Received', 'Stored')
-          and ${products.isDraft} = false
           and ${products.supplier} is not null
+          and (${kanbans.type} = 'receive' OR ${products.kanbanId} IS NULL)
         group by ${products.supplier}
         order by count desc
       `
@@ -657,8 +683,8 @@ router.get('/grouped', cacheMiddleware({ ttl: 5 * 60 * 1000 }), async (req, res,
     // Build WHERE conditions manually for raw SQL (to avoid Drizzle ORM conflicts)
     const whereClauses: string[] = [];
     
-    // Base conditions: only receive kanban products with SKU, exclude drafts
-    whereClauses.push("k.type = 'receive'");
+    // Base conditions: receive kanban products OR direct import products with SKU, exclude drafts
+    whereClauses.push("(k.type = 'receive' OR p.kanban_id IS NULL)");
     whereClauses.push("p.sku IS NOT NULL");
     whereClauses.push("p.is_draft = false");
 
@@ -724,7 +750,7 @@ router.get('/grouped', cacheMiddleware({ ttl: 5 * 60 * 1000 }), async (req, res,
           MAX(p.unit_price) as "unitPrice",
           MAX(p.updated_at) as "lastUpdated"
         FROM products p
-        INNER JOIN kanbans k ON p.kanban_id = k.id
+        LEFT JOIN kanbans k ON p.kanban_id = k.id
         ${sql.raw(whereClause)}
         GROUP BY p.sku
         ORDER BY MAX(p.updated_at) DESC
@@ -801,11 +827,14 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
         updatedAt: products.updatedAt,
       })
       .from(products)
-      .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
+      .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
       .where(
         and(
           eq(products.sku, sku),
-          eq(kanbans.type, 'receive'),
+          or(
+            eq(kanbans.type, 'receive'),
+            isNull(products.kanbanId) // Include direct import items
+          ),
           inArray(products.columnStatus, ['Received', 'Stored']),
           eq(products.isDraft, false)
         )
@@ -817,7 +846,7 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
     // Then fetch related data separately
     const locationIds = productsList.map(p => p.locationId).filter(Boolean) as string[];
     const personIds = productsList.map(p => p.assignedToPersonId).filter(Boolean) as string[];
-    const kanbanIds = [...new Set(productsList.map(p => p.kanbanId))];
+    const kanbanIds = [...new Set(productsList.map(p => p.kanbanId).filter(id => id !== null))];
 
     const [locationsList, personsWithDepts, kanbansList] = await Promise.all([
       locationIds.length > 0 
@@ -835,7 +864,9 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
         .leftJoin(departments, eq(persons.departmentId, departments.id))
         .where(inArray(persons.id, personIds))
         : Promise.resolve([]),
-      db.select().from(kanbans).where(inArray(kanbans.id, kanbanIds))
+      kanbanIds.length > 0
+        ? db.select().from(kanbans).where(inArray(kanbans.id, kanbanIds))
+        : Promise.resolve([])
     ]);
 
     // Map to create the response structure
@@ -947,8 +978,11 @@ const ImportItemSchema = z.object({
   category: z.string().min(1),
   dimensions: z.string().optional().nullable(),
   newStockLevel: z.number().int().min(0),
+  unit: z.string().optional(),
   locationId: z.string().uuid().optional(),
   locationCode: z.string().min(1).optional(),
+  area: z.string().min(1).optional(),
+  locationName: z.string().min(1).optional(),
   unitPrice: z.union([z.string(), z.number()]).optional(),
   notes: z.string().optional(),
   originalPurchaseDate: z.union([z.string(), z.date()]).optional(),
@@ -957,23 +991,128 @@ const ImportItemSchema = z.object({
 const ImportStoredBodySchema = z.object({
   importBatchLabel: z.string().optional(),
   importBatchId: z.string().uuid().optional(),
-  targetReceiveKanbanId: z.string().uuid(),
+  targetReceiveKanbanId: z.string().uuid().optional(),
+  bypassKanban: z.boolean().optional().default(false),
   items: z.array(ImportItemSchema).min(1),
+}).refine((data) => {
+  // If bypassKanban is true, targetReceiveKanbanId is optional
+  // If bypassKanban is false, targetReceiveKanbanId is required
+  if (!data.bypassKanban && !data.targetReceiveKanbanId) {
+    return false;
+  }
+  return true;
+}, {
+  message: "targetReceiveKanbanId is required when bypassKanban is false",
 });
+
+// Helper function to generate location code
+const generateLocationCode = async (area: string, name: string): Promise<string> => {
+  const baseCode = `${area.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${name.toUpperCase().replace(/[^A-Z0-9]/g, '')}`;
+  
+  // Check if base code exists
+  const [existing] = await db
+    .select()
+    .from(locations)
+    .where(eq(locations.code, baseCode))
+    .limit(1);
+  
+  if (!existing) {
+    return baseCode;
+  }
+  
+  // Find next available number
+  let counter = 1;
+  while (true) {
+    const numberedCode = `${baseCode}-${counter.toString().padStart(3, '0')}`;
+    const [existingNumbered] = await db
+      .select()
+      .from(locations)
+      .where(eq(locations.code, numberedCode))
+      .limit(1);
+    
+    if (!existingNumbered) {
+      return numberedCode;
+    }
+    counter++;
+  }
+};
+
+// Helper function to resolve or create location
+const resolveOrCreateLocation = async (item: any): Promise<string | null> => {
+  // Try locationId first
+  if (item.locationId) {
+    return item.locationId;
+  }
+  
+  // Try locationCode
+  if (item.locationCode) {
+    const [location] = await db
+      .select()
+      .from(locations)
+      .where(eq(locations.code, item.locationCode))
+      .limit(1);
+    
+    if (location) {
+      return location.id;
+    }
+  }
+  
+  // Try area + locationName combination
+  if (item.area && item.locationName) {
+    const [location] = await db
+      .select()
+      .from(locations)
+      .where(and(
+        eq(locations.area, item.area),
+        eq(locations.name, item.locationName)
+      ))
+      .limit(1);
+    
+    if (location) {
+      return location.id;
+    }
+    
+    // Auto-create location
+    const generatedCode = await generateLocationCode(item.area, item.locationName);
+    const [newLocation] = await db
+      .insert(locations)
+      .values({
+        name: item.locationName,
+        area: item.area,
+        code: generatedCode,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    
+    return newLocation.id;
+  }
+  
+  return null;
+};
 
 router.post('/import/stored', authorizeRoles('admin', 'manager'), async (req, res, next) => {
   try {
     const validated = ImportStoredBodySchema.parse(req.body);
-    const { importBatchLabel, importBatchId, targetReceiveKanbanId, items } = validated;
+    const { importBatchLabel, importBatchId, targetReceiveKanbanId, bypassKanban, items } = validated;
 
-    // 1) Validate target kanban
-    const [targetKanban] = await db
+    // 1) Validate target kanban (only if not bypassing kanban)
+    let targetKanban: any = null;
+    if (!bypassKanban) {
+      if (!targetReceiveKanbanId) {
+        return res.status(400).json({ error: 'targetReceiveKanbanId is required when bypassKanban is false' });
+      }
+      
+      const [kanban] = await db
       .select()
       .from(kanbans)
       .where(and(eq(kanbans.id, targetReceiveKanbanId), eq(kanbans.type, 'receive')))
       .limit(1);
-    if (!targetKanban) {
+      if (!kanban) {
       return res.status(400).json({ error: 'Invalid targetReceiveKanbanId (must be a receive kanban)' });
+      }
+      targetKanban = kanban;
     }
 
     // 2) Ensure/import batch
@@ -1031,12 +1170,29 @@ router.post('/import/stored', authorizeRoles('admin', 'manager'), async (req, re
     for (let idx = 0; idx < items.length; idx++) {
       const item = items[idx]!;
       try {
-        // Resolve location with priority: row locationId -> row locationCode -> receiveKanban.locationId
-        const resolvedLocationId =
+        // Resolve location using new helper function
+        let resolvedLocationId: string | null = null;
+        
+        if (bypassKanban) {
+          // For direct import, use the enhanced location resolution
+          resolvedLocationId = await resolveOrCreateLocation(item);
+          
+          if (!resolvedLocationId) {
+            results.push({
+              row: idx + 1,
+              status: 'error',
+              error: 'No location resolved: provide locationId, locationCode, or area+locationName',
+            });
+            continue;
+          }
+        } else {
+          // For kanban import, use existing logic with fallback to kanban location
+          resolvedLocationId =
           item.locationId ??
           (item.locationCode ? locationMapByCode.get(item.locationCode) : undefined) ??
-          (targetKanban as any).locationId ??
+            (targetKanban as any)?.locationId ??
           undefined;
+          
         if (!resolvedLocationId) {
           results.push({
             row: idx + 1,
@@ -1044,6 +1200,7 @@ router.post('/import/stored', authorizeRoles('admin', 'manager'), async (req, re
             error: 'No location resolved: receive kanban has no default location and row has no valid location',
           });
           continue;
+          }
         }
 
         // Find product by SKU
@@ -1131,6 +1288,7 @@ router.post('/import/stored', authorizeRoles('admin', 'manager'), async (req, re
             .set({
               stockLevel: newStock,
               locationId: resolvedLocationId,
+              unit: item.unit ?? productRecord.unit,
               unitPrice: unitPrice !== undefined ? String(unitPrice) : productRecord.unitPrice,
               columnStatus: 'Stored',
               importSource: 'bulk-import',
@@ -1175,7 +1333,7 @@ router.post('/import/stored', authorizeRoles('admin', 'manager'), async (req, re
             locationId: resolvedLocationId,
           });
         } else {
-          // Create new product in receive kanban with Stored status
+          // Create new product
           const genSku = item.sku && item.sku.trim().length > 0
             ? item.sku.trim()
             : generateStableSku({
@@ -1188,7 +1346,7 @@ router.post('/import/stored', authorizeRoles('admin', 'manager'), async (req, re
           const [created] = await db
             .insert(products)
             .values({
-              kanbanId: targetReceiveKanbanId,
+              kanbanId: bypassKanban ? null : targetReceiveKanbanId,
               columnStatus: 'Stored',
               productDetails: item.productName,
               productLink: null,
@@ -1204,9 +1362,10 @@ router.post('/import/stored', authorizeRoles('admin', 'manager'), async (req, re
               sku: genSku,
               dimensions: item.dimensions ?? null,
               weight: null,
+              unit: item.unit ?? null,
               unitPrice: unitPrice !== undefined ? String(unitPrice) : null,
               notes: item.notes ?? null,
-              importSource: 'bulk-import',
+              importSource: bypassKanban ? 'direct-import' : 'bulk-import',
               importBatchId: batchId!,
               originalPurchaseDate: originalPurchaseDate,
               columnEnteredAt: now,
@@ -1260,6 +1419,11 @@ router.post('/import/stored', authorizeRoles('admin', 'manager'), async (req, re
     const successful = results.filter(r => r.status === 'success').length;
     const failed = results.filter(r => r.status === 'error').length;
     const skipped = results.filter(r => r.status === 'skipped').length;
+
+    // Invalidate caches so the UI receives fresh data immediately after import
+    // This clears inventory lists (including grouped and sku location endpoints) and locations list
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/locations');
 
     res.json({
       importBatchId: batchId,

@@ -3,8 +3,23 @@
 @tailwind utilities;
 
 @layer base {
+  html, body {
+    height: 100%;
+    overflow-x: hidden;
+  }
+
   body {
     @apply bg-gray-50 text-gray-900;
+  }
+
+  /* Ensure modal content is always visible */
+  .modal-content {
+    min-height: fit-content;
+  }
+
+  /* Prevent horizontal scrolling on modals */
+  .fixed {
+    overflow-x: hidden;
   }
 }
 
