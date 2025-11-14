@@ -191,6 +191,7 @@ router.post('/:token/confirm', async (req: Request, res: Response, next: NextFun
               weight: originalProduct.weight,
               unitPrice: originalProduct.unitPrice,
               notes: notes || originalProduct.notes,
+              columnEnteredAt: new Date(),
             })
             .returning();
 

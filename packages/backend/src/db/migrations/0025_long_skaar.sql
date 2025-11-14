@@ -1,0 +1,1 @@
+ALTER TABLE "products" ADD COLUMN "requester_name" text;

@@ -20,11 +20,11 @@ export default function CompactProductRow({ product, onView, location, kanban }:
   const [clickStartTime, setClickStartTime] = useState<number | null>(null);
   const [isDragIntent, setIsDragIntent] = useState(false);
 
-  // Update current time every 30 seconds for threshold recalculation
+  // Update current time every second for real-time threshold recalculation
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
-    }, 30000);
+    }, 1000); // 1 second
 
     return () => clearInterval(interval);
   }, []);
@@ -188,12 +188,6 @@ export default function CompactProductRow({ product, onView, location, kanban }:
             )}
           </button>
 
-          {/* Draft Badge */}
-          {product.isDraft && (
-            <div className="flex-shrink-0 bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-0.5 rounded-full border border-yellow-300">
-              DRAFT
-            </div>
-          )}
 
           {/* Threshold Indicator */}
           {appliedThreshold && (
@@ -243,7 +237,7 @@ export default function CompactProductRow({ product, onView, location, kanban }:
           {/* Stock Level */}
           {product.stockLevel !== null && (
             <span className="hidden lg:inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-              Stock: {product.stockLevel}
+              Qty: {product.stockLevel}
             </span>
           )}
 

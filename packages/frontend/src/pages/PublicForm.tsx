@@ -45,7 +45,6 @@ export default function PublicForm() {
     itemName: '',
     itemUrl: '',
     quantity: '1',
-    details: '',
     priority: '',
     notes: '',
     // Optional fields from product selection
@@ -229,9 +228,6 @@ export default function PublicForm() {
       if (isFieldEnabled('priority')) {
         submissionData.priority = formData.priority;
       }
-      if (isFieldEnabled('details')) {
-        submissionData.details = formData.details.trim() || undefined;
-      }
       if (isFieldEnabled('notes')) {
         submissionData.notes = formData.notes.trim() || undefined;
       }
@@ -246,7 +242,6 @@ export default function PublicForm() {
         itemName: '',
         itemUrl: '',
         quantity: '1',
-        details: '',
         priority: '',
         notes: '',
         selectedProductId: '',
@@ -378,6 +373,63 @@ export default function PublicForm() {
             </div>
           )}
 
+          {/* Item Name with Autocomplete */}
+          <div className="relative" ref={dropdownRef}>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Item Name *
+            </label>
+            <input
+              type="text"
+              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Search for existing product or enter new item name"
+              value={productSearchQuery}
+              onChange={(e) => handleProductSearchChange(e.target.value)}
+              onFocus={() => setShowProductDropdown(true)}
+              required
+            />
+
+            {/* Autocomplete Dropdown */}
+            {showProductDropdown && (productSearchQuery.length >= 2) && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                {isSearching ? (
+                  <div className="p-3 text-gray-500 text-center">Searching...</div>
+                ) : productSearchResults.length > 0 ? (
+                  <>
+                    {productSearchResults.map(product => (
+                      <button
+                        key={product.id}
+                        type="button"
+                        className="w-full text-left p-3 hover:bg-gray-100 border-b border-gray-200 last:border-b-0"
+                        onClick={() => handleSelectProduct(product)}
+                      >
+                        <div className="font-medium text-gray-900">{product.productDetails}</div>
+                        <div className="text-sm text-gray-500">
+                          {product.sku && `SKU: ${product.sku}`}
+                          {product.category && ` | Category: ${product.category}`}
+                        </div>
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className="w-full text-left p-3 hover:bg-gray-100 text-blue-600 font-medium"
+                      onClick={handleSelectNewProduct}
+                    >
+                      + Add new product: "{productSearchQuery}"
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="w-full text-left p-3 hover:bg-gray-100 text-blue-600 font-medium"
+                    onClick={handleSelectNewProduct}
+                  >
+                    + Add new product: "{productSearchQuery}"
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Department */}
           {isFieldEnabled('department') && (
             <div>
@@ -420,63 +472,6 @@ export default function PublicForm() {
               </select>
             </div>
           )}
-
-          {/* Item Name with Autocomplete */}
-          <div className="relative" ref={dropdownRef}>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Item Name *
-            </label>
-            <input
-              type="text"
-              className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Search for existing product or enter new item name"
-              value={productSearchQuery}
-              onChange={(e) => handleProductSearchChange(e.target.value)}
-              onFocus={() => setShowProductDropdown(true)}
-              required
-            />
-            
-            {/* Autocomplete Dropdown */}
-            {showProductDropdown && (productSearchQuery.length >= 2) && (
-              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                {isSearching ? (
-                  <div className="p-3 text-gray-500 text-center">Searching...</div>
-                ) : productSearchResults.length > 0 ? (
-                  <>
-                    {productSearchResults.map(product => (
-                      <button
-                        key={product.id}
-                        type="button"
-                        className="w-full text-left p-3 hover:bg-gray-100 border-b border-gray-200 last:border-b-0"
-                        onClick={() => handleSelectProduct(product)}
-                      >
-                        <div className="font-medium text-gray-900">{product.productDetails}</div>
-                        <div className="text-sm text-gray-500">
-                          {product.sku && `SKU: ${product.sku}`}
-                          {product.category && ` | Category: ${product.category}`}
-                        </div>
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className="w-full text-left p-3 hover:bg-gray-100 text-blue-600 font-medium"
-                      onClick={handleSelectNewProduct}
-                    >
-                      + Add new product: "{productSearchQuery}"
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    className="w-full text-left p-3 hover:bg-gray-100 text-blue-600 font-medium"
-                    onClick={handleSelectNewProduct}
-                  >
-                    + Add new product: "{productSearchQuery}"
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
 
           {/* Item URL */}
           {isFieldEnabled('itemUrl') && (
@@ -536,22 +531,6 @@ export default function PublicForm() {
                   </select>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Details */}
-          {isFieldEnabled('details') && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Details
-              </label>
-              <textarea
-                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Additional product description or specifications..."
-                rows={3}
-                value={formData.details}
-                onChange={(e) => setFormData({ ...formData, details: e.target.value })}
-              />
             </div>
           )}
 

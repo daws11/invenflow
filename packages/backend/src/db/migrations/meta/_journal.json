@@ -176,6 +176,13 @@
       "when": 1763006225608,
       "tag": "0024_unknown_joseph",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1763106236801,
+      "tag": "0025_long_skaar",
+      "breakpoints": true
     }
   ]
 }

@@ -130,7 +130,6 @@ router.post('/form/:token', async (req, res, next) => {
       itemName,
       itemUrl,
       quantity,
-      details,
       priority,
       notes,
       // Optional fields from existing product selection
@@ -192,11 +191,8 @@ router.post('/form/:token', async (req, res, next) => {
       throw createError('Department not found', 400);
     }
 
-    // Format requester information in notes
-    const requesterInfo = `Requester: ${requesterName.trim()} | Department: ${department.name}`;
-    const finalNotes = notes 
-      ? `${requesterInfo}\n\n${notes.trim()}`
-      : requesterInfo;
+    // Notes now store only user-provided notes; requester stored separately
+    const finalNotes = notes && notes.trim() ? notes.trim() : null;
 
     // Generate SKU if not provided (new product), normalize if provided
     const finalSku =
@@ -214,6 +210,7 @@ router.post('/form/:token', async (req, res, next) => {
       columnStatus: 'New Request',
       productDetails: itemName.trim(),
       productLink: itemUrl?.trim() || null,
+      requesterName: requesterName.trim(),
       priority: priority,
       category: category || null,
       supplier: supplier || null,
@@ -223,6 +220,7 @@ router.post('/form/:token', async (req, res, next) => {
       stockLevel: parseInt(String(quantity)),
       importSource: 'public-form',
       isDraft: true, // Public forms always create draft products in Order kanbans
+      columnEnteredAt: new Date(),
     };
 
     const [createdProduct] = await db

@@ -52,6 +52,13 @@ export default function CompactBoardView({
     return kanban.type === 'order' ? ORDER_COLUMNS : RECEIVE_COLUMNS;
   };
 
+  const getColumnDisplayName = (column: string) => {
+    if (kanban.type === 'receive' && column === 'Purchased') {
+      return 'Purchased (Incoming)';
+    }
+    return column;
+  };
+
   // Filter products by search query (same logic as KanbanBoard, minus location)
   const filterProductBySearch = (product: Product): boolean => {
     if (!searchQuery.trim()) return true;
@@ -178,7 +185,7 @@ export default function CompactBoardView({
           <CompactKanbanColumn
             key={column}
             id={column}
-            title={column}
+            title={getColumnDisplayName(column)}
             products={getProductsByColumn(column)}
             onProductView={onProductView}
             kanban={kanban}

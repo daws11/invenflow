@@ -162,6 +162,13 @@ export default function KanbanBoard() {
     return currentKanban.type === 'order' ? ORDER_COLUMNS : RECEIVE_COLUMNS;
   };
 
+  const getColumnDisplayName = (column: string) => {
+    if (currentKanban?.type === 'receive' && column === 'Purchased') {
+      return 'Purchased (Incoming)';
+    }
+    return column;
+  };
+
   // Helpers for date filtering
   const isWithinRange = (date: Date, from?: Date | null, to?: Date | null): boolean => {
     if (from && date < from) return false;
@@ -320,9 +327,30 @@ export default function KanbanBoard() {
               { duration: 6000 }
             );
           } else {
-            // No automatic transfer - show manual selection slider
-            setProductToTransfer(product);
-            setShowTransferSlider(true);
+            // No automatic transfer - immediately transfer using product preference or kanban default if available
+            const targetKanbanId =
+              product.preferredReceiveKanbanId ||
+              currentKanban.defaultLinkedKanbanId ||
+              null;
+
+            if (targetKanbanId) {
+              try {
+                await transferProduct(product.id, targetKanbanId);
+                const targetKanban =
+                  (currentKanban.linkedKanbans || []).find(k => k.id === targetKanbanId);
+                const targetName =
+                  targetKanban?.name || 'selected receive kanban';
+                toast.success(
+                  `Product moved to Purchased and transferred to "${targetName}".`,
+                  { duration: 6000 }
+                );
+              } catch (transferError: any) {
+                toast.error('Failed to transfer product: ' + (transferError?.response?.data?.error?.message || transferError?.message));
+              }
+            } else {
+              // No destination configured; inform user without showing slider
+              toast.error('No transfer destination configured. Set a product transfer destination or a default receive kanban in Settings.');
+            }
           }
         } catch (error: any) {
           toast.error('Failed to move product: ' + (error?.response?.data?.error?.message || error?.message));
@@ -629,7 +657,7 @@ export default function KanbanBoard() {
                       const count = getProductsByColumn(column).length;
                       return (
                         <span key={column} className="text-sm text-gray-600">
-                          {column}: {count}
+                          {getColumnDisplayName(column)}: {count}
                         </span>
                       );
                     })}
@@ -763,7 +791,7 @@ export default function KanbanBoard() {
                     return (
                       <span key={column} className="flex items-center">
                         <span className="w-1.5 h-1.5 rounded-full bg-gray-400 mr-1"></span>
-                        {column.slice(0, 3)}: {count}
+                        {getColumnDisplayName(column).slice(0, 3)}: {count}
                       </span>
                     );
                   })}
@@ -911,7 +939,7 @@ export default function KanbanBoard() {
               <KanbanColumn
                 key={column}
                 id={column}
-                title={column}
+                title={getColumnDisplayName(column)}
                 products={getProductsByColumn(column)}
                 onProductView={handleViewProduct}
                 kanban={currentKanban}

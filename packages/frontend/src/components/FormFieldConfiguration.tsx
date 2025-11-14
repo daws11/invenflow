@@ -45,11 +45,6 @@ const FIELD_CONFIGS: FieldConfig[] = [
     description: 'Request priority level',
   },
   {
-    key: 'details',
-    label: 'Details',
-    description: 'Additional product description or specifications',
-  },
-  {
     key: 'notes',
     label: 'Notes',
     description: 'Additional comments or special instructions',

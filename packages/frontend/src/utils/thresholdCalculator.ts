@@ -7,16 +7,22 @@ export function calculateTimeInColumn(columnEnteredAt: Date | string): number {
   // Robust parsing for backend timestamps that may lack timezone info
   const parseEnteredAt = (value: Date | string): Date => {
     if (value instanceof Date) return value;
-    const str = String(value).trim();
+    const raw = String(value).trim();
+    // Normalize space-separated datetime to ISO by injecting 'T'
+    const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
     // If string already contains timezone info (Z or +/-hh:mm), parse directly
-    if (/[zZ]|[+-]\d{2}:\d{2}$/.test(str)) {
-      return new Date(str);
+    if (/[zZ]|[+-]\d{2}:\d{2}$/.test(normalized)) {
+      return new Date(normalized);
     }
     // Assume UTC if no timezone specified to avoid local offset issues
-    return new Date(`${str}Z`);
+    return new Date(`${normalized}Z`);
   };
 
   const enteredAt = parseEnteredAt(columnEnteredAt);
+  if (isNaN(enteredAt.getTime())) {
+    return 0;
+  }
+
   const now = new Date();
   const diff = now.getTime() - enteredAt.getTime();
   // Guard against negative values due to clock or timezone skew
@@ -96,17 +102,19 @@ export function getAppliedThreshold(
  * Format time duration for display
  */
 export function formatTimeDuration(milliseconds: number): string {
-  const minutes = Math.floor(milliseconds / (1000 * 60));
-  const hours = Math.floor(milliseconds / (1000 * 60 * 60));
-  const days = Math.floor(milliseconds / (1000 * 60 * 60 * 24));
+  const totalMinutes = Math.floor(milliseconds / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
 
   if (days > 0) {
-    return `${days} day${days !== 1 ? 's' : ''}`;
-  } else if (hours > 0) {
-    return `${hours} hour${hours !== 1 ? 's' : ''}`;
-  } else {
-    return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+    return `${days}d ${hours}h ${minutes}m`;
   }
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  // Hide seconds entirely; show <1m for very new items
+  return minutes > 0 ? `${minutes}m` : '<1m';
 }
 
 /**

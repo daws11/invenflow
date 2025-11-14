@@ -29,7 +29,6 @@ export const FormFieldSettingsSchema = z.object({
   itemUrl: z.boolean().default(true),
   quantity: z.boolean().default(true),
   priority: z.boolean().default(true),
-  details: z.boolean().default(true),
   notes: z.boolean().default(true),
 });
 
@@ -43,7 +42,6 @@ export const DEFAULT_FORM_FIELD_SETTINGS: FormFieldSettings = {
   itemUrl: true,
   quantity: true,
   priority: true,
-  details: true,
   notes: true,
 };
 

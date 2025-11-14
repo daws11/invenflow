@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Product, UpdateProduct, DEFAULT_CATEGORIES, DEFAULT_PRIORITIES, DEFAULT_UNITS } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useLocationStore } from '../store/locationStore';
@@ -8,6 +8,8 @@ import { Slider } from './Slider';
 import { BottomSheet } from './BottomSheet';
 import { BasicInlineEdit } from './BasicInlineEdit';
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
+import { publicApi, ProductSearchResult } from '../utils/api';
+import { generateStableSku } from '../utils/sku';
 import {
   TagIcon,
   MapPinIcon,
@@ -17,7 +19,6 @@ import {
   ClockIcon,
   TrashIcon,
   ExclamationTriangleIcon,
-  LinkIcon,
   PhotoIcon,
 } from '@heroicons/react/24/outline';
 
@@ -36,6 +37,13 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
   const [isMobile, setIsMobile] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // Autocomplete state for draft product name on Order kanban
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [productSearchResults, setProductSearchResults] = useState<ProductSearchResult[]>([]);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchLocations();
@@ -50,6 +58,96 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
   }, []);
+
+  // Initialize search query when product changes
+  useEffect(() => {
+    if (product) {
+      setProductSearchQuery(product.productDetails || '');
+    }
+  }, [product]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowProductDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const searchProducts = async (query: string) => {
+    if (query.length < 2) {
+      setProductSearchResults([]);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const results = await publicApi.searchProducts(query);
+      setProductSearchResults(results);
+    } catch (e) {
+      setProductSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleProductSearchChange = (value: string) => {
+    setProductSearchQuery(value);
+    setShowProductDropdown(true);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      searchProducts(value);
+    }, 300);
+  };
+
+  const handleSelectProduct = async (result: ProductSearchResult) => {
+    setProductSearchQuery(result.productDetails);
+    setShowProductDropdown(false);
+    if (!product) return;
+    try {
+      await Promise.all([
+        handleFieldUpdate('productDetails', result.productDetails),
+        handleFieldUpdate('sku', result.sku || '')
+      ]);
+      // Optionally sync other fields if present
+      const extraUpdates: Array<Promise<any>> = [];
+      if (result.category) extraUpdates.push(handleFieldUpdate('category', result.category));
+      if (result.supplier) extraUpdates.push(handleFieldUpdate('supplier', result.supplier));
+      if (result.unitPrice) extraUpdates.push(handleFieldUpdate('unitPrice', result.unitPrice as unknown as number));
+      if (extraUpdates.length > 0) {
+        await Promise.all(extraUpdates);
+      }
+    } catch {
+      // handled in handleFieldUpdate toast
+    }
+  };
+
+  const handleSelectNewProduct = async () => {
+    setShowProductDropdown(false);
+    const newName = productSearchQuery.trim();
+    if (!product || !newName) return;
+
+    // Generate a stable SKU to keep it consistent with backend rules
+    const newSku = generateStableSku({
+      name: newName,
+      supplier: product.supplier || '',
+      category: product.category || '',
+      dimensions: product.dimensions || undefined,
+    });
+
+    try {
+      await Promise.all([
+        handleFieldUpdate('productDetails', newName),
+        handleFieldUpdate('sku', newSku),
+      ]);
+    } catch {
+      // handled in handleFieldUpdate toast
+    }
+  };
 
   const handleFieldUpdate = async (field: keyof UpdateProduct, value: string | number | string[]) => {
     if (!product) return;
@@ -74,7 +172,7 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
         fetchGroupedInventory();
       }
 
-      success('Product updated successfully');
+      // success('Product updated successfully');
       onUpdate?.(product.id, updateData);
     } catch (err) {
       error(`Failed to update product: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -166,20 +264,84 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
       <div className="space-y-2">
         <div>
           <h3 className="text-sm font-medium text-gray-700 mb-1">Product Name *</h3>
+          {(currentKanban?.type === 'order' && product.isDraft) ? (
+            <div className="relative" ref={dropdownRef}>
+              <input
+                type="text"
+                className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base sm:text-lg font-semibold text-gray-900"
+                placeholder="Search for existing product or enter new item name"
+                value={productSearchQuery}
+                onChange={(e) => handleProductSearchChange(e.target.value)}
+                onFocus={() => setShowProductDropdown(true)}
+              />
+              {showProductDropdown && (productSearchQuery.length >= 2) && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                  {isSearching ? (
+                    <div className="p-3 text-gray-500 text-center">Searching...</div>
+                  ) : productSearchResults.length > 0 ? (
+                    <>
+                      {productSearchResults.map(result => (
+                        <button
+                          key={result.id}
+                          type="button"
+                          className="w-full text-left p-3 hover:bg-gray-100 border-b border-gray-200 last:border-b-0"
+                          onClick={() => handleSelectProduct(result)}
+                        >
+                          <div className="font-medium text-gray-900">{result.productDetails}</div>
+                          <div className="text-sm text-gray-500">
+                            {result.sku && `SKU: ${result.sku}`}
+                            {result.category && ` | Category: ${result.category}`}
+                          </div>
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className="w-full text-left p-3 hover:bg-gray-100 text-blue-600 font-medium"
+                        onClick={handleSelectNewProduct}
+                      >
+                        + Use new product name: "{productSearchQuery}"
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="w-full text-left p-3 hover:bg-gray-100 text-blue-600 font-medium"
+                      onClick={handleSelectNewProduct}
+                    >
+                      + Use new product name: "{productSearchQuery}"
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <BasicInlineEdit
+              value={product.productDetails}
+              onSave={(value) => handleFieldUpdate('productDetails', value)}
+              type="textarea"
+              placeholder="Enter product name"
+              rows={2}
+              maxLength={1000}
+              className="text-base sm:text-lg font-semibold text-gray-900"
+              validation={(value) => {
+                if (!value || value.toString().trim().length === 0) {
+                  return 'Product name is required';
+                }
+                return null;
+              }}
+            />
+          )}
+        </div>
+
+        {/* Requester Name */}
+        <div>
+          <h4 className="text-xs font-medium text-gray-600 mb-1">Requester</h4>
           <BasicInlineEdit
-            value={product.productDetails}
-            onSave={(value) => handleFieldUpdate('productDetails', value)}
-            type="textarea"
-            placeholder="Enter product name"
-            rows={2}
-            maxLength={1000}
-            className="text-base sm:text-lg font-semibold text-gray-900"
-            validation={(value) => {
-              if (!value || value.toString().trim().length === 0) {
-                return 'Product name is required';
-              }
-              return null;
-            }}
+            value={product.requesterName || ''}
+            onSave={(value) => handleFieldUpdate('requesterName', value)}
+            placeholder="Enter requester name"
+            maxLength={255}
+            className="text-sm text-gray-700"
           />
         </div>
 
@@ -292,37 +454,6 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
       <div className="space-y-2">
         {/* Links Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <div>
-            <h4 className="text-xs font-medium text-gray-600 mb-1">Product Link</h4>
-            <BasicInlineEdit
-              value={product.productLink || ''}
-              onSave={(value) => handleFieldUpdate('productLink', value)}
-              placeholder="Enter product URL"
-              displayValue={product.productLink ? (
-                <a
-                  href={product.productLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center text-blue-600 hover:text-blue-800 text-xs break-all"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <LinkIcon className="h-3 w-3 mr-1 flex-shrink-0" />
-                  Link
-                </a>
-              ) : undefined}
-              validation={(value) => {
-                if (value && value.toString().trim()) {
-                  try {
-                    new URL(value.toString());
-                    return null;
-                  } catch {
-                    return 'Please enter a valid URL';
-                  }
-                }
-                return null;
-              }}
-            />
-          </div>
 
           <div>
             <h4 className="text-xs font-medium text-gray-600 mb-1">Image URL</h4>
@@ -388,7 +519,7 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
         {/* Stock Level and Unit Price Row */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <h4 className="text-xs font-medium text-gray-600 mb-1">Stock Level</h4>
+            <h4 className="text-xs font-medium text-gray-600 mb-1">Request Quantity</h4>
             <BasicInlineEdit
               value={product.stockLevel || ''}
               onSave={(value) => handleFieldUpdate('stockLevel', value)}

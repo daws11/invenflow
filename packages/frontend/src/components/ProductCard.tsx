@@ -14,7 +14,6 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, onView, location, kanban }: ProductCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [showTransferHistory, setShowTransferHistory] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -28,11 +27,11 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
     return locations.find(l => l.id === product.locationId) || null;
   }, [location, product.locationId, locations]);
 
-  // Update current time every 30 seconds for threshold recalculation
+  // Update current time every second for real-time threshold recalculation
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
-    }, 30000); // 30 seconds
+    }, 1000); // 1 second
 
     return () => clearInterval(interval);
   }, []);
@@ -144,39 +143,6 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
     }
   };
 
-  const getCategoryColor = (category: string | null) => {
-    const colors: { [key: string]: string } = {
-      'electronics': 'bg-purple-100 text-purple-800 border-purple-200',
-      'furniture': 'bg-amber-100 text-amber-800 border-amber-200',
-      'office supplies': 'bg-blue-100 text-blue-800 border-blue-200',
-      'raw materials': 'bg-stone-100 text-stone-800 border-stone-200',
-      'tools & equipment': 'bg-indigo-100 text-indigo-800 border-indigo-200',
-      'packaging': 'bg-cyan-100 text-cyan-800 border-cyan-200',
-      'safety equipment': 'bg-red-100 text-red-800 border-red-200',
-      'cleaning supplies': 'bg-green-100 text-green-800 border-green-200',
-      'software': 'bg-violet-100 text-violet-800 border-violet-200',
-      'services': 'bg-pink-100 text-pink-800 border-pink-200',
-      'other': 'bg-gray-100 text-gray-800 border-gray-200',
-    };
-    return colors[category?.toLowerCase() || ''] || 'bg-gray-100 text-gray-800 border-gray-200';
-  };
-
-  const hasAdditionalInfo = () => {
-    return !!(
-      product.productLink ||
-      product.priority ||
-      product.productImage ||
-      product.category ||
-      product.supplier ||
-      product.sku ||
-      product.dimensions ||
-      product.weight ||
-      product.unitPrice ||
-      product.notes ||
-      (product.tags && product.tags.length > 0) ||
-      product.stockLevel !== null
-    );
-  };
 
   return (
     <div
@@ -188,7 +154,7 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
           : 'hover:shadow-lg cursor-pointer hover:cursor-grab'
       } ${
         product.isDraft
-          ? 'border-dashed border-2 border-gray-300 bg-gray-50/50 opacity-75 pt-8'
+          ? 'border-dashed border-2 border-gray-300 bg-gray-50/50 opacity-75'
           : 'border border-gray-200 bg-white'
       }`}
       {...attributes}
@@ -200,12 +166,6 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
       onKeyDown={handleKeyDown}
       title={appliedThreshold ? `In column for ${timeInColumn} - ${formatThresholdRule(appliedThreshold)}` : undefined}
     >
-      {/* Draft indicator badge */}
-      {product.isDraft && (
-        <div className="absolute top-2 left-2 bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-1 rounded-full border border-yellow-300 shadow-sm z-10 pointer-events-none select-none">
-          DRAFT
-        </div>
-      )}
 
       {/* Threshold indicator badge */}
       {appliedThreshold && (
@@ -219,7 +179,7 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
       )}
 
       {/* Product Content */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         {/* Product Image Section */}
         {product.productImage && !imageError && (
           <div className="hidden sm:block rounded-lg overflow-hidden bg-gray-100">
@@ -239,6 +199,11 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
             <h4 className={`font-medium ${product.isDraft ? 'text-gray-600 italic' : 'text-gray-900'}`}>
               {product.productDetails}
             </h4>
+            {product.requesterName && (
+              <div className="text-xs text-gray-600">
+                Requested by: <span className="font-medium text-gray-800">{product.requesterName}</span>
+              </div>
+            )}
             {/* Time in Column - shown regardless of location to support order kanban */}
             {timeInColumn && (
               <div className="flex items-center text-xs text-gray-600">
@@ -267,68 +232,47 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
               </div>
             )}
             {product.sku && (
-              <div className="hidden sm:block text-xs text-gray-500">SKU: {product.sku}</div>
+              <div className="text-xs text-gray-500">SKU: {product.sku}</div>
             )}
             {product.supplier && (
-              <div className="hidden sm:block text-xs text-gray-600">Supplier: {product.supplier}</div>
+              <div className="text-xs text-gray-600">Supplier: {product.supplier}</div>
             )}
           </div>
 
-          {/* Enhanced Action Buttons (hide on mobile for cleaner layout) */}
-          <div className="hidden sm:flex space-x-2 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300 delay-100">
-            <button
-              onClick={() => onView?.()}
-              data-no-drag
-              className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-2.5 rounded-lg transition-all duration-200 transform hover:scale-110 active:scale-95 min-w-[44px] min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm hover:shadow-md"
-              title="View product details"
-            type="button"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-          </button>
-          <button
-            onClick={() => setShowTransferHistory(true)}
-            data-no-drag
-            className="text-gray-400 hover:text-green-600 hover:bg-green-50 p-2.5 rounded-lg transition-all duration-200 transform hover:scale-110 active:scale-95 min-w-[44px] min-h-[44px] focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 shadow-sm hover:shadow-md"
-            title="View transfer history"
-            type="button"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      {/* Tags and Categories */}
-      <div className="hidden sm:flex flex-wrap gap-2">
-        {product.category && (
-          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getCategoryColor(product.category)}`}>
-            {product.category}
-          </span>
-        )}
+          {/* Priority badge and Action Buttons */}
+          <div className="flex flex-col items-end gap-2">
+            {/* Priority badge */}
         {product.priority && (
           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(product.priority)}`}>
             {product.priority}
           </span>
         )}
+
+          </div>
+      </div>
+
+      {/* Meta badges (compact, neutral) */}
+      <div className="flex flex-wrap gap-1">
         {product.stockLevel !== null && (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-            Stock: {product.stockLevel}
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border border-gray-200 text-gray-700 bg-white">
+            Qty: {product.stockLevel}
           </span>
         )}
         {product.unitPrice !== null && formatCurrency(product.unitPrice) && (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
-            {formatCurrency(product.unitPrice)}
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border border-gray-200 text-gray-700 bg-white">
+            Unit Price: {formatCurrency(product.unitPrice)}
+          </span>
+        )}
+        {product.stockLevel !== null && product.unitPrice !== null && formatCurrency(product.stockLevel * product.unitPrice) && (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border border-gray-200 text-gray-700 bg-white">
+            Total: {formatCurrency(product.stockLevel * product.unitPrice)}
           </span>
         )}
       </div>
 
       {/* Product Tags */}
       {product.tags && Array.isArray(product.tags) && product.tags.length > 0 && (
-        <div className="hidden sm:flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1">
           {product.tags.slice(0, 3).map((tag, index) => (
             <span
               key={index}
@@ -343,155 +287,10 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
         </div>
       )}
 
-      <div className="hidden sm:block text-xs text-gray-500">
+      <div className="text-xs text-gray-500">
         Created: {formatDateWithTime(product.createdAt)}
       </div>
 
-      {/* Expandable Details Section */}
-      {hasAdditionalInfo() && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsExpanded(!isExpanded);
-          }}
-          data-no-drag
-          className="hidden sm:inline-flex text-xs text-gray-500 hover:text-blue-600 hover:bg-blue-50 mt-3 items-center px-3 py-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 group/show-more"
-        >
-          <svg
-            className={`w-4 h-4 mr-2 transform transition-all duration-200 ${isExpanded ? 'rotate-180 text-blue-600' : 'text-gray-400 group-hover/show-more:text-blue-600'}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-          <span className="font-medium">{isExpanded ? 'Show less' : 'Show more details'}</span>
-        </button>
-      )}
-
-      {isExpanded && (
-        <div className="hidden sm:block mt-3 pt-3 border-t border-gray-200 text-sm space-y-2">
-          {product.productLink && (
-            <div>
-              <span className="font-medium text-gray-700">Product Link:</span>
-              <a
-                href={product.productLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 break-all ml-2 block"
-                onClick={(e) => e.stopPropagation()}
-                data-no-drag
-                onDragStart={(e) => e.preventDefault()}
-              >
-                {product.productLink}
-              </a>
-            </div>
-          )}
-
-          {(location || product.locationId) && (
-            <div>
-              <span className="font-medium text-gray-700">Location:</span>
-              {location ? (
-                <div className="ml-2">
-                  <div className="text-gray-900 font-medium">
-                    {location.name}{location.area ? ` - ${location.area}` : ''}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {location.code}
-                  </div>
-                  {location.description && (
-                    <div className="text-xs text-gray-500 mt-1">{location.description}</div>
-                  )}
-                </div>
-              ) : (
-                <span className="ml-2 text-gray-600">{product.locationId}</span>
-              )}
-            </div>
-          )}
-
-          {product.sku && (
-            <div>
-              <span className="font-medium text-gray-700">SKU:</span>
-              <span className="ml-2 text-gray-600">{product.sku}</span>
-            </div>
-          )}
-
-          {product.supplier && (
-            <div>
-              <span className="font-medium text-gray-700">Supplier:</span>
-              <span className="ml-2 text-gray-600">{product.supplier}</span>
-            </div>
-          )}
-
-          {product.dimensions && (
-            <div>
-              <span className="font-medium text-gray-700">Dimensions:</span>
-              <span className="ml-2 text-gray-600">{product.dimensions}</span>
-            </div>
-          )}
-
-          {product.weight !== null && (
-            <div>
-              <span className="font-medium text-gray-700">Weight:</span>
-              <span className="ml-2 text-gray-600">{product.weight} {product.unit || 'kg'}</span>
-            </div>
-          )}
-          
-          {product.unit && product.weight === null && (
-            <div>
-              <span className="font-medium text-gray-700">Unit:</span>
-              <span className="ml-2 text-gray-600">{product.unit}</span>
-            </div>
-          )}
-
-          {product.unitPrice !== null && formatCurrency(product.unitPrice) && (
-            <div>
-              <span className="font-medium text-gray-700">Unit Price:</span>
-              <span className="ml-2 text-gray-600">{formatCurrency(product.unitPrice)}</span>
-            </div>
-          )}
-
-          {product.priority && (
-            <div>
-              <span className="font-medium text-gray-700">Priority:</span>
-              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ml-2 ${getPriorityColor(product.priority)}`}>
-                {product.priority}
-              </span>
-            </div>
-          )}
-
-          {product.stockLevel !== null && (
-            <div>
-              <span className="font-medium text-gray-700">Stock Level:</span>
-              <span className="ml-2 text-gray-600">{product.stockLevel} units</span>
-            </div>
-          )}
-
-          {product.tags && Array.isArray(product.tags) && product.tags.length > 0 && (
-            <div>
-              <span className="font-medium text-gray-700">Tags:</span>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {product.tags.map((tag, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center px-2 py-1 rounded text-xs bg-gray-50 text-gray-600 border border-gray-200"
-                  >
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {product.notes && (
-            <div>
-              <span className="font-medium text-gray-700">Notes:</span>
-              <p className="mt-1 text-gray-600 text-sm bg-gray-50 p-2 rounded">{product.notes}</p>
-            </div>
-          )}
-
-        </div>
-      )}
       </div>
 
       {/* Transfer History Modal */}
