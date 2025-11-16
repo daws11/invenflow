@@ -17,7 +17,10 @@ import { Squares2X2Icon, ListBulletIcon, FunnelIcon, PlusIcon, ChevronDownIcon, 
 import { useKanbanStore } from '../store/kanbanStore';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
 import { useLocationStore } from '../store/locationStore';
+import { useBulkSelectionStore } from '../store/bulkSelectionStore';
+import { useProductGroupStore } from '../store/productGroupStore';
 import { ORDER_COLUMNS, RECEIVE_COLUMNS, Product, ValidationStatus } from '@invenflow/shared';
+import { productApi } from '../utils/api';
 import KanbanColumn from '../components/KanbanColumn';
 import CompactBoardView from '../components/CompactBoardView';
 import ProductForm from '../components/ProductForm';
@@ -36,6 +39,10 @@ import QuickFilters from '../components/QuickFilters';
 import FilterPresets from '../components/FilterPresets';
 import EnhancedFilterChips from '../components/EnhancedFilterChips';
 import KeyboardShortcutsHelp from '../components/KeyboardShortcutsHelp';
+import { BulkActionBar } from '../components/BulkActionBar';
+import { BulkRejectModal } from '../components/BulkRejectModal';
+import { BulkMoveModal } from '../components/BulkMoveModal';
+import { GroupItemsModal } from '../components/GroupItemsModal';
 import { getProductCount } from '../utils/productCount';
 
 export default function KanbanBoard() {
@@ -43,6 +50,9 @@ export default function KanbanBoard() {
   const { currentKanban, loading, error, fetchKanbanById, moveProduct, transferProduct, deleteKanban } = useKanbanStore();
   const { kanbanBoardViewMode, setKanbanBoardViewMode } = useViewPreferencesStore();
   const { locations, fetchLocations } = useLocationStore();
+  const { selectedProductIds, getSelectedColumn, clearSelection } = useBulkSelectionStore();
+  const hasSelection = selectedProductIds.size > 0;
+  const { createGroup, deleteGroup } = useProductGroupStore();
   const toast = useToast();
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -75,6 +85,11 @@ export default function KanbanBoard() {
   // Transfer confirmation slider state
   const [showTransferSlider, setShowTransferSlider] = useState(false);
   const [productToTransfer, setProductToTransfer] = useState<Product | null>(null);
+
+  // Bulk action modal states
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [showGroupModal, setShowGroupModal] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -470,6 +485,84 @@ export default function KanbanBoard() {
     }
   };
 
+  // Bulk action handlers
+  const getSelectedProducts = (): Product[] => {
+    if (!currentKanban) return [];
+    return currentKanban.products.filter(p => selectedProductIds.has(p.id));
+  };
+
+  const handleBulkReject = async (reason: string) => {
+    const productIds = Array.from(selectedProductIds);
+    try {
+      await productApi.bulkReject(productIds, reason);
+      toast.success(`${productIds.length} products rejected successfully`);
+      await fetchKanbanById(id!);
+      clearSelection();
+    } catch (error) {
+      toast.error('Failed to reject products');
+      console.error(error);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const productIds = Array.from(selectedProductIds);
+    const confirmed = window.confirm(`Are you sure you want to delete ${productIds.length} products? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      await productApi.bulkDelete(productIds);
+      toast.success(`${productIds.length} products deleted successfully`);
+      await fetchKanbanById(id!);
+      clearSelection();
+    } catch (error) {
+      toast.error('Failed to delete products');
+      console.error(error);
+    }
+  };
+
+  const handleBulkMove = async (targetColumn: string, locationId?: string) => {
+    const productIds = Array.from(selectedProductIds);
+    try {
+      await productApi.bulkMove(productIds, targetColumn, locationId);
+      toast.success(`${productIds.length} products moved successfully`);
+      await fetchKanbanById(id!);
+      clearSelection();
+    } catch (error) {
+      toast.error('Failed to move products');
+      console.error(error);
+    }
+  };
+
+  const handleBulkGroup = async (
+    groupTitle: string,
+    unifiedFields: Record<string, boolean>,
+    unifiedValues: Record<string, any>
+  ) => {
+    const productIds = Array.from(selectedProductIds);
+    const selectedColumn = getSelectedColumn(currentKanban?.products || []);
+    
+    if (!selectedColumn) {
+      toast.error('Selected products must be in the same column');
+      return;
+    }
+
+    try {
+      await createGroup({
+        kanbanId: id!,
+        groupTitle,
+        columnStatus: selectedColumn,
+        productIds,
+        unifiedFields,
+        unifiedValues,
+      });
+      toast.success(`Group "${groupTitle}" created successfully`);
+      await fetchKanbanById(id!);
+      clearSelection();
+    } catch (error) {
+      toast.error('Failed to create group');
+      console.error(error);
+    }
+  };
 
   const getKanbanDescription = () => {
     return currentKanban?.description?.trim() || 'No description';
@@ -1013,6 +1106,43 @@ export default function KanbanBoard() {
             product={productToTransfer}
             linkedKanbans={currentKanban.linkedKanbans || []}
             onConfirm={handleTransferConfirm}
+          />
+        )}
+
+        {/* Bulk Action Modals */}
+        <BulkRejectModal
+          isOpen={showRejectModal}
+          onClose={() => setShowRejectModal(false)}
+          products={getSelectedProducts()}
+          onConfirm={handleBulkReject}
+        />
+
+        <BulkMoveModal
+          isOpen={showMoveModal}
+          onClose={() => setShowMoveModal(false)}
+          products={getSelectedProducts()}
+          availableColumns={getColumns()}
+          currentColumn={getSelectedColumn(currentKanban?.products || []) || ''}
+          onConfirm={handleBulkMove}
+        />
+
+        <GroupItemsModal
+          isOpen={showGroupModal}
+          onClose={() => setShowGroupModal(false)}
+          products={getSelectedProducts()}
+          kanbanId={id!}
+          columnStatus={getSelectedColumn(currentKanban?.products || []) || ''}
+          onConfirm={handleBulkGroup}
+        />
+
+        {/* Bulk Action Bar */}
+        {hasSelection && currentKanban && (
+          <BulkActionBar
+            products={currentKanban.products}
+            onReject={() => setShowRejectModal(true)}
+            onDelete={handleBulkDelete}
+            onGroup={() => setShowGroupModal(true)}
+            onMove={() => setShowMoveModal(true)}
           />
         )}
       </div>

@@ -5,6 +5,7 @@ import TransferHistoryViewer from './TransferHistoryViewer';
 import { getAppliedThreshold, calculateTimeInColumn, formatTimeDuration, formatThresholdRule } from '../utils/thresholdCalculator';
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 import { useLocationStore } from '../store/locationStore';
+import { useBulkSelectionStore } from '../store/bulkSelectionStore';
 
 interface ProductCardProps {
   product: Product;
@@ -20,6 +21,9 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
   const [clickStartTime, setClickStartTime] = useState<number | null>(null);
   const [isDragIntent, setIsDragIntent] = useState(false);
   const { locations } = useLocationStore();
+  const toggleSelection = useBulkSelectionStore((state) => state.toggleSelection);
+  const selected = useBulkSelectionStore((state) => state.selectedProductIds.has(product.id));
+  const selectionActive = useBulkSelectionStore((state) => state.selectedProductIds.size > 0);
 
   const resolvedLocation: Location | null = useMemo(() => {
     if (location) return location;
@@ -58,14 +62,27 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
     isDragging,
   } = useDraggable({
     id: product.id,
+    disabled: selectionActive,
   });
 
-  const interactiveSelector = 'button, a, [data-no-drag]';
+  const interactiveSelector = 'button, a, [data-no-drag], input[type="checkbox"]';
+
+  // Handle checkbox change
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    toggleSelection(product.id);
+  };
 
   // Using pointer events for click vs drag
 
   const handlePointerDown: React.PointerEventHandler<HTMLDivElement> = (event) => {
     if ((event.target as HTMLElement).closest(interactiveSelector)) {
+      return;
+    }
+    
+    // In selection mode, clicking selects the product
+    if (selectionActive) {
+      toggleSelection(product.id);
       return;
     }
     
@@ -78,6 +95,11 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
 
   const handlePointerUp: React.PointerEventHandler<HTMLDivElement> = (event) => {
     if ((event.target as HTMLElement).closest(interactiveSelector)) {
+      return;
+    }
+    
+    // In selection mode, do nothing (already handled in pointer down)
+    if (selectionActive) {
       return;
     }
     
@@ -122,12 +144,12 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
     borderBottom: `1px solid ${appliedThreshold.color}`,
     backgroundColor: `${appliedThreshold.color}10`, // 10% opacity
   } : {};
-
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
     opacity: isDragging ? 0.5 : 1,
     ...thresholdStyle,
   } : thresholdStyle;
+
   const getPriorityColor = (priority: string | null) => {
     switch (priority?.toLowerCase()) {
       case 'urgent':
@@ -143,7 +165,6 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
     }
   };
 
-
   return (
     <div
       ref={setNodeRef}
@@ -151,11 +172,19 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
       className={`product-card group relative transition-all duration-200 ${
         isDragging
           ? 'shadow-2xl scale-105 opacity-95 border-blue-400 cursor-grabbing'
-          : 'hover:shadow-lg cursor-pointer hover:cursor-grab'
+      : selectionActive
+      ? 'cursor-pointer'
+      : 'hover:shadow-lg cursor-pointer hover:cursor-grab'
       } ${
-        product.isDraft
+        selected
+          ? 'border-2 border-blue-500 bg-blue-50'
+          : product.isDraft
           ? 'border-dashed border-2 border-gray-300 bg-gray-50/50 opacity-75'
           : 'border border-gray-200 bg-white'
+      } ${
+        product.isRejected
+          ? 'opacity-60 border-red-300 bg-red-50'
+          : ''
       }`}
       {...attributes}
       data-dragging={isDragging ? 'true' : 'false'}
@@ -167,16 +196,33 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
       title={appliedThreshold ? `In column for ${timeInColumn} - ${formatThresholdRule(appliedThreshold)}` : undefined}
     >
 
+      {/* Selection Checkbox */}
+      <div className="absolute top-2 right-2 z-20 rounded-full bg-white/80 border border-gray-200 p-0.5 shadow-sm">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={handleCheckboxChange}
+          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 bg-white"
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+
       {/* Threshold indicator badge */}
       {appliedThreshold && (
         <div 
-          className={`absolute top-2 w-3 h-3 rounded-full shadow-lg z-10 animate-pulse ${
-            product.isDraft ? 'right-2' : 'right-2'
-          }`}
+          className="absolute top-2 right-10 w-3 h-3 rounded-full shadow-lg z-10 animate-pulse"
           style={{ backgroundColor: appliedThreshold.color }}
           title={`${formatThresholdRule(appliedThreshold)} - In column for ${timeInColumn}`}
         />
       )}
+
+      {/* Rejected Badge */}
+      {product.isRejected && (
+        <div className="absolute top-10 right-2 z-10 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full font-medium">
+          Rejected
+        </div>
+      )}
+
 
       {/* Product Content */}
       <div className="space-y-2">

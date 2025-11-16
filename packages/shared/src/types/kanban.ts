@@ -60,6 +60,11 @@ export const KanbanSchema = z.object({
   createdAt: z.date(),
   updatedAt: z.date(),
   productCount: z.number().optional(),
+  // Optional arrays for related data
+  products: z.array(z.any()).optional(), // Will be Product[] from product.ts
+  productGroups: z.array(z.any()).optional(), // Will be ProductGroupWithDetails[] from product-group.ts
+  linkedKanbans: z.array(z.any()).optional(), // Will be LinkedReceiveKanban[] 
+  location: z.any().optional(), // Will be Location from location.ts
 });
 
 export const CreateKanbanSchema = z.object({

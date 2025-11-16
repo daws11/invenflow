@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { nanoid } from 'nanoid';
 import { db } from '../db';
-import { kanbans, products, kanbanLinks, locations } from '../db/schema';
+import { kanbans, products, kanbanLinks, locations, productGroups, productGroupSettings } from '../db/schema';
 import { eq, and, asc, sql } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
@@ -114,11 +114,44 @@ router.get('/:id', async (req, res, next) => {
         .where(eq(kanbanLinks.orderKanbanId, id));
     }
 
+    // Get product groups for this kanban
+    const groups = await db
+      .select({
+        id: productGroups.id,
+        kanbanId: productGroups.kanbanId,
+        groupTitle: productGroups.groupTitle,
+        columnStatus: productGroups.columnStatus,
+        createdAt: productGroups.createdAt,
+        updatedAt: productGroups.updatedAt,
+        settings: {
+          id: productGroupSettings.id,
+          productGroupId: productGroupSettings.productGroupId,
+          unifiedFields: productGroupSettings.unifiedFields,
+          unifiedValues: productGroupSettings.unifiedValues,
+          createdAt: productGroupSettings.createdAt,
+          updatedAt: productGroupSettings.updatedAt,
+        }
+      })
+      .from(productGroups)
+      .leftJoin(productGroupSettings, eq(productGroups.id, productGroupSettings.productGroupId))
+      .where(eq(productGroups.kanbanId, id))
+      .orderBy(asc(productGroups.createdAt));
+
+    // Group products by their group ID and add to groups
+    const groupsWithProducts = groups.map(group => {
+      const groupProducts = kanbanProducts.filter(p => p.productGroupId === group.id);
+      return {
+        ...group,
+        products: groupProducts,
+      };
+    });
+
     res.json({ 
       ...kanban, 
       products: kanbanProducts,
       location,
       linkedKanbans,
+      productGroups: groupsWithProducts,
     });
   } catch (error) {
     next(error);

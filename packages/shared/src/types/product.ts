@@ -30,6 +30,13 @@ export const ProductSchema = z.object({
   importBatchId: z.string().uuid().nullable(),
   originalPurchaseDate: z.date().nullable(),
   isDraft: z.boolean(),
+  // Rejection fields
+  isRejected: z.boolean(),
+  rejectedAt: z.date().nullable(),
+  rejectionReason: z.string().max(500).nullable(),
+  // Grouping fields
+  productGroupId: z.string().uuid().nullable(),
+  groupPosition: z.number().int().nullable(),
   columnEnteredAt: z.date(),
   createdAt: z.date(),
   updatedAt: z.date(),

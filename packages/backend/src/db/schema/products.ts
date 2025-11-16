@@ -3,6 +3,7 @@ import { relations } from 'drizzle-orm';
 import { kanbans } from './kanbans';
 import { locations } from './locations';
 import { persons } from './persons';
+import { productGroups } from './product-groups';
 
 export const products = pgTable(
   'products',
@@ -36,6 +37,13 @@ export const products = pgTable(
     importBatchId: uuid('import_batch_id'),
     originalPurchaseDate: timestamp('original_purchase_date'),
     isDraft: boolean('is_draft').notNull().default(false),
+    // Rejection fields
+    isRejected: boolean('is_rejected').notNull().default(false),
+    rejectedAt: timestamp('rejected_at'),
+    rejectionReason: text('rejection_reason'),
+    // Grouping fields
+    productGroupId: uuid('product_group_id'), // references product_groups.id, set separately
+    groupPosition: integer('group_position'),
     columnEnteredAt: timestamp('column_entered_at').notNull().defaultNow(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -52,6 +60,8 @@ export const products = pgTable(
     preferredReceiveKanbanIdIdx: index('products_preferred_receive_kanban_id_idx').on(table.preferredReceiveKanbanId),
     importBatchIdIdx: index('products_import_batch_id_idx').on(table.importBatchId),
     isDraftIdx: index('products_is_draft_idx').on(table.isDraft),
+    isRejectedIdx: index('products_is_rejected_idx').on(table.isRejected),
+    productGroupIdIdx: index('products_product_group_id_idx').on(table.productGroupId),
   })
 );
 
@@ -72,6 +82,10 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   preferredReceiveKanban: one(kanbans, {
     fields: [products.preferredReceiveKanbanId],
     references: [kanbans.id],
+  }),
+  productGroup: one(productGroups, {
+    fields: [products.productGroupId],
+    references: [productGroups.id],
   }),
   sourceProduct: one(products, {
     fields: [products.sourceProductId],

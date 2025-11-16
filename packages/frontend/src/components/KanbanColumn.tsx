@@ -1,6 +1,8 @@
-import { Product, Kanban } from '@invenflow/shared';
+import { Product, Kanban, ProductGroupWithDetails } from '@invenflow/shared';
 import { useDroppable } from '@dnd-kit/core';
 import ProductCard from './ProductCard';
+import { GroupedProductCard } from './GroupedProductCard';
+import { useProductGroupStore } from '../store/productGroupStore';
 
 interface KanbanColumnProps {
   id: string;
@@ -12,6 +14,7 @@ interface KanbanColumnProps {
 }
 
 export default function KanbanColumn({ id, title, products, onProductView, kanban }: KanbanColumnProps) {
+  const { deleteGroup } = useProductGroupStore();
   const { setNodeRef, isOver } = useDroppable({
     id: id,
   });
@@ -41,7 +44,28 @@ export default function KanbanColumn({ id, title, products, onProductView, kanba
       </div>
 
       <div className="space-y-2 min-h-[150px] p-3" role="list">
-        {products.map((product) => (
+        {/* Render Product Groups for this column */}
+        {kanban?.productGroups?.filter(group => group.columnStatus === id).map((group) => (
+          <GroupedProductCard
+            key={group.id}
+            group={group}
+            products={group.products || []}
+            kanban={kanban}
+            onProductView={onProductView}
+            onUngroup={async () => {
+              try {
+                await deleteGroup(group.id);
+                // Refresh kanban data after ungrouping
+                window.location.reload();
+              } catch (error) {
+                console.error('Failed to ungroup:', error);
+              }
+            }}
+          />
+        ))}
+
+        {/* Render ungrouped products */}
+        {products.filter(product => !product.productGroupId).map((product) => (
           <ProductCard
             key={product.id}
             product={product}
@@ -50,7 +74,7 @@ export default function KanbanColumn({ id, title, products, onProductView, kanba
           />
         ))}
 
-        {products.length === 0 && (
+        {products.length === 0 && (!kanban?.productGroups || kanban.productGroups.filter(g => g.columnStatus === id).length === 0) && (
           <div className={`text-center py-8 text-sm border-2 border-dashed rounded-lg ${
             isOver
               ? 'text-blue-600 font-medium border-blue-300 bg-blue-50'

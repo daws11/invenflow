@@ -183,6 +183,13 @@
       "when": 1763106236801,
       "tag": "0025_long_skaar",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1763319180846,
+      "tag": "0026_yielding_christian_walker",
+      "breakpoints": true
     }
   ]
 }

@@ -198,6 +198,45 @@ export const productApi = {
     const response = await api.get(`/api/products/by-location/${locationId}`);
     return response.data;
   },
+
+  // Bulk actions
+  bulkReject: async (productIds: string[], rejectionReason?: string): Promise<any> => {
+    const response = await api.post('/api/products/bulk-reject', {
+      productIds,
+      rejectionReason,
+    });
+    return response.data;
+  },
+
+  bulkDelete: async (productIds: string[]): Promise<any> => {
+    const response = await api.post('/api/products/bulk-delete', {
+      productIds,
+    });
+    return response.data;
+  },
+
+  bulkMove: async (
+    productIds: string[],
+    targetColumn: string,
+    locationId?: string
+  ): Promise<any> => {
+    const response = await api.post('/api/products/bulk-move', {
+      productIds,
+      targetColumn,
+      locationId,
+    });
+    return response.data;
+  },
+
+  unreject: async (id: string): Promise<Product> => {
+    const response = await api.post(`/api/products/${id}/unreject`);
+    return response.data;
+  },
+
+  getRejected: async (): Promise<Product[]> => {
+    const response = await api.get('/api/products/rejected');
+    return response.data;
+  },
 };
 
 // Location API calls

@@ -1,3 +1,4 @@
+export * from './bulk-actions.js';
 export * from './bulk-movement.js';
 export * from './category.js';
 export * from './department.js';
@@ -8,6 +9,7 @@ export * from './location.js';
 export * from './movement.js';
 export * from './person.js';
 export * from './product.js';
+export * from './product-group.js';
 export * from './product-validation.js';
 export * from './transfer-log.js';
 export * from './user.js';

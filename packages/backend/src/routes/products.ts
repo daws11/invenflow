@@ -725,6 +725,226 @@ router.post('/bulk-update', async (req, res, next) => {
   }
 });
 
+// Bulk reject products
+router.post('/bulk-reject', async (req, res, next) => {
+  try {
+    const { productIds, rejectionReason } = req.body;
+
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      throw createError('Product IDs array is required', 400);
+    }
+
+    // Fetch products to validate they're in valid columns for rejection
+    const productsToReject = await db
+      .select()
+      .from(products)
+      .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
+      .where(eq(products.id, productIds[0]));
+
+    // Check for valid product IDs and columns
+    const validColumns = ['New Request', 'In Review'];
+    const results = [];
+    const failedIds: string[] = [];
+
+    for (const id of productIds) {
+      try {
+        const [productData] = await db
+          .select()
+          .from(products)
+          .where(eq(products.id, id));
+
+        if (!productData) {
+          failedIds.push(id);
+          continue;
+        }
+
+        // Validate column status
+        if (!validColumns.includes(productData.columnStatus)) {
+          console.warn(`Product ${id} is in ${productData.columnStatus}, cannot reject`);
+          failedIds.push(id);
+          continue;
+        }
+
+        const [updated] = await db
+          .update(products)
+          .set({
+            isRejected: true,
+            rejectedAt: new Date(),
+            rejectionReason: rejectionReason || null,
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, id))
+          .returning();
+
+        if (updated) {
+          results.push(updated);
+        }
+      } catch (err) {
+        console.error(`Failed to reject product ${id}:`, err);
+        failedIds.push(id);
+      }
+    }
+
+    // Invalidate relevant caches
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/kanbans');
+
+    res.json({
+      message: `${results.length} products rejected successfully`,
+      affectedCount: results.length,
+      successIds: results.map(p => p.id),
+      failedIds,
+      rejectedProducts: results,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Unreject a single product
+router.post('/:id/unreject', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const [product] = await db
+      .select()
+      .from(products)
+      .where(eq(products.id, id));
+
+    if (!product) {
+      throw createError('Product not found', 404);
+    }
+
+    if (!product.isRejected) {
+      throw createError('Product is not rejected', 400);
+    }
+
+    const [updated] = await db
+      .update(products)
+      .set({
+        isRejected: false,
+        rejectedAt: null,
+        rejectionReason: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(products.id, id))
+      .returning();
+
+    // Invalidate relevant caches
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/kanbans');
+
+    res.json(updated);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get rejected products (for future use)
+router.get('/rejected', async (req, res, next) => {
+  try {
+    const rejectedProducts = await db
+      .select()
+      .from(products)
+      .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
+      .where(eq(products.isRejected, true))
+      .orderBy(desc(products.rejectedAt));
+
+    res.json(rejectedProducts.map(p => p.products));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Bulk move products
+router.post('/bulk-move', async (req, res, next) => {
+  try {
+    const { productIds, targetColumn, locationId } = req.body;
+
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      throw createError('Product IDs array is required', 400);
+    }
+
+    if (!targetColumn) {
+      throw createError('Target column is required', 400);
+    }
+
+    // Fetch all products to validate they're in the same column
+    const productsToMove = await db
+      .select()
+      .from(products)
+      .where(eq(products.id, productIds[0]));
+
+    const results = [];
+    const failedIds: string[] = [];
+
+    // Get the source column from first product
+    let sourceColumn: string | null = null;
+
+    for (const id of productIds) {
+      try {
+        const [product] = await db
+          .select()
+          .from(products)
+          .where(eq(products.id, id));
+
+        if (!product) {
+          failedIds.push(id);
+          continue;
+        }
+
+        // Check if all products are in same column
+        if (sourceColumn === null) {
+          sourceColumn = product.columnStatus;
+        } else if (sourceColumn !== product.columnStatus) {
+          throw createError('All products must be in the same column for bulk move', 400);
+        }
+
+        const updateData: any = {
+          columnStatus: targetColumn,
+          columnEnteredAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        // If moving to Stored, location is required
+        if (targetColumn === 'Stored') {
+          if (!locationId) {
+            throw createError('Location ID is required when moving to Stored', 400);
+          }
+          updateData.locationId = locationId;
+        }
+
+        const [updated] = await db
+          .update(products)
+          .set(updateData)
+          .where(eq(products.id, id))
+          .returning();
+
+        if (updated) {
+          results.push(updated);
+        }
+      } catch (err) {
+        console.error(`Failed to move product ${id}:`, err);
+        failedIds.push(id);
+      }
+    }
+
+    // Invalidate relevant caches
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/kanbans');
+
+    res.json({
+      message: `${results.length} products moved successfully`,
+      affectedCount: results.length,
+      successIds: results.map(p => p.id),
+      failedIds,
+      movedProducts: results,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get products by location
 router.get('/by-location/:locationId', async (req, res, next) => {
   try {

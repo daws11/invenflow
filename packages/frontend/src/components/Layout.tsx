@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, CSSProperties } from 'react';
 import Sidebar from './Sidebar';
 
 interface LayoutProps {
@@ -19,6 +19,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   // Update main content margin based on sidebar state
   const mainContentMargin = sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64';
+
+  const sidebarWidthValue = sidebarCollapsed ? '4rem' : '16rem';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -84,7 +86,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </header>
 
       {/* Main Content */}
-      <main className={`${mainContentMargin} transition-all duration-300`}>
+      <main
+        className={`${mainContentMargin} transition-all duration-300`}
+        style={{ '--sidebar-width': sidebarWidthValue } as React.CSSProperties}
+      >
         <div className="w-full px-3 sm:px-4 lg:px-6 py-3 md:py-4">
           {children}
         </div>

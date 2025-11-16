@@ -26,6 +26,7 @@ import { authRouter } from "./routes/auth";
 import { usersRouter } from "./routes/users";
 import { bulkMovementsRouter } from "./routes/bulk-movements";
 import { publicBulkMovementsRouter } from "./routes/public-bulk-movements";
+import productGroupsRouter from "./routes/product-groups";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -136,6 +137,7 @@ app.use("/api/locations", locationsRouter);
 app.use("/api/movements", movementsRouter);
 app.use("/api/persons", personsRouter);
 app.use("/api/products", productsRouter);
+app.use("/api/product-groups", productGroupsRouter);
 app.use("/api/transfer-logs", transferLogsRouter);
 app.use("/api/upload", uploadRouter);
 app.use("/api/validations", validationsRouter);

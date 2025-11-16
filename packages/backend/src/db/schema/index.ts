@@ -6,6 +6,7 @@ export * from './locations';
 export * from './movement-logs';
 export * from './persons';
 export * from './products';
+export * from './product-groups';
 export * from './product-validations';
 export * from './stock-analytics';
 export * from './transfer-logs';
