@@ -1,5 +1,6 @@
 import { Product, Kanban, ProductGroupWithDetails } from '@invenflow/shared';
 import { useDroppable } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import ProductCard from './ProductCard';
 import { GroupedProductCard } from './GroupedProductCard';
 import { useProductGroupStore } from '../store/productGroupStore';
@@ -11,9 +12,10 @@ interface KanbanColumnProps {
   onProductView?: (product: Product) => void;
   onProductMove?: (productId: string, newColumn: string) => void;
   kanban?: Kanban | null;
+  onOpenGroupSettings?: (group: ProductGroupWithDetails) => void;
 }
 
-export default function KanbanColumn({ id, title, products, onProductView, kanban }: KanbanColumnProps) {
+export default function KanbanColumn({ id, title, products, onProductView, kanban, onOpenGroupSettings }: KanbanColumnProps) {
   const { deleteGroup } = useProductGroupStore();
   const { setNodeRef, isOver } = useDroppable({
     id: id,
@@ -52,6 +54,7 @@ export default function KanbanColumn({ id, title, products, onProductView, kanba
             products={group.products || []}
             kanban={kanban}
             onProductView={onProductView}
+            onOpenSettings={onOpenGroupSettings}
             onUngroup={async () => {
               try {
                 await deleteGroup(group.id);
@@ -64,15 +67,22 @@ export default function KanbanColumn({ id, title, products, onProductView, kanba
           />
         ))}
 
-        {/* Render ungrouped products */}
-        {products.filter(product => !product.productGroupId).map((product) => (
-          <ProductCard
-            key={product.id}
-            product={product}
-            onView={() => onProductView?.(product)}
-            kanban={kanban}
-          />
-        ))}
+        {/* Render ungrouped products with sortable context */}
+        <SortableContext
+          items={products.filter(product => !product.productGroupId).map(product => product.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {products
+            .filter(product => !product.productGroupId)
+            .map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onView={() => onProductView?.(product)}
+                kanban={kanban}
+              />
+            ))}
+        </SortableContext>
 
         {products.length === 0 && (!kanban?.productGroups || kanban.productGroups.filter(g => g.columnStatus === id).length === 0) && (
           <div className={`text-center py-8 text-sm border-2 border-dashed rounded-lg ${

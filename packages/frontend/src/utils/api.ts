@@ -228,6 +228,22 @@ export const productApi = {
     return response.data;
   },
 
+  reorder: async (
+    kanbanId: string,
+    columnStatus: string,
+    orderedProductIds: string[]
+  ): Promise<{
+    message: string;
+    affectedCount: number;
+  }> => {
+    const response = await api.post('/api/products/reorder', {
+      kanbanId,
+      columnStatus,
+      orderedProductIds,
+    });
+    return response.data;
+  },
+
   unreject: async (id: string): Promise<Product> => {
     const response = await api.post(`/api/products/${id}/unreject`);
     return response.data;

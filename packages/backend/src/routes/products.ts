@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db';
 import { products, kanbans, transferLogs, locations, productValidations, kanbanLinks, skuAliases } from '../db/schema';
-import { eq, and, desc, getTableColumns } from 'drizzle-orm';
+import { eq, and, desc, getTableColumns, sql, inArray, isNull } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import type { NewProduct } from '../db/schema';
 import { authenticateToken } from '../middleware/auth';
@@ -139,6 +139,22 @@ router.post('/', async (req, res, next) => {
     // For receive kanbans, locationId is required
     const finalLocationId = kanban.type === 'receive' ? (locationId ?? null) : null;
 
+    // Determine next column position within this kanban & column
+    // New products should appear at the TOP of the column, so we take current MIN position and subtract 1
+    const [positionResult] = await db
+      .select({
+        min: sql<number>`coalesce(min(${products.columnPosition}), 0)`,
+      })
+      .from(products)
+      .where(
+        and(
+          eq(products.kanbanId, kanbanId),
+          eq(products.columnStatus, columnStatus)
+        )
+      );
+
+    const nextPosition = (positionResult?.min ?? 0) - 1;
+
     const newProduct: NewProduct = {
       kanbanId,
       columnStatus,
@@ -163,6 +179,7 @@ router.post('/', async (req, res, next) => {
       columnEnteredAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
+      columnPosition: nextPosition,
     };
 
     const [createdProduct] = await db
@@ -366,8 +383,10 @@ router.put('/:id/move', async (req, res, next) => {
       updatedAt: new Date(),
     };
 
+    const isColumnChanging = currentProduct.columnStatus !== columnStatus;
+
     // Reset columnEnteredAt if column status is changing
-    if (currentProduct.columnStatus !== columnStatus) {
+    if (isColumnChanging) {
       updateData.columnEnteredAt = new Date();
     }
 
@@ -458,6 +477,28 @@ router.put('/:id/move', async (req, res, next) => {
             });
           }
         }
+      }
+    }
+
+    // If column status is changing, determine new columnPosition so the product appears at the TOP of the target column
+    if (isColumnChanging) {
+      const targetKanbanIdForPosition = (updateData.kanbanId as string | undefined) ?? currentProduct.kanbanId;
+
+      if (targetKanbanIdForPosition) {
+        const [positionResult] = await db
+          .select({
+            min: sql<number>`coalesce(min(${products.columnPosition}), 0)`,
+          })
+          .from(products)
+          .where(
+            and(
+              eq(products.kanbanId, targetKanbanIdForPosition),
+              eq(products.columnStatus, columnStatus)
+            )
+          );
+
+        const nextPosition = (positionResult?.min ?? 0) - 1;
+        updateData.columnPosition = nextPosition;
       }
     }
 
@@ -939,6 +980,106 @@ router.post('/bulk-move', async (req, res, next) => {
       successIds: results.map(p => p.id),
       failedIds,
       movedProducts: results,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Reorder products within a single kanban column
+router.post('/reorder', async (req, res, next) => {
+  try {
+    const { kanbanId, columnStatus, orderedProductIds } = req.body as {
+      kanbanId?: string;
+      columnStatus?: string;
+      orderedProductIds?: string[];
+    };
+
+    if (!kanbanId || !columnStatus || !Array.isArray(orderedProductIds) || orderedProductIds.length === 0) {
+      throw createError('kanbanId, columnStatus and orderedProductIds are required', 400);
+    }
+
+    // Verify kanban exists and get its type
+    const [kanban] = await db
+      .select({
+        id: kanbans.id,
+        type: kanbans.type,
+      })
+      .from(kanbans)
+      .where(eq(kanbans.id, kanbanId))
+      .limit(1);
+
+    if (!kanban) {
+      throw createError('Kanban not found', 404);
+    }
+
+    // Optional: validate columnStatus for kanban type
+    const validColumns =
+      kanban.type === 'order'
+        ? ['New Request', 'In Review', 'Purchased']
+        : ['Purchased', 'Received', 'Stored'];
+
+    if (!validColumns.includes(columnStatus)) {
+      throw createError('Invalid columnStatus for this kanban type', 400);
+    }
+
+    // Fetch existing ungrouped products in this kanban & column
+    const existingProducts = await db
+      .select({
+        id: products.id,
+      })
+      .from(products)
+      .where(
+        and(
+          eq(products.kanbanId, kanbanId),
+          eq(products.columnStatus, columnStatus),
+          isNull(products.productGroupId)
+        )
+      );
+
+    const existingIds = existingProducts.map(p => p.id);
+    const orderedSet = new Set(orderedProductIds);
+
+    // Ensure orderedProductIds exactly match existing products (no missing or extra IDs)
+    const hasSameLength = existingIds.length === orderedProductIds.length;
+    const hasNoDuplicates = orderedSet.size === orderedProductIds.length;
+    const allIdsMatch = existingIds.every(id => orderedSet.has(id));
+
+    if (!hasSameLength || !hasNoDuplicates || !allIdsMatch) {
+      throw createError('orderedProductIds must match all products in the target kanban column', 400);
+    }
+
+    // Apply new positions
+    const updatedProducts = [];
+    for (let index = 0; index < orderedProductIds.length; index++) {
+      const productId = orderedProductIds[index];
+      const [updated] = await db
+        .update(products)
+        .set({
+          columnPosition: index,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(products.id, productId),
+            eq(products.kanbanId, kanbanId),
+            eq(products.columnStatus, columnStatus)
+          )
+        )
+        .returning();
+
+      if (updated) {
+        updatedProducts.push(updated);
+      }
+    }
+
+    // Invalidate caches
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/kanbans');
+
+    res.json({
+      message: 'Products reordered successfully',
+      affectedCount: updatedProducts.length,
     });
   } catch (error) {
     next(error);

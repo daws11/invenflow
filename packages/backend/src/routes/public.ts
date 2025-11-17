@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db';
 import { kanbans, products, departments, locations } from '../db/schema';
-import { eq, or, ilike, asc, sql } from 'drizzle-orm';
+import { eq, or, ilike, asc, sql, and } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { nanoid } from 'nanoid';
 import { generateStableSku, normalizeSku } from '../utils/sku';
@@ -204,6 +204,22 @@ router.post('/form/:token', async (req, res, next) => {
         dimensions: undefined,
       });
 
+    // Determine next column position within this kanban & column "New Request"
+    // New public-form products should appear at the TOP of the column, so we take current MIN position and subtract 1
+    const [positionResult] = await db
+      .select({
+        min: sql<number>`coalesce(min(${products.columnPosition}), 0)`,
+      })
+      .from(products)
+      .where(
+        and(
+          eq(products.kanbanId, kanban.id),
+          eq(products.columnStatus, 'New Request')
+        )
+      );
+
+    const nextPosition = (positionResult?.min ?? 0) - 1;
+
     // Create product in "New Request" column
     const newProduct = {
       kanbanId: kanban.id,
@@ -221,6 +237,7 @@ router.post('/form/:token', async (req, res, next) => {
       importSource: 'public-form',
       isDraft: true, // Public forms always create draft products in Order kanbans
       columnEnteredAt: new Date(),
+      columnPosition: nextPosition,
     };
 
     const [createdProduct] = await db

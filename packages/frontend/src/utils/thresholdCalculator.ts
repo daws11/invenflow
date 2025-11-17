@@ -70,32 +70,91 @@ export function evaluateThreshold(
 }
 
 /**
- * Get the first matching threshold rule based on priority
- * Returns null if no rules match
+ * Get the applied threshold rule for a product.
+ *
+ * Instead of returning the first match by priority, we:
+ * - Evaluate all rules that match the current time-in-column
+ * - Compute a "severity" score for each:
+ *   - For '>' / '>=' operators: larger time thresholds are more severe
+ *   - For '<' / '<=' operators: smaller time thresholds are more severe
+ * - Pick the rule with the highest severity
+ * - Use priority only as a tie‑breaker when severities are equal
+ *
+ * This better matches user expectations for multi-level SLAs
+ * (e.g. > 2 hours should override > 10 minutes when both are true).
  */
 export function getAppliedThreshold(
-  product: Product, 
+  product: Product,
   rules: ThresholdRule[] | null | undefined
 ): ThresholdRule | null {
-  if (!rules || rules.length === 0) {
+  if (!rules || rules.length === 0 || !product.columnEnteredAt) {
     return null;
   }
 
   // Calculate time in current column
   const timeInMs = calculateTimeInColumn(product.columnEnteredAt);
 
-  // Sort rules by priority (lower number = higher priority)
-  const sortedRules = [...rules].sort((a, b) => a.priority - b.priority);
-
-  // Find first matching rule
-  for (const rule of sortedRules) {
-    const timeInUnit = convertToUnit(timeInMs, rule.unit);
-    if (evaluateThreshold(timeInUnit, rule.operator, rule.value)) {
-      return rule;
+  // Helper to convert a unit back to milliseconds
+  const unitToMs = (unit: ThresholdTimeUnit): number => {
+    switch (unit) {
+      case 'minutes':
+        return 1000 * 60;
+      case 'hours':
+        return 1000 * 60 * 60;
+      case 'days':
+        return 1000 * 60 * 60 * 24;
+      default:
+        return 0;
     }
+  };
+
+  const matched: { rule: ThresholdRule; severity: number }[] = [];
+
+  for (const rule of rules) {
+    const timeInUnit = convertToUnit(timeInMs, rule.unit);
+
+    // Skip rules that don't currently match
+    if (!evaluateThreshold(timeInUnit, rule.operator, rule.value)) {
+      continue;
+    }
+
+    const thresholdMs = rule.value * unitToMs(rule.unit);
+    let severity: number;
+
+    switch (rule.operator) {
+      case '>':
+      case '>=':
+        // Larger thresholds (e.g. > 2 hours) are considered more severe
+        severity = thresholdMs;
+        break;
+      case '<':
+      case '<=':
+        // Smaller thresholds (e.g. < 5 minutes) are considered more strict/severe
+        severity = -thresholdMs;
+        break;
+      case '=':
+      default:
+        // Equality or unsupported operators get a neutral severity
+        severity = 0;
+        break;
+    }
+
+    matched.push({ rule, severity });
   }
 
-  return null;
+  if (matched.length === 0) {
+    return null;
+  }
+
+  // Sort by severity (descending), then by priority (ascending)
+  matched.sort((a, b) => {
+    if (b.severity !== a.severity) {
+      return b.severity - a.severity;
+    }
+    return a.rule.priority - b.rule.priority;
+  });
+
+  return matched[0].rule;
 }
 
 /**

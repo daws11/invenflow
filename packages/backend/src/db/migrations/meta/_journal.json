@@ -190,6 +190,13 @@
       "when": 1763319180846,
       "tag": "0026_yielding_christian_walker",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1763357314787,
+      "tag": "0027_sloppy_la_nuit",
+      "breakpoints": true
     }
   ]
 }

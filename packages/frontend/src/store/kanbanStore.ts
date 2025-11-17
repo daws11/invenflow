@@ -26,6 +26,8 @@ interface KanbanState {
   transferProduct: (id: string, targetKanbanId: string) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
 
+  reorderColumnProducts: (kanbanId: string, columnStatus: string, orderedProductIds: string[]) => Promise<void>;
+
   refreshCurrentKanban: () => Promise<void>;
   clearError: () => void;
 }
@@ -92,10 +94,16 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
         loading: false
       }));
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to update kanban';
+
       set({
-        error: error instanceof Error ? error.message : 'Failed to update kanban',
+        error: message,
         loading: false
       });
+
+      // Re-throw so callers (e.g. settings & linking sections) can show proper error toasts
+      throw error;
     }
   },
 
@@ -321,6 +329,66 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
           : null,
         error: error instanceof Error ? error.message : 'Failed to transfer product'
       }));
+      throw error;
+    }
+  },
+
+  reorderColumnProducts: async (kanbanId: string, columnStatus: string, orderedProductIds: string[]) => {
+    const { currentKanban, refreshCurrentKanban } = get();
+    if (!currentKanban || currentKanban.id !== kanbanId) return;
+
+    const previousProducts = currentKanban.products;
+
+    // OPTIMISTIC UPDATE: reorder products locally
+    set(state => {
+      if (!state.currentKanban || state.currentKanban.id !== kanbanId) {
+        return state;
+      }
+
+      const products = state.currentKanban.products;
+      const productsById = new Map(products.map(p => [p.id, p]));
+
+      // Build reordered list for this column (ungrouped products only)
+      const reorderedColumnProducts = orderedProductIds
+        .map((id, index) => {
+          const product = productsById.get(id);
+          if (!product) return null;
+          if (product.columnStatus !== columnStatus || product.productGroupId) {
+            return null;
+          }
+          return {
+            ...product,
+            columnPosition: index,
+          } as Product;
+        })
+        .filter((p): p is Product => Boolean(p));
+
+      // Keep other products (including grouped ones and other columns) as-is
+      const otherProducts = products.filter(
+        p => !(p.columnStatus === columnStatus && !p.productGroupId)
+      );
+
+      return {
+        ...state,
+        currentKanban: state.currentKanban
+          ? {
+              ...state.currentKanban,
+              products: [...otherProducts, ...reorderedColumnProducts],
+            }
+          : null,
+      };
+    });
+
+    try {
+      await productApi.reorder(kanbanId, columnStatus, orderedProductIds);
+    } catch (error) {
+      // ROLLBACK: refresh kanban from server on error
+      await refreshCurrentKanban();
+
+      set({
+        error: error instanceof Error ? error.message : 'Failed to reorder products',
+      });
+
       throw error;
     }
   },

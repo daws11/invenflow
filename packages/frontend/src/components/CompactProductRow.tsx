@@ -1,24 +1,35 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Product, Location, Kanban } from '@invenflow/shared';
-import { useDraggable } from '@dnd-kit/core';
+import { useSortable } from '@dnd-kit/sortable';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import TransferHistoryViewer from './TransferHistoryViewer';
-import { getAppliedThreshold, calculateTimeInColumn, formatTimeDuration, formatThresholdRule } from '../utils/thresholdCalculator';
+import {
+  getAppliedThreshold,
+  calculateTimeInColumn,
+  formatTimeDuration,
+  formatThresholdRule,
+} from '../utils/thresholdCalculator';
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
+import { useBulkSelectionStore } from '../store/bulkSelectionStore';
 
 interface CompactProductRowProps {
   product: Product;
   onView?: () => void;
   location?: Location | null;
   kanban?: Kanban | null;
+  /** When true, disables drag interactions (used for grouped items) */
+  disableDrag?: boolean;
 }
 
-export default function CompactProductRow({ product, onView, location, kanban }: CompactProductRowProps) {
+export default function CompactProductRow({ product, onView, location, kanban, disableDrag = false }: CompactProductRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showTransferHistory, setShowTransferHistory] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [clickStartTime, setClickStartTime] = useState<number | null>(null);
   const [isDragIntent, setIsDragIntent] = useState(false);
+  const toggleSelection = useBulkSelectionStore((state) => state.toggleSelection);
+  const selected = useBulkSelectionStore((state) => state.selectedProductIds.has(product.id));
+  const selectionActive = useBulkSelectionStore((state) => state.selectedProductIds.size > 0);
 
   // Update current time every second for real-time threshold recalculation
   useEffect(() => {
@@ -47,12 +58,20 @@ export default function CompactProductRow({ product, onView, location, kanban }:
     listeners,
     setNodeRef,
     transform,
+    transition,
     isDragging,
-  } = useDraggable({
+  } = useSortable({
     id: product.id,
+    disabled: disableDrag,
   });
 
-  const interactiveSelector = 'button, a, [data-no-drag]';
+  const interactiveSelector = 'button, a, [data-no-drag], input[type="checkbox"]';
+
+  // Handle checkbox change
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    toggleSelection(product.id);
+  };
 
   // Using pointer events for click vs drag
 
@@ -61,15 +80,28 @@ export default function CompactProductRow({ product, onView, location, kanban }:
       return;
     }
     
+    // In selection mode, clicking selects the product
+    if (selectionActive) {
+      toggleSelection(product.id);
+      return;
+    }
+    
     // Track click start time
     setClickStartTime(Date.now());
     setIsDragIntent(false);
     
-    listeners?.onPointerDown?.(event);
+    if (!disableDrag && !selectionActive) {
+      listeners?.onPointerDown?.(event);
+    }
   };
 
   const handlePointerUp: React.PointerEventHandler<HTMLDivElement> = (event) => {
     if ((event.target as HTMLElement).closest(interactiveSelector)) {
+      return;
+    }
+    
+    // In selection mode, do nothing (selection handled on pointer down)
+    if (selectionActive) {
       return;
     }
     
@@ -105,10 +137,15 @@ export default function CompactProductRow({ product, onView, location, kanban }:
     listeners?.onKeyDown?.(event);
   };
 
-  const style = transform ? {
-    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+  const style = {
+    ...(transform
+      ? {
+          transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        }
+      : {}),
+    ...(transition ? { transition } : {}),
     opacity: isDragging ? 0.5 : 1,
-  } : {};
+  };
 
   const getPriorityColor = (priority: string | null) => {
     switch (priority?.toLowerCase()) {
@@ -171,6 +208,17 @@ export default function CompactProductRow({ product, onView, location, kanban }:
       {/* Main Row Content */}
       <div className="flex items-center justify-between py-3 px-4 hover:bg-gray-50">
         <div className="flex items-center space-x-4 flex-1 min-w-0">
+          {/* Selection Checkbox */}
+          <div className="flex-shrink-0 mr-2">
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={handleCheckboxChange}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 bg-white"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+
           {/* Expand/Collapse Button */}
           <button
             onClick={(e) => {

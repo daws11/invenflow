@@ -1,32 +1,39 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { Product, Kanban, ProductGroupWithDetails } from '@invenflow/shared';
+import { Product, Kanban, ProductGroupWithDetails, Location } from '@invenflow/shared';
 import { ChevronDownIcon, ChevronUpIcon, XMarkIcon, RectangleGroupIcon } from '@heroicons/react/24/outline';
-import ProductCard from './ProductCard';
 import { useBulkSelectionStore } from '../store/bulkSelectionStore';
+import CompactProductRow from './CompactProductRow';
 
-interface GroupedProductCardProps {
+interface CompactGroupedProductCardProps {
   group: ProductGroupWithDetails;
   products: Product[];
   kanban: Kanban | null;
+  locations: Location[];
   onProductView?: (product: Product) => void;
   onUngroup?: () => void;
   onOpenSettings?: (group: ProductGroupWithDetails) => void;
 }
 
-export function GroupedProductCard({
+export function CompactGroupedProductCard({
   group,
   products,
   kanban,
+  locations,
   onProductView,
   onUngroup,
   onOpenSettings,
-}: GroupedProductCardProps) {
+}: CompactGroupedProductCardProps) {
   const selectionActive = useBulkSelectionStore((state) => state.selectedProductIds.size > 0);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const unifiedFields = group.settings?.unifiedFields || {};
   const unifiedValues = group.settings?.unifiedValues || {};
+
+  const activeUnifiedFields = useMemo(
+    () => Object.keys(unifiedFields).filter((key) => unifiedFields[key]),
+    [unifiedFields]
+  );
 
   const getFieldLabel = (fieldName: string) => {
     const labels: Record<string, string> = {
@@ -40,13 +47,14 @@ export function GroupedProductCard({
   };
 
   const getFieldDisplayValue = (fieldName: string, value: any) => {
-    // For IDs, we might want to show names instead - but for now just show the value
     return value?.toString() || 'N/A';
   };
 
-  const activeUnifiedFields = Object.keys(unifiedFields).filter(key => unifiedFields[key]);
+  const resolveLocation = (product: Product): Location | null => {
+    if (!product.locationId) return null;
+    return locations.find((l) => l.id === product.locationId) || null;
+  };
 
-  // Draggable group card – moves whole group between columns
   const {
     attributes,
     listeners,
@@ -65,7 +73,7 @@ export function GroupedProductCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`border-l-4 border-blue-400 bg-gradient-to-r from-blue-50 to-blue-25 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 ${
+      className={`border border-blue-200 bg-blue-50/60 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 ${
         isDragging ? 'cursor-grabbing opacity-90' : 'cursor-grab'
       }`}
       {...attributes}
@@ -73,28 +81,31 @@ export function GroupedProductCard({
     >
       {/* Group Header */}
       <div
-        className="bg-gradient-to-r from-blue-100 to-blue-75 p-3 flex items-center justify-between border-b border-blue-200 cursor-pointer"
+        className="bg-blue-100/80 px-3 py-2 flex items-center justify-between border-b border-blue-200 cursor-pointer"
         onClick={() => onOpenSettings?.(group)}
       >
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <RectangleGroupIcon className="h-4 w-4 text-blue-600" />
-            <h4 className="font-semibold text-gray-900 text-sm">
+            <h4 className="font-semibold text-gray-900 text-xs truncate">
               {group.groupTitle}
             </h4>
           </div>
-          <p className="text-xs text-blue-700 mt-1 font-medium">
+          <p className="text-[11px] text-blue-700 mt-0.5">
             {products.length} {products.length === 1 ? 'item' : 'items'} grouped
           </p>
 
           {/* Unified Settings Badges */}
           {activeUnifiedFields.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {activeUnifiedFields.map(fieldName => (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {activeUnifiedFields.map((fieldName) => (
                 <span
                   key={fieldName}
-                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-200 text-blue-800"
-                  title={`${getFieldLabel(fieldName)}: ${getFieldDisplayValue(fieldName, unifiedValues[fieldName])}`}
+                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-200 text-blue-800"
+                  title={`${getFieldLabel(fieldName)}: ${getFieldDisplayValue(
+                    fieldName,
+                    unifiedValues[fieldName]
+                  )}`}
                 >
                   {getFieldLabel(fieldName)}: {getFieldDisplayValue(fieldName, unifiedValues[fieldName])}
                 </span>
@@ -103,7 +114,7 @@ export function GroupedProductCard({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 ml-3">
           {/* Ungroup Button */}
           {onUngroup && !selectionActive && (
             <button
@@ -111,8 +122,9 @@ export function GroupedProductCard({
                 e.stopPropagation();
                 onUngroup();
               }}
-              className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+              className="p-1 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
               title="Ungroup items"
+              type="button"
             >
               <XMarkIcon className="w-4 h-4" />
             </button>
@@ -124,13 +136,14 @@ export function GroupedProductCard({
               e.stopPropagation();
               setIsCollapsed(!isCollapsed);
             }}
-            className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-blue-200 rounded transition-colors"
+            className="p-1 text-gray-600 hover:text-gray-900 hover:bg-blue-200 rounded transition-colors"
             title={isCollapsed ? 'Expand group' : 'Collapse group'}
+            type="button"
           >
             {isCollapsed ? (
-              <ChevronDownIcon className="w-5 h-5" />
+              <ChevronDownIcon className="w-4 h-4" />
             ) : (
-              <ChevronUpIcon className="w-5 h-5" />
+              <ChevronUpIcon className="w-4 h-4" />
             )}
           </button>
         </div>
@@ -138,23 +151,21 @@ export function GroupedProductCard({
 
       {/* Group Content */}
       {!isCollapsed && (
-        <div className="p-3 space-y-3 bg-white/70">
+        <div className="bg-white/80 divide-y divide-gray-100">
           {products.map((product, index) => (
             <div key={product.id} className="relative">
               {/* Visual indicator that this is part of a group */}
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-400 rounded-r" />
-              {/* Connection line for grouped items */}
+              <div className="absolute left-2 top-0 bottom-0 w-px bg-blue-200" />
               {index < products.length - 1 && (
-                <div className="absolute left-0.5 bottom-0 w-0.5 h-3 bg-blue-300" />
+                <div className="absolute left-2 bottom-0 w-px h-2 bg-blue-300" />
               )}
-              <div className="pl-4 relative">
-                {/* Group member indicator */}
-                <div className="absolute -left-1 top-3 w-2 h-2 bg-blue-400 rounded-full border border-white shadow-sm" />
-                <ProductCard
+              <div className="pl-4 pr-1 py-1">
+                <CompactProductRow
                   product={product}
                   onView={() => onProductView?.(product)}
-                  kanban={kanban}
-                  isDraggable={false}
+                  kanban={kanban || null}
+                  location={resolveLocation(product)}
+                  disableDrag={true}
                 />
               </div>
             </div>
@@ -164,8 +175,8 @@ export function GroupedProductCard({
 
       {/* Collapsed State Info */}
       {isCollapsed && (
-        <div className="p-3 bg-white/50 text-center">
-          <p className="text-xs text-gray-500">
+        <div className="px-3 py-2 bg-white/70 text-center">
+          <p className="text-[11px] text-gray-500">
             Click to expand and view {products.length} grouped {products.length === 1 ? 'item' : 'items'}
           </p>
         </div>
@@ -173,4 +184,5 @@ export function GroupedProductCard({
     </div>
   );
 }
+
 

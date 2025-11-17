@@ -23,6 +23,7 @@ router.get('/', cacheMiddleware({ ttl: 10 * 60 * 1000 }), async (req, res, next)
         type: kanbans.type,
         description: kanbans.description,
         linkedKanbanId: kanbans.linkedKanbanId,
+        defaultLinkedKanbanId: kanbans.defaultLinkedKanbanId,
         locationId: kanbans.locationId,
         publicFormToken: kanbans.publicFormToken,
         isPublicFormEnabled: kanbans.isPublicFormEnabled,
@@ -55,6 +56,7 @@ router.get('/:id', async (req, res, next) => {
         type: kanbans.type,
         description: kanbans.description,
         linkedKanbanId: kanbans.linkedKanbanId,
+        defaultLinkedKanbanId: kanbans.defaultLinkedKanbanId,
         locationId: kanbans.locationId,
         publicFormToken: kanbans.publicFormToken,
         isPublicFormEnabled: kanbans.isPublicFormEnabled,
@@ -81,7 +83,7 @@ router.get('/:id', async (req, res, next) => {
       .select()
       .from(products)
       .where(eq(products.kanbanId, id))
-      .orderBy(asc(products.createdAt));
+      .orderBy(asc(products.columnPosition), asc(products.createdAt));
 
     // Get location details if this is a receive kanban
     let location = null;

@@ -10,10 +10,14 @@ import {
   DragStartEvent,
   DragEndEvent,
 } from '@dnd-kit/core';
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { Product, Kanban, ORDER_COLUMNS, RECEIVE_COLUMNS, Location } from '@invenflow/shared';
+import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { Product, Kanban, ORDER_COLUMNS, RECEIVE_COLUMNS, Location, ProductGroupWithDetails } from '@invenflow/shared';
 import CompactKanbanColumn from './CompactKanbanColumn';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
+import { useKanbanStore } from '../store/kanbanStore';
+import { useProductGroupStore } from '../store/productGroupStore';
+import { productApi } from '../utils/api';
+import { useToast } from '../store/toastStore';
 
 interface CompactBoardViewProps {
   kanban: Kanban & { products: Product[] };
@@ -21,6 +25,7 @@ interface CompactBoardViewProps {
   onMoveProduct: (productId: string, newColumn: string) => Promise<void>;
   searchQuery: string;
   locations: Location[];
+  onOpenGroupSettings?: (group: ProductGroupWithDetails) => void;
 }
 
 export default function CompactBoardView({
@@ -29,6 +34,7 @@ export default function CompactBoardView({
   onMoveProduct,
   searchQuery,
   locations,
+  onOpenGroupSettings,
 }: CompactBoardViewProps) {
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
   const {
@@ -36,6 +42,9 @@ export default function CompactBoardView({
     createdFrom, createdTo, createdPreset,
     updatedFrom, updatedTo, updatedPreset,
   } = useViewPreferencesStore();
+  const { reorderColumnProducts, refreshCurrentKanban } = useKanbanStore();
+  const { updateGroup } = useProductGroupStore();
+  const toast = useToast();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -130,7 +139,7 @@ export default function CompactBoardView({
     const updatedFromDate = updatedFrom ? new Date(updatedFrom) : uFromPreset;
     const updatedToDate = updatedTo ? new Date(updatedTo) : uToPreset;
 
-    return kanban.products.filter((product) => {
+    const filtered = kanban.products.filter((product) => {
       if (product.columnStatus !== column) return false;
       if (!filterProductBySearch(product)) return false;
       if (supplierFilter && product.supplier !== supplierFilter) return false;
@@ -146,6 +155,18 @@ export default function CompactBoardView({
       if (!isWithinRange(updatedAt, updatedFromDate, updatedToDate)) return false;
       return true;
     });
+
+    // Sort by columnPosition first, then createdAt for stable ordering
+    return filtered.sort((a, b) => {
+      const posA = a.columnPosition ?? Number.MAX_SAFE_INTEGER;
+      const posB = b.columnPosition ?? Number.MAX_SAFE_INTEGER;
+      if (posA !== posB) {
+        return posA - posB;
+      }
+      const createdA = new Date(a.createdAt as unknown as string).getTime();
+      const createdB = new Date(b.createdAt as unknown as string).getTime();
+      return createdA - createdB;
+    });
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -153,6 +174,9 @@ export default function CompactBoardView({
     const product = kanban.products.find(p => p.id === active.id);
     if (product) {
       setActiveProduct(product);
+    } else {
+      // Group drag: no single-product overlay
+      setActiveProduct(null);
     }
   };
 
@@ -162,14 +186,96 @@ export default function CompactBoardView({
 
     if (!over) return;
 
-    const activeProduct = kanban.products.find(p => p.id === active.id);
+    const activeId = active.id.toString();
+    const overId = over.id.toString();
+    const columns = getColumns() as string[];
+
+    const activeGroup: ProductGroupWithDetails | undefined =
+      (kanban as any).productGroups?.find((g: ProductGroupWithDetails) => g.id === activeId);
+    const activeProduct = kanban.products.find(p => p.id === activeId);
+
+    // Handle dragging a whole product group as a unit
+    if (activeGroup) {
+      const groupColumn = activeGroup.columnStatus;
+
+      // Determine target column from drop target
+      let targetColumn: string | null = null;
+
+      if (columns.includes(overId)) {
+        targetColumn = overId;
+      } else {
+        const overProduct = kanban.products.find(p => p.id === overId);
+        if (overProduct) {
+          targetColumn = overProduct.columnStatus;
+        }
+      }
+
+      if (!targetColumn || targetColumn === groupColumn) {
+        return;
+      }
+
+      const productIds = (activeGroup.products || []).map(p => p.id);
+      if (productIds.length === 0) {
+        return;
+      }
+
+      try {
+        await productApi.bulkMove(productIds, targetColumn);
+        await updateGroup(activeGroup.id, {
+          columnStatus: targetColumn,
+        });
+        await refreshCurrentKanban();
+
+        toast.success(
+          `Moved group "${activeGroup.groupTitle}" to ${targetColumn} (${productIds.length} items)`
+        );
+      } catch (error) {
+        console.error('Failed to move group:', error);
+        toast.error('Failed to move group');
+      }
+      return;
+    }
+
     if (!activeProduct) return;
 
-    const overColumn = over.id.toString();
-    const columns = getColumns();
+    // Dropped on a column area: move between columns
+    if (columns.includes(overId)) {
+      if (activeProduct.columnStatus !== overId) {
+        await onMoveProduct(activeProduct.id, overId);
+      }
+      return;
+    }
 
-    if ((columns as readonly string[]).includes(overColumn) && activeProduct.columnStatus !== overColumn) {
-      await onMoveProduct(activeProduct.id, overColumn);
+    // Dropped on another product row
+    const overProduct = kanban.products.find(p => p.id === overId);
+    if (!overProduct) return;
+
+    const sourceColumn = activeProduct.columnStatus;
+    const targetColumn = overProduct.columnStatus;
+
+    // Same column: reorder vertically
+    if (sourceColumn === targetColumn) {
+      const columnProducts = kanban.products.filter(
+        p => p.columnStatus === sourceColumn && !p.productGroupId
+      );
+
+      const oldIndex = columnProducts.findIndex(p => p.id === activeProduct.id);
+      const newIndex = columnProducts.findIndex(p => p.id === overProduct.id);
+
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) {
+        return;
+      }
+
+      const newOrdered = arrayMove(columnProducts, oldIndex, newIndex);
+      const orderedIds = newOrdered.map(p => p.id);
+
+      await reorderColumnProducts(kanban.id, sourceColumn, orderedIds);
+      return;
+    }
+
+    // Different column: treat as move to target column
+    if (sourceColumn !== targetColumn) {
+      await onMoveProduct(activeProduct.id, targetColumn);
     }
   };
 
@@ -190,6 +296,7 @@ export default function CompactBoardView({
             onProductView={onProductView}
             kanban={kanban}
             locations={locations}
+            onOpenGroupSettings={onOpenGroupSettings}
           />
         ))}
       </div>

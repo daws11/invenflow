@@ -154,7 +154,7 @@ export function ThresholdSettingsSection({
             Threshold Alert Rules
           </h4>
           <p className="text-sm text-gray-600 mt-1">
-            Automatically highlight products based on time in column. Rules are checked in priority order.
+            Automatically highlight products based on time in column. When multiple rules match, the most severe time rule is applied (e.g. &quot;&gt; 2 hours&quot; overrides &quot;&gt; 10 minutes&quot;), with priority used only as a tie-breaker.
           </p>
         </div>
         {!showBuilder && (

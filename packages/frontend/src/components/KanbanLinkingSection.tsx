@@ -137,6 +137,8 @@ export function KanbanLinkingSection({ kanban }: KanbanLinkingSectionProps) {
       setIsSavingDefault(true);
       try {
         await updateKanban(kanban.id, { defaultLinkedKanbanId: defaultLinkedKanbanId || null });
+        // Ensure the latest default is reflected in the store from backend
+        await fetchLocations(); // locations may impact labels
         toast.success('Default linked kanban updated successfully');
       } catch (error: any) {
         toast.error('Failed to update default linked kanban');

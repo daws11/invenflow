@@ -45,6 +45,8 @@ export const UpdateProductGroupSchema = z.object({
   groupTitle: z.string().min(1).max(255).optional(),
   unifiedFields: UnifiedFieldsSchema.optional(),
   unifiedValues: UnifiedValuesSchema.optional(),
+  // Allow moving groups between columns
+  columnStatus: z.string().optional(),
 });
 
 // Add Products to Group Schema

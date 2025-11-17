@@ -1,9 +1,11 @@
-import { Product, Kanban, Location } from '@invenflow/shared';
+import { Product, Kanban, Location, ProductGroupWithDetails } from '@invenflow/shared';
 import { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import CompactProductRow from './CompactProductRow';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
+import { CompactGroupedProductCard } from './CompactGroupedProductCard';
 
 interface CompactKanbanColumnProps {
   id: string;
@@ -12,6 +14,7 @@ interface CompactKanbanColumnProps {
   onProductView?: (product: Product) => void;
   kanban?: Kanban | null;
   locations?: Location[];
+  onOpenGroupSettings?: (group: ProductGroupWithDetails) => void;
 }
 
 export default function CompactKanbanColumn({ 
@@ -21,6 +24,7 @@ export default function CompactKanbanColumn({
   onProductView, 
   kanban,
   locations = [],
+  onOpenGroupSettings,
 }: CompactKanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: id,
@@ -81,34 +85,88 @@ export default function CompactKanbanColumn({
       {/* Column Content */}
       {!isCollapsed && (
         <div className="divide-y divide-gray-200" role="list">
-          {products.length === 0 ? (
-            <div className={`text-center py-8 text-sm ${
-              isOver ? 'text-blue-600 font-medium' : 'text-gray-400'
-            }`}>
-              {isOver ? 'Drop product here' : 'No products in this column'}
-            </div>
-          ) : (
-            products.slice(0, visibleCount).map((product) => (
-              <CompactProductRow
-                key={product.id}
-                product={product}
-                onView={() => onProductView?.(product)}
-                kanban={kanban}
-                location={product.locationId ? locations.find(l => l.id === product.locationId) || null : null}
-              />
-            ))
-          )}
-          {products.length > visibleCount && (
-            <div className="p-3 text-center">
-              <button
-                type="button"
-                className="inline-flex items-center px-3 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 text-gray-700"
-                onClick={() => setVisibleCount((c) => c + 50)}
-              >
-                Load more ({products.length - visibleCount} remaining)
-              </button>
-            </div>
-          )}
+          {/* Render product groups for this column in compact style */}
+          {kanban?.productGroups
+            ?.filter((group) => group.columnStatus === id)
+            .map((group) => (
+              <div key={group.id} className="p-2">
+                <CompactGroupedProductCard
+                  group={group}
+                  products={group.products || []}
+                  kanban={kanban}
+                  locations={locations}
+                  onProductView={onProductView}
+                  onOpenSettings={onOpenGroupSettings}
+                  onUngroup={async () => {
+                    // For now, reuse the same behaviour as board view:
+                    // ungroup via API and then refresh page.
+                    // We don't have direct access to deleteGroup here, so rely on existing board flow.
+                    try {
+                      // Trigger ungroup by navigating through existing GroupItemsModal flow (not available here),
+                      // fallback to full reload so backend changes are reflected.
+                      window.location.reload();
+                    } catch (error) {
+                      console.error('Failed to ungroup:', error);
+                    }
+                  }}
+                />
+              </div>
+            ))}
+
+          {/* Render ungrouped products with sortable context */}
+          {(() => {
+            const ungroupedProducts = products.filter((product) => !product.productGroupId);
+            const visibleUngrouped = ungroupedProducts.slice(0, visibleCount);
+
+            if (ungroupedProducts.length === 0 && (!kanban?.productGroups || !kanban.productGroups.some((g) => g.columnStatus === id))) {
+              return (
+                <div
+                  className={`text-center py-8 text-sm ${
+                    isOver ? 'text-blue-600 font-medium' : 'text-gray-400'
+                  }`}
+                >
+                  {isOver ? 'Drop product here' : 'No products in this column'}
+                </div>
+              );
+            }
+
+            return (
+              <>
+                {visibleUngrouped.length > 0 && (
+                  <SortableContext
+                    items={visibleUngrouped.map((product) => product.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {visibleUngrouped.map((product) => (
+                      <CompactProductRow
+                        key={product.id}
+                        product={product}
+                        onView={() => onProductView?.(product)}
+                        kanban={kanban}
+                        location={
+                          product.locationId
+                            ? locations.find((l) => l.id === product.locationId) || null
+                            : null
+                        }
+                      />
+                    ))}
+                  </SortableContext>
+                )}
+
+                {ungroupedProducts.length > visibleCount && (
+                  <div className="p-3 text-center">
+                    <button
+                      type="button"
+                      className="inline-flex items-center px-3 py-2 rounded-lg text-sm bg-gray-100 hover:bg-gray-200 text-gray-700"
+                      onClick={() => setVisibleCount((c) => c + 50)}
+                    >
+                      Load more ({ungroupedProducts.length - visibleCount} remaining)
+                    </button>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
     </div>

@@ -37,6 +37,7 @@ export const ProductSchema = z.object({
   // Grouping fields
   productGroupId: z.string().uuid().nullable(),
   groupPosition: z.number().int().nullable(),
+  columnPosition: z.number().int().nullable(),
   columnEnteredAt: z.date(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -68,6 +69,7 @@ export const CreateProductSchema = z.object({
   originalPurchaseDate: z.date().nullable().optional(),
   isDraft: z.boolean().optional(),
   columnEnteredAt: z.date().optional(),
+  columnPosition: z.number().int().nullable().optional(),
 });
 
 export const UpdateProductSchema = z.object({
@@ -95,6 +97,7 @@ export const UpdateProductSchema = z.object({
   importBatchId: z.string().uuid().nullable().optional(),
   originalPurchaseDate: z.date().nullable().optional(),
   isDraft: z.boolean().optional(),
+  columnPosition: z.number().int().nullable().optional(),
 });
 
 export const MoveProductSchema = z.object({

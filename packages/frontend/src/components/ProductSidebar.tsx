@@ -439,10 +439,32 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
             type="select"
             options={linkedKanbanOptions}
             placeholder="Use kanban default"
-            displayValue={product.preferredReceiveKanbanId ? (() => {
-              const kanban = currentKanban?.linkedKanbans?.find(k => k.id === product.preferredReceiveKanbanId);
-              return kanban ? `${kanban.name}${kanban.locationName ? ` - ${kanban.locationName}` : ''}` : 'Unknown kanban';
-            })() : 'Using kanban default'}
+            displayValue={(() => {
+              // 1) Product-specific preference
+              if (product.preferredReceiveKanbanId && currentKanban?.linkedKanbans) {
+                const preferred = currentKanban.linkedKanbans.find(
+                  k => k.id === product.preferredReceiveKanbanId,
+                );
+                if (preferred) {
+                  return `${preferred.name}${
+                    preferred.locationName ? ` - ${preferred.locationName}` : ''
+                  }`;
+                }
+              }
+
+              // 2) Fallback to kanban default linked receive board (actual effective destination)
+              if (currentKanban?.defaultLinkedKanbanId && currentKanban.linkedKanbans) {
+                const def = currentKanban.linkedKanbans.find(
+                  k => k.id === currentKanban.defaultLinkedKanbanId,
+                );
+                if (def) {
+                  return `${def.name}${def.locationName ? ` - ${def.locationName}` : ''}`;
+                }
+              }
+
+              // 3) No default configured at kanban-level
+              return 'Default transfer not set';
+            })()}
           />
           <p className="mt-1 text-xs text-gray-500">
             Transfers when moved to "Purchased"

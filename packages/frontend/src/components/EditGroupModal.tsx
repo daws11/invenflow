@@ -1,60 +1,67 @@
-import { useState, useEffect } from 'react';
-import { XMarkIcon, RectangleGroupIcon } from '@heroicons/react/24/outline';
-import { Product, UNIFIED_FIELD_OPTIONS, DEFAULT_PRIORITIES, DEFAULT_CATEGORIES } from '@invenflow/shared';
-import { useLocationStore } from '../store/locationStore';
+import { useEffect, useState } from 'react';
+import { XMarkIcon, RectangleGroupIcon, TrashIcon } from '@heroicons/react/24/outline';
+import {
+  Product,
+  ProductGroupWithDetails,
+  UNIFIED_FIELD_OPTIONS,
+  DEFAULT_PRIORITIES,
+  DEFAULT_CATEGORIES,
+} from '@invenflow/shared';
 import { usePersonStore } from '../store/personStore';
 import { useKanbanStore } from '../store/kanbanStore';
 
-interface GroupItemsModalProps {
+interface EditGroupModalProps {
   isOpen: boolean;
   onClose: () => void;
+  group: ProductGroupWithDetails | null;
   products: Product[];
-  kanbanId: string;
-  columnStatus: string;
-  onConfirm: (
-    groupTitle: string,
-    unifiedFields: Record<string, boolean>,
-    unifiedValues: Record<string, any>
+  onUpdate: (
+    groupId: string,
+    payload: {
+      groupTitle: string;
+      unifiedFields: Record<string, boolean>;
+      unifiedValues: Record<string, any>;
+    }
   ) => Promise<void>;
+  onDelete: (groupId: string) => Promise<void>;
 }
 
-export function GroupItemsModal({
+export function EditGroupModal({
   isOpen,
   onClose,
+  group,
   products,
-  kanbanId,
-  columnStatus,
-  onConfirm,
-}: GroupItemsModalProps) {
+  onUpdate,
+  onDelete,
+}: EditGroupModalProps) {
   const [groupTitle, setGroupTitle] = useState('');
   const [unifiedFields, setUnifiedFields] = useState<Record<string, boolean>>({});
   const [unifiedValues, setUnifiedValues] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { locations } = useLocationStore();
   const { persons } = usePersonStore();
   const { kanbans } = useKanbanStore();
 
-  // Get receive kanbans for preferred receive kanban selection
-  const receiveKanbans = kanbans.filter(k => k.type === 'receive');
+  const receiveKanbans = kanbans.filter((k) => k.type === 'receive');
 
   useEffect(() => {
-    if (isOpen) {
-      setGroupTitle('');
-      setUnifiedFields({});
-      setUnifiedValues({});
+    if (isOpen && group) {
+      setGroupTitle(group.groupTitle || '');
+      const initialFields = group.settings?.unifiedFields || {};
+      const initialValues = group.settings?.unifiedValues || {};
+      setUnifiedFields(initialFields);
+      setUnifiedValues(initialValues);
     }
-  }, [isOpen]);
+  }, [isOpen, group]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !group) return null;
 
   const toggleUnifiedField = (fieldName: string) => {
-    setUnifiedFields(prev => ({
-      ...prev,
-      [fieldName]: !prev[fieldName],
-    }));
-    
-    // Remove value if unchecking
+    setUnifiedFields((prev) => {
+      const next = { ...prev, [fieldName]: !prev[fieldName] };
+      return next;
+    });
+
     if (unifiedFields[fieldName]) {
       const newValues = { ...unifiedValues };
       delete newValues[fieldName];
@@ -63,7 +70,7 @@ export function GroupItemsModal({
   };
 
   const setUnifiedValue = (fieldName: string, value: any) => {
-    setUnifiedValues(prev => ({
+    setUnifiedValues((prev) => ({
       ...prev,
       [fieldName]: value,
     }));
@@ -72,10 +79,9 @@ export function GroupItemsModal({
   const handleSubmit = async () => {
     if (!groupTitle.trim()) return;
 
-    // Validate that all checked fields have values
-    const checkedFields = Object.keys(unifiedFields).filter(key => unifiedFields[key]);
-    const missingValues = checkedFields.filter(key => !unifiedValues[key]);
-    
+    const checkedFields = Object.keys(unifiedFields).filter((key) => unifiedFields[key]);
+    const missingValues = checkedFields.filter((key) => !unifiedValues[key]);
+
     if (missingValues.length > 0) {
       alert('Please provide values for all selected unified fields');
       return;
@@ -83,10 +89,29 @@ export function GroupItemsModal({
 
     setIsSubmitting(true);
     try {
-      await onConfirm(groupTitle.trim(), unifiedFields, unifiedValues);
+      await onUpdate(group.id, {
+        groupTitle: groupTitle.trim(),
+        unifiedFields,
+        unifiedValues,
+      });
       onClose();
     } catch (error) {
-      console.error('Failed to create group:', error);
+      console.error('Failed to update group:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('Are you sure you want to delete this group? All items will be ungrouped.')) {
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await onDelete(group.id);
+      onClose();
+    } catch (error) {
+      console.error('Failed to delete group:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -94,9 +119,6 @@ export function GroupItemsModal({
 
   const handleClose = () => {
     if (!isSubmitting) {
-      setGroupTitle('');
-      setUnifiedFields({});
-      setUnifiedValues({});
       onClose();
     }
   };
@@ -178,9 +200,9 @@ export function GroupItemsModal({
             disabled={isSubmitting}
           >
             <option value="">Select receive kanban...</option>
-            {receiveKanbans.map((kanban) => (
-              <option key={kanban.id} value={kanban.id}>
-                {kanban.name}
+            {receiveKanbans.map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.name}
               </option>
             ))}
           </select>
@@ -207,9 +229,7 @@ export function GroupItemsModal({
     <div className="space-y-6">
       {/* Products Preview */}
       <div>
-        <h4 className="text-sm font-medium text-gray-900 mb-2">
-          Grouping {products.length} {products.length === 1 ? 'product' : 'products'}:
-        </h4>
+        <h4 className="text-sm font-medium text-gray-900 mb-2">Group Products</h4>
         <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-lg bg-white">
           <ul className="divide-y divide-gray-200">
             {products.map((product) => (
@@ -224,13 +244,13 @@ export function GroupItemsModal({
       {/* Group Title */}
       <div>
         <label
-          htmlFor="group-title"
+          htmlFor="edit-group-title"
           className="block text-sm font-medium text-gray-700 mb-2"
         >
           Group Title <span className="text-red-500">*</span>
         </label>
         <input
-          id="group-title"
+          id="edit-group-title"
           type="text"
           value={groupTitle}
           onChange={(e) => setGroupTitle(e.target.value)}
@@ -295,9 +315,12 @@ export function GroupItemsModal({
           <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-white">
             <div className="flex items-center">
               <RectangleGroupIcon className="h-6 w-6 text-blue-600 mr-3" />
-              <h3 className="text-lg font-semibold text-gray-900">
-                Create Product Group
-              </h3>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Edit Product Group</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {products.length} {products.length === 1 ? 'product' : 'products'} in this group
+                </p>
+              </div>
             </div>
             <button
               onClick={handleClose}
@@ -315,27 +338,37 @@ export function GroupItemsModal({
           </div>
 
           {/* Footer */}
-          <div className="flex gap-3 px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <div className="flex flex-col sm:flex-row gap-3 px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50">
             <button
-              onClick={handleClose}
-              className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleDelete}
+              className="flex-1 px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               disabled={isSubmitting}
               type="button"
             >
-              Cancel
+              <TrashIcon className="w-4 h-4" />
+              Delete Group
             </button>
-            <button
-              onClick={handleSubmit}
-              className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isSubmitting || !groupTitle.trim()}
-              type="button"
-            >
-              {isSubmitting ? 'Creating...' : 'Create Group'}
-            </button>
+            <div className="flex-1 flex gap-3">
+              <button
+                onClick={handleClose}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isSubmitting}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isSubmitting || !groupTitle.trim()}
+                type="button"
+              >
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </>
   );
 }
-

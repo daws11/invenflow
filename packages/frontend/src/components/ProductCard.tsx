@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Product, Location, Kanban } from '@invenflow/shared';
-import { useDraggable } from '@dnd-kit/core';
+import { useSortable } from '@dnd-kit/sortable';
 import TransferHistoryViewer from './TransferHistoryViewer';
 import { getAppliedThreshold, calculateTimeInColumn, formatTimeDuration, formatThresholdRule } from '../utils/thresholdCalculator';
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
@@ -12,9 +12,11 @@ interface ProductCardProps {
   onView?: () => void;
   location?: Location | null;
   kanban?: Kanban | null;
+  /** When true, disables drag interactions (used for grouped items) */
+  isDraggable?: boolean;
 }
 
-export default function ProductCard({ product, onView, location, kanban }: ProductCardProps) {
+export default function ProductCard({ product, onView, location, kanban, isDraggable = true }: ProductCardProps) {
   const [imageError, setImageError] = useState(false);
   const [showTransferHistory, setShowTransferHistory] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -59,10 +61,11 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
     listeners,
     setNodeRef,
     transform,
+    transition,
     isDragging,
-  } = useDraggable({
+  } = useSortable({
     id: product.id,
-    disabled: selectionActive,
+    disabled: selectionActive || !isDraggable,
   });
 
   const interactiveSelector = 'button, a, [data-no-drag], input[type="checkbox"]';
@@ -90,7 +93,9 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
     setClickStartTime(Date.now());
     setIsDragIntent(false);
     
-    listeners?.onPointerDown?.(event);
+    if (isDraggable && !selectionActive) {
+      listeners?.onPointerDown?.(event);
+    }
   };
 
   const handlePointerUp: React.PointerEventHandler<HTMLDivElement> = (event) => {
@@ -137,18 +142,26 @@ export default function ProductCard({ product, onView, location, kanban }: Produ
 
 
   // Apply threshold styling
-  const thresholdStyle = appliedThreshold ? {
-    borderLeft: `4px solid ${appliedThreshold.color}`,
-    borderTop: `1px solid ${appliedThreshold.color}`,
-    borderRight: `1px solid ${appliedThreshold.color}`,
-    borderBottom: `1px solid ${appliedThreshold.color}`,
-    backgroundColor: `${appliedThreshold.color}10`, // 10% opacity
-  } : {};
-  const style = transform ? {
-    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+  const thresholdStyle = appliedThreshold
+    ? {
+        borderLeft: `4px solid ${appliedThreshold.color}`,
+        borderTop: `1px solid ${appliedThreshold.color}`,
+        borderRight: `1px solid ${appliedThreshold.color}`,
+        borderBottom: `1px solid ${appliedThreshold.color}`,
+        backgroundColor: `${appliedThreshold.color}10`, // 10% opacity
+      }
+    : {};
+
+  const style = {
+    ...(transform
+      ? {
+          transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        }
+      : {}),
+    ...(transition ? { transition } : {}),
     opacity: isDragging ? 0.5 : 1,
     ...thresholdStyle,
-  } : thresholdStyle;
+  };
 
   const getPriorityColor = (priority: string | null) => {
     switch (priority?.toLowerCase()) {

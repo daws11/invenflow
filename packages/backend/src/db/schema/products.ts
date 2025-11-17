@@ -44,6 +44,7 @@ export const products = pgTable(
     // Grouping fields
     productGroupId: uuid('product_group_id'), // references product_groups.id, set separately
     groupPosition: integer('group_position'),
+      columnPosition: integer('column_position'),
     columnEnteredAt: timestamp('column_entered_at').notNull().defaultNow(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

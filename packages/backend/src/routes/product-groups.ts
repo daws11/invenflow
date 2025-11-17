@@ -147,7 +147,7 @@ router.get('/:id', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { groupTitle, unifiedFields, unifiedValues } = req.body;
+    const { groupTitle, unifiedFields, unifiedValues, columnStatus } = req.body;
 
     const [group] = await db
       .select()
@@ -158,12 +158,13 @@ router.put('/:id', async (req, res, next) => {
       throw createError('Product group not found', 404);
     }
 
-    // Update group title if provided
-    if (groupTitle !== undefined) {
+    // Update group title / column if provided
+    if (groupTitle !== undefined || columnStatus !== undefined) {
       await db
         .update(productGroups)
         .set({
-          groupTitle: groupTitle.trim(),
+          groupTitle: groupTitle !== undefined ? groupTitle.trim() : group.groupTitle,
+          columnStatus: columnStatus !== undefined ? columnStatus : group.columnStatus,
           updatedAt: new Date(),
         })
         .where(eq(productGroups.id, id));

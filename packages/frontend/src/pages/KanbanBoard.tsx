@@ -12,14 +12,14 @@ import {
   DragOverEvent,
   DragEndEvent,
 } from '@dnd-kit/core';
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { Squares2X2Icon, ListBulletIcon, FunnelIcon, PlusIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
 import { useLocationStore } from '../store/locationStore';
 import { useBulkSelectionStore } from '../store/bulkSelectionStore';
 import { useProductGroupStore } from '../store/productGroupStore';
-import { ORDER_COLUMNS, RECEIVE_COLUMNS, Product, ValidationStatus } from '@invenflow/shared';
+import { ORDER_COLUMNS, RECEIVE_COLUMNS, Product, ValidationStatus, ProductGroupWithDetails } from '@invenflow/shared';
 import { productApi } from '../utils/api';
 import KanbanColumn from '../components/KanbanColumn';
 import CompactBoardView from '../components/CompactBoardView';
@@ -43,16 +43,17 @@ import { BulkActionBar } from '../components/BulkActionBar';
 import { BulkRejectModal } from '../components/BulkRejectModal';
 import { BulkMoveModal } from '../components/BulkMoveModal';
 import { GroupItemsModal } from '../components/GroupItemsModal';
+import { EditGroupModal } from '../components/EditGroupModal';
 import { getProductCount } from '../utils/productCount';
 
 export default function KanbanBoard() {
   const { id } = useParams<{ id: string }>();
-  const { currentKanban, loading, error, fetchKanbanById, moveProduct, transferProduct, deleteKanban } = useKanbanStore();
+  const { currentKanban, loading, error, fetchKanbanById, moveProduct, transferProduct, deleteKanban, reorderColumnProducts } = useKanbanStore();
   const { kanbanBoardViewMode, setKanbanBoardViewMode } = useViewPreferencesStore();
   const { locations, fetchLocations } = useLocationStore();
   const { selectedProductIds, getSelectedColumn, clearSelection } = useBulkSelectionStore();
   const hasSelection = selectedProductIds.size > 0;
-  const { createGroup, deleteGroup } = useProductGroupStore();
+  const { createGroup, deleteGroup, updateGroup } = useProductGroupStore();
   const toast = useToast();
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -90,6 +91,10 @@ export default function KanbanBoard() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
+
+  // Group edit modal state
+  const [activeGroup, setActiveGroup] = useState<ProductGroupWithDetails | null>(null);
+  const [showEditGroupModal, setShowEditGroupModal] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -253,7 +258,7 @@ export default function KanbanBoard() {
     const updatedFromDate = updatedFrom ? new Date(updatedFrom) : uFromPreset;
     const updatedToDate = updatedTo ? new Date(updatedTo) : uToPreset;
 
-    return currentKanban.products.filter((product) => {
+    const filtered = currentKanban.products.filter((product) => {
       if (product.columnStatus !== column) return false;
       if (!filterProductBySearch(product)) return false;
 
@@ -310,6 +315,18 @@ export default function KanbanBoard() {
       if (!isWithinRange(updatedAt, updatedFromDate, updatedToDate)) return false;
 
       return true;
+    });
+
+    // Sort by columnPosition first, then createdAt for stable ordering
+    return filtered.sort((a, b) => {
+      const posA = a.columnPosition ?? Number.MAX_SAFE_INTEGER;
+      const posB = b.columnPosition ?? Number.MAX_SAFE_INTEGER;
+      if (posA !== posB) {
+        return posA - posB;
+      }
+      const createdA = new Date(a.createdAt as unknown as string).getTime();
+      const createdB = new Date(b.createdAt as unknown as string).getTime();
+      return createdA - createdB;
     });
   };
 
@@ -483,6 +500,50 @@ export default function KanbanBoard() {
     }
   };
 
+  const handleOpenGroupSettings = (group: ProductGroupWithDetails) => {
+    setActiveGroup(group);
+    setShowEditGroupModal(true);
+  };
+
+  const handleUpdateGroup = async (
+    groupId: string,
+    payload: {
+      groupTitle: string;
+      unifiedFields: Record<string, boolean>;
+      unifiedValues: Record<string, any>;
+    }
+  ) => {
+    try {
+      await updateGroup(groupId, {
+        groupTitle: payload.groupTitle,
+        unifiedFields: payload.unifiedFields,
+        unifiedValues: payload.unifiedValues,
+      });
+      if (id) {
+        await fetchKanbanById(id);
+      }
+      toast.success('Group updated successfully');
+    } catch (error) {
+      console.error('Failed to update group', error);
+      toast.error('Failed to update group');
+      throw error;
+    }
+  };
+
+  const handleDeleteGroup = async (groupId: string) => {
+    try {
+      await deleteGroup(groupId);
+      if (id) {
+        await fetchKanbanById(id);
+      }
+      toast.success('Group deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete group', error);
+      toast.error('Failed to delete group');
+      throw error;
+    }
+  };
+
   // Bulk action handlers
   const getSelectedProducts = (): Product[] => {
     if (!currentKanban) return [];
@@ -571,6 +632,9 @@ export default function KanbanBoard() {
     const product = currentKanban?.products.find(p => p.id === active.id);
     if (product) {
       setActiveProduct(product);
+    } else {
+      // For group drag we don't show overlay yet
+      setActiveProduct(null);
     }
   };
 
@@ -593,16 +657,99 @@ export default function KanbanBoard() {
     const { active, over } = event;
     setActiveProduct(null);
 
-    if (!over) return;
+    if (!over || !currentKanban) return;
 
-    const activeProduct = currentKanban?.products.find(p => p.id === active.id);
+    const activeId = active.id.toString();
+    const overId = over.id.toString();
+    const columns = getColumns() as string[];
+
+    const activeGroup: ProductGroupWithDetails | undefined =
+      (currentKanban as any).productGroups?.find((g: ProductGroupWithDetails) => g.id === activeId);
+    const activeProduct = currentKanban.products.find(p => p.id === activeId);
+
+    // Handle dragging a whole product group as a unit
+    if (activeGroup) {
+      const groupColumn = activeGroup.columnStatus;
+
+      // Determine target column from drop target
+      let targetColumn: string | null = null;
+
+      if (columns.includes(overId)) {
+        targetColumn = overId;
+      } else {
+        const overProduct = currentKanban.products.find(p => p.id === overId);
+        if (overProduct) {
+          targetColumn = overProduct.columnStatus;
+        }
+      }
+
+      if (!targetColumn || targetColumn === groupColumn) {
+        return;
+      }
+
+      const productIds = (activeGroup.products || []).map(p => p.id);
+      if (productIds.length === 0) {
+        return;
+      }
+
+      try {
+        // Move all products in the group to the new column
+        await productApi.bulkMove(productIds, targetColumn);
+        // Update the group's columnStatus so it renders in the correct column
+        await updateGroup(activeGroup.id, {
+          columnStatus: targetColumn,
+        });
+        if (id) {
+          await fetchKanbanById(id);
+        }
+        toast.success(`Moved group "${activeGroup.groupTitle}" to ${targetColumn} (${productIds.length} items)`);
+      } catch (error) {
+        console.error('Failed to move group:', error);
+        toast.error('Failed to move group');
+      }
+      return;
+    }
+
     if (!activeProduct) return;
 
-    const overColumn = over.id.toString();
-    const columns = getColumns();
+    // Dropped on a column area: move between columns (existing behaviour)
+    if (columns.includes(overId)) {
+      if (activeProduct.columnStatus !== overId) {
+        await handleMoveProduct(activeProduct.id, overId);
+      }
+      return;
+    }
 
-    if ((columns as string[]).includes(overColumn) && activeProduct.columnStatus !== overColumn) {
-      await handleMoveProduct(activeProduct.id, overColumn);
+    // Dropped on another product card
+    const overProduct = currentKanban.products.find(p => p.id === overId);
+    if (!overProduct) return;
+
+    const sourceColumn = activeProduct.columnStatus;
+    const targetColumn = overProduct.columnStatus;
+
+    // Same column: reorder vertically (ungrouped products only)
+    if (sourceColumn === targetColumn) {
+      const columnProducts = currentKanban.products.filter(
+        p => p.columnStatus === sourceColumn && !p.productGroupId
+      );
+
+      const oldIndex = columnProducts.findIndex(p => p.id === activeProduct.id);
+      const newIndex = columnProducts.findIndex(p => p.id === overProduct.id);
+
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) {
+        return;
+      }
+
+      const newOrdered = arrayMove(columnProducts, oldIndex, newIndex);
+      const orderedIds = newOrdered.map(p => p.id);
+
+      await reorderColumnProducts(currentKanban.id, sourceColumn, orderedIds);
+      return;
+    }
+
+    // Different column: treat as move to target column
+    if (sourceColumn !== targetColumn) {
+      await handleMoveProduct(activeProduct.id, targetColumn);
     }
   };
 
@@ -1034,6 +1181,7 @@ export default function KanbanBoard() {
                 products={getProductsByColumn(column)}
                 onProductView={handleViewProduct}
                 kanban={currentKanban}
+                onOpenGroupSettings={handleOpenGroupSettings}
               />
             ))}
           </div>
@@ -1044,6 +1192,7 @@ export default function KanbanBoard() {
             onMoveProduct={handleMoveProduct}
             searchQuery={searchQuery}
             locations={locations}
+            onOpenGroupSettings={handleOpenGroupSettings}
           />
         )}
 
@@ -1132,6 +1281,18 @@ export default function KanbanBoard() {
           columnStatus={getSelectedColumn(currentKanban?.products || []) || ''}
           onConfirm={handleBulkGroup}
         />
+
+        {/* Edit Group Modal */}
+        {currentKanban && activeGroup && (
+          <EditGroupModal
+            isOpen={showEditGroupModal}
+            onClose={() => setShowEditGroupModal(false)}
+            group={activeGroup}
+            products={activeGroup.products || []}
+            onUpdate={handleUpdateGroup}
+            onDelete={handleDeleteGroup}
+          />
+        )}
 
         {/* Bulk Action Bar */}
         {hasSelection && currentKanban && (
