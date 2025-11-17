@@ -9,6 +9,7 @@ import {
   UpdatePersonSchema
 } from '@invenflow/shared';
 import { authenticateToken } from '../middleware/auth';
+import { invalidateCache } from '../middleware/cache';
 
 const router = Router();
 
@@ -197,6 +198,9 @@ router.post('/', async (req, res, next) => {
       .values({ name, departmentId, isActive })
       .returning();
 
+    // Invalidate cached persons list so new person appears immediately
+    invalidateCache('/api/persons');
+
     res.status(201).json(createdPerson);
   } catch (error) {
     next(error);
@@ -242,6 +246,9 @@ router.put('/:id', async (req, res, next) => {
       .where(eq(persons.id, id))
       .returning();
 
+    // Invalidate cached persons list so updates are reflected immediately
+    invalidateCache('/api/persons');
+
     res.json(updatedPerson);
   } catch (error) {
     next(error);
@@ -279,6 +286,9 @@ router.delete('/:id', async (req, res, next) => {
       .delete(persons)
       .where(eq(persons.id, id))
       .returning();
+
+    // Invalidate cached persons list so deletions are reflected immediately
+    invalidateCache('/api/persons');
 
     res.json({ message: 'Person deleted successfully' });
   } catch (error) {

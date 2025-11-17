@@ -101,7 +101,7 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
     }
     searchTimeoutRef.current = setTimeout(() => {
       searchProducts(value);
-    }, 300);
+    }, 200);
   };
 
   const handleSelectProduct = async (result: ProductSearchResult) => {

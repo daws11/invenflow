@@ -18,6 +18,7 @@ import { eq, and, gte, lte, inArray, desc, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { authenticateToken } from '../middleware/auth';
 import type { Request, Response, NextFunction } from 'express';
+import { invalidateCache } from '../middleware/cache';
 
 const router = Router();
 
@@ -151,6 +152,10 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         toLocation: toLocation[0],
       };
     });
+
+    // Invalidate inventory-related caches so stock changes are reflected immediately
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/locations');
 
     res.status(201).json({
       ...result.bulkMovement,
@@ -395,6 +400,10 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
 
       return { success: true };
     });
+
+    // Cancelling a bulk movement restores stock; invalidate inventory caches
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/locations');
 
     res.json({ message: 'Bulk movement cancelled successfully' });
   } catch (error) {
@@ -694,6 +703,10 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
       };
     });
 
+    // Editing a bulk movement can adjust reserved stock; invalidate inventory caches
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/locations');
+
     res.json(result);
   } catch (error) {
     next(error);
@@ -759,6 +772,10 @@ router.post('/check-expired', async (req: Request, res: Response, next: NextFunc
 
       return { expiredCount: expiredMovements.length };
     });
+
+    // Expiring bulk movements can adjust product states; invalidate inventory caches
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/locations');
 
     res.json(result);
   } catch (error) {

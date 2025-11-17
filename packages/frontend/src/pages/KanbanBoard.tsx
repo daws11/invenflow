@@ -162,8 +162,6 @@ export default function KanbanBoard() {
     try {
       // Pre-fetch fresh kanban data with linkedKanbans before opening modal
       await fetchKanbanById(id);
-      // Small delay to ensure state is updated before opening modal
-      await new Promise(resolve => setTimeout(resolve, 100));
       setIsSettingsModalOpen(true);
     } catch (error: any) {
       toast.error('Failed to load kanban data: ' + (error?.message || 'Unknown error'));

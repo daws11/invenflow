@@ -4,6 +4,7 @@ import { movementLogs, products, locations, persons } from '../db/schema';
 import { eq, desc, and, gte, lte, sql, inArray, type SQL } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
+import { invalidateCache } from '../middleware/cache';
 import { CreateMovementSchema, CreateBatchDistributionSchema } from '@invenflow/shared';
 
 const router = Router();
@@ -318,6 +319,10 @@ router.post('/', async (req, res, next) => {
       };
     });
 
+    // Invalidate inventory-related caches so movements are reflected immediately
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/locations');
+
     res.status(201).json(result);
   } catch (error) {
     next(error);
@@ -479,6 +484,10 @@ router.post('/batch-distribute', async (req, res, next) => {
         remainingStock,
       };
     });
+
+    // Invalidate inventory-related caches so batch distributions are reflected immediately
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/locations');
 
     res.status(201).json(result);
   } catch (error) {

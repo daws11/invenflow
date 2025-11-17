@@ -64,7 +64,7 @@ export function InventoryList({
   const { persons, fetchPersons } = usePersonStore();
   const { deleteProduct } = useKanbanStore();
   const { items: storeItems, updateProduct, updateProductStock } = useInventoryStore();
-  const { success, error } = useToast();
+  const { success, error, warning } = useToast();
 
   // Use store items for real-time updates, fallback to props for compatibility
   const items = storeItems.length > 0 ? storeItems : (_items || []);
@@ -145,20 +145,26 @@ export function InventoryList({
   };
 
   const handleBulkArchive = async (itemsToArchive: InventoryItem[]) => {
-    // TODO: Implement archive functionality when backend supports it
-    success(`${itemsToArchive.length} products archived successfully`);
+    // Archive is not implemented yet – show clear warning instead of fake success
+    warning(
+      `Archive ${itemsToArchive.length} product(s) is not available yet. Please contact the administrator if you need this feature.`,
+    );
     setSelectedItems(new Set());
   };
 
   const handleBulkUnarchive = async (itemsToUnarchive: InventoryItem[]) => {
-    // TODO: Implement unarchive functionality when backend supports it
-    success(`${itemsToUnarchive.length} products unarchived successfully`);
+    // Unarchive is not implemented yet – show clear warning instead of fake success
+    warning(
+      `Unarchive ${itemsToUnarchive.length} product(s) is not available yet. Please contact the administrator if you need this feature.`,
+    );
     setSelectedItems(new Set());
   };
 
   const handleDuplicateItem = (item: InventoryItem) => {
-    // TODO: Implement duplicate functionality
-    success(`Product "${item.productDetails}" duplicated successfully`);
+    // Duplicate is not implemented yet – show clear warning instead of fake success
+    warning(
+      `Duplicate for "${item.productDetails}" is not available yet. Please contact the administrator if you need this feature.`,
+    );
   };
 
   // Inline editing handlers

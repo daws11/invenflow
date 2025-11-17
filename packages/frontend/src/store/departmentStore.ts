@@ -1,8 +1,6 @@
 import { create } from 'zustand';
-import axios from 'axios';
 import type { Department, CreateDepartment, UpdateDepartment } from '@invenflow/shared';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { api } from '../utils/api';
 
 interface DepartmentStore {
   departments: Department[];
@@ -34,20 +32,12 @@ export const useDepartmentStore = create<DepartmentStore>((set, get) => ({
   fetchDepartments: async (params) => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('auth_token');
-      const queryParams = new URLSearchParams();
-      
-      if (params?.search) queryParams.append('search', params.search);
-      if (params?.activeOnly !== undefined) {
-        queryParams.append('activeOnly', params.activeOnly.toString());
-      }
-
-      const response = await axios.get(
-        `${API_URL}/api/departments?${queryParams.toString()}`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+      const response = await api.get('/api/departments', {
+        params: {
+          ...(params?.search && { search: params.search }),
+          ...(params?.activeOnly !== undefined && { activeOnly: params.activeOnly }),
+        },
+      });
 
       set({ departments: response.data.departments || [], loading: false });
     } catch (error: any) {
@@ -60,10 +50,7 @@ export const useDepartmentStore = create<DepartmentStore>((set, get) => ({
   fetchActiveDepartments: async () => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await axios.get(`${API_URL}/api/departments/active`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/api/departments/active');
 
       set({ activeDepartments: response.data || [], loading: false });
     } catch (error: any) {
@@ -76,10 +63,7 @@ export const useDepartmentStore = create<DepartmentStore>((set, get) => ({
   fetchDepartmentById: async (id: string) => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await axios.get(`${API_URL}/api/departments/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/api/departments/${id}`);
 
       set({ loading: false });
       return response.data;
@@ -93,10 +77,7 @@ export const useDepartmentStore = create<DepartmentStore>((set, get) => ({
   createDepartment: async (data: CreateDepartment) => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await axios.post(`${API_URL}/api/departments`, data, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.post('/api/departments', data);
 
       const newDepartment = response.data;
       set((state) => ({
@@ -120,10 +101,7 @@ export const useDepartmentStore = create<DepartmentStore>((set, get) => ({
   updateDepartment: async (id: string, data: UpdateDepartment) => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await axios.put(`${API_URL}/api/departments/${id}`, data, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.put(`/api/departments/${id}`, data);
 
       const updatedDepartment = response.data;
       set((state) => ({
@@ -147,10 +125,7 @@ export const useDepartmentStore = create<DepartmentStore>((set, get) => ({
   deleteDepartment: async (id: string) => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('auth_token');
-      await axios.delete(`${API_URL}/api/departments/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/api/departments/${id}`);
 
       set((state) => ({
         departments: state.departments.filter((dept) => dept.id !== id),

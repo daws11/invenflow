@@ -41,7 +41,7 @@ export function KanbanSettingsModal({
   productCount = 0,
 }: KanbanSettingsModalProps) {
   const toast = useToast();
-  const { togglePublicForm, currentKanban, fetchKanbanById } = useKanbanStore();
+  const { togglePublicForm, currentKanban, fetchKanbanById, updateKanban } = useKanbanStore();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDataSyncing, setIsDataSyncing] = useState(false);
@@ -218,7 +218,8 @@ export function KanbanSettingsModal({
         updatePayload.locationId = editLocationId || null;
       }
 
-      await api.put(`/api/kanbans/${kanban.id}`, updatePayload);
+      // Use kanbanStore.updateKanban so both backend and store stay in sync
+      await updateKanban(kanban.id, updatePayload);
 
       toast.success('Kanban updated successfully!');
       setActiveTab('overview');

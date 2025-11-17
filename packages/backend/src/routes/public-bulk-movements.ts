@@ -15,6 +15,7 @@ import {
 import { eq, and, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { Request, Response, NextFunction } from 'express';
+import { invalidateCache } from '../middleware/cache';
 
 const router = Router();
 
@@ -235,6 +236,10 @@ router.post('/:token/confirm', async (req: Request, res: Response, next: NextFun
         confirmedItemsCount: confirmedItems.filter(i => i.quantityReceived > 0).length,
       };
     });
+
+    // Confirming a bulk movement creates stored products; invalidate inventory caches
+    invalidateCache('/api/inventory');
+    invalidateCache('/api/locations');
 
     res.json({
       message: 'Bulk movement confirmed successfully',

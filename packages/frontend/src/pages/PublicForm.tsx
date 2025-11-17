@@ -134,10 +134,10 @@ export default function PublicForm() {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    // Set new timeout for debounced search
+    // Set new timeout for debounced search (keep snappy but protect backend)
     searchTimeoutRef.current = setTimeout(() => {
       searchProducts(value);
-    }, 300);
+    }, 200);
   };
 
   const handleSelectProduct = (product: ProductSearchResult) => {

@@ -5,6 +5,7 @@ import { useMovementStore } from '../store/movementStore';
 import { useInventoryStore } from '../store/inventoryStore';
 import { useLocationStore } from '../store/locationStore';
 import { usePersonStore } from '../store/personStore';
+import { useToast } from '../store/toastStore';
 import { bulkMovementApi, inventoryApi } from '../utils/api';
 import { nanoid } from 'nanoid';
 
@@ -39,6 +40,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
   const { fetchInventory } = useInventoryStore();
   const { locations, fetchLocations } = useLocationStore();
   const { persons, fetchPersons } = usePersonStore();
+  const { error: showError } = useToast();
 
   // State
   const [fromLocationId, setFromLocationId] = useState<string | null>(null);
@@ -239,8 +241,13 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
         onSuccess?.();
         onClose();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Movement failed:', error);
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to process movement. Please try again.';
+      showError(message);
     }
   };
 

@@ -70,13 +70,10 @@ export default function InventoryManager() {
   }, [displayMode, fetchInventory, fetchGroupedInventory, fetchStats]);
 
 
-  // Debounced search
+  // Keep search responsive while avoiding double debounce
+  // Debounce is handled centrally inside inventoryStore.setFilters
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setFilters({ search: searchQuery || undefined });
-    }, 300);
-
-    return () => clearTimeout(timer);
+    setFilters({ search: searchQuery || undefined });
   }, [searchQuery, setFilters]);
 
   const handleProductClick = (item: InventoryItem) => {

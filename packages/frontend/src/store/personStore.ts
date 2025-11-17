@@ -1,8 +1,6 @@
 import { create } from 'zustand';
-import axios from 'axios';
 import type { Person, CreatePerson, UpdatePerson } from '@invenflow/shared';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { api } from '../utils/api';
 
 interface PersonStore {
   persons: Person[];
@@ -32,21 +30,13 @@ export const usePersonStore = create<PersonStore>((set, _get) => ({
   fetchPersons: async (params) => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('auth_token');
-      const queryParams = new URLSearchParams();
-      
-      if (params?.search) queryParams.append('search', params.search);
-      if (params?.department) queryParams.append('department', params.department);
-      if (params?.activeOnly !== undefined) {
-        queryParams.append('activeOnly', params.activeOnly.toString());
-      }
-
-      const response = await axios.get(
-        `${API_URL}/api/persons?${queryParams.toString()}`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+      const response = await api.get('/api/persons', {
+        params: {
+          ...(params?.search && { search: params.search }),
+          ...(params?.department && { department: params.department }),
+          ...(params?.activeOnly !== undefined && { activeOnly: params.activeOnly }),
+        },
+      });
 
       set({ persons: response.data.persons || [], loading: false });
     } catch (error: any) {
@@ -59,10 +49,7 @@ export const usePersonStore = create<PersonStore>((set, _get) => ({
   fetchPersonById: async (id: string) => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await axios.get(`${API_URL}/api/persons/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/api/persons/${id}`);
 
       set({ loading: false });
       return response.data;
@@ -76,10 +63,7 @@ export const usePersonStore = create<PersonStore>((set, _get) => ({
   createPerson: async (data: CreatePerson) => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await axios.post(`${API_URL}/api/persons`, data, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.post('/api/persons', data);
 
       const newPerson = response.data;
       set((state) => ({
@@ -98,10 +82,7 @@ export const usePersonStore = create<PersonStore>((set, _get) => ({
   updatePerson: async (id: string, data: UpdatePerson) => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await axios.put(`${API_URL}/api/persons/${id}`, data, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.put(`/api/persons/${id}`, data);
 
       const updatedPerson = response.data;
       set((state) => ({
@@ -122,10 +103,7 @@ export const usePersonStore = create<PersonStore>((set, _get) => ({
   deletePerson: async (id: string) => {
     set({ loading: true, error: null });
     try {
-      const token = localStorage.getItem('auth_token');
-      await axios.delete(`${API_URL}/api/persons/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/api/persons/${id}`);
 
       set((state) => ({
         persons: state.persons.filter((person) => person.id !== id),

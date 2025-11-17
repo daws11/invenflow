@@ -9,6 +9,7 @@ import {
   UpdateDepartmentSchema
 } from '@invenflow/shared';
 import { authenticateToken } from '../middleware/auth';
+import { invalidateCache } from '../middleware/cache';
 
 const router = Router();
 
@@ -170,6 +171,9 @@ router.post('/', async (req, res, next) => {
       .values(newDepartment)
       .returning();
 
+    // Invalidate cached departments endpoints so new department appears immediately
+    invalidateCache('/api/departments');
+
     res.status(201).json(createdDepartment);
   } catch (error) {
     next(error);
@@ -221,6 +225,9 @@ router.put('/:id', async (req, res, next) => {
       .where(eq(departments.id, id))
       .returning();
 
+    // Invalidate cached departments endpoints so updates are reflected immediately
+    invalidateCache('/api/departments');
+
     res.json(updatedDepartment);
   } catch (error) {
     next(error);
@@ -258,6 +265,9 @@ router.delete('/:id', async (req, res, next) => {
       .delete(departments)
       .where(eq(departments.id, id))
       .returning();
+
+    // Invalidate cached departments endpoints so deletions are reflected immediately
+    invalidateCache('/api/departments');
 
     res.json({ message: 'Department deleted successfully' });
   } catch (error) {
