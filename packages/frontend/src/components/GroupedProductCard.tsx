@@ -148,14 +148,14 @@ export function GroupedProductCard({
           {products.map((product, index) => (
             <div key={product.id} className="relative">
               {/* Visual indicator that this is part of a group */}
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-400 rounded-r" />
+              {/* <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-400 rounded-r" /> */}
               {/* Connection line for grouped items */}
-              {index < products.length - 1 && (
+              {/* {index < products.length - 1 && (
                 <div className="absolute left-0.5 bottom-0 w-0.5 h-3 bg-blue-300" />
-              )}
+              )} */}
               <div className="pl-4 relative">
                 {/* Group member indicator */}
-                <div className="absolute -left-1 top-3 w-2 h-2 bg-blue-400 rounded-full border border-white shadow-sm" />
+                {/* <div className="absolute -left-1 top-3 w-2 h-2 bg-blue-400 rounded-full border border-white shadow-sm" /> */}
                 <ProductCard
                   product={product}
                   onView={() => onProductView?.(product)}
@@ -169,13 +169,13 @@ export function GroupedProductCard({
       )}
 
       {/* Collapsed State Info */}
-      {isCollapsed && (
+      {/* {isCollapsed && (
         <div className="p-3 bg-white/50 text-center">
           <p className="text-xs text-gray-500">
             Click to expand and view {products.length} grouped {products.length === 1 ? 'item' : 'items'}
           </p>
         </div>
-      )}
+      )} */}
     </div>
   );
 }

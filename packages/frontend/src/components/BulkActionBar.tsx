@@ -92,7 +92,7 @@ export function BulkActionBar({
             )}
 
             {/* Move Button - only if same column */}
-            {canGroupOrMove && (
+            {/* {canGroupOrMove && (
               <button
                 onClick={onMove}
                 className="inline-flex items-center px-3 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
@@ -101,7 +101,7 @@ export function BulkActionBar({
                 <ArrowRightIcon className="w-4 h-4 mr-2" />
                 <span className="hidden sm:inline">Move</span>
               </button>
-            )}
+            )} */}
 
             {/* Clear Selection Button */}
             <button

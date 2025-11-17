@@ -210,12 +210,12 @@ export default function ProductCard({ product, onView, location, kanban, isDragg
     >
 
       {/* Selection Checkbox */}
-      <div className="absolute top-2 right-2 z-20 rounded-full bg-white/80 border border-gray-200 p-0.5 shadow-sm">
+      <div className="absolute top-2 right-2 z-20">
         <input
           type="checkbox"
           checked={selected}
           onChange={handleCheckboxChange}
-          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 bg-white"
+          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 bg-transparent"
           onClick={(e) => e.stopPropagation()}
         />
       </div>

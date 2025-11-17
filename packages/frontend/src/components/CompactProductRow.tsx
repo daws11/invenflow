@@ -214,7 +214,7 @@ export default function CompactProductRow({ product, onView, location, kanban, d
               type="checkbox"
               checked={selected}
               onChange={handleCheckboxChange}
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 bg-white"
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 bg-transparent"
               onClick={(e) => e.stopPropagation()}
             />
           </div>

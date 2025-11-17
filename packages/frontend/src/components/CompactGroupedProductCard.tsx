@@ -161,10 +161,10 @@ export function CompactGroupedProductCard({
           {products.map((product, index) => (
             <div key={product.id} className="relative">
               {/* Visual indicator that this is part of a group */}
-              <div className="absolute left-2 top-0 bottom-0 w-px bg-blue-200" />
-              {index < products.length - 1 && (
+              {/* <div className="absolute left-2 top-0 bottom-0 w-px bg-blue-200" /> */}
+              {/* {index < products.length - 1 && (
                 <div className="absolute left-2 bottom-0 w-px h-2 bg-blue-300" />
-              )}
+              )} */}
               <div className="pl-4 pr-1 py-1">
                 <CompactProductRow
                   product={product}
@@ -180,13 +180,13 @@ export function CompactGroupedProductCard({
       )}
 
       {/* Collapsed State Info */}
-      {isCollapsed && (
+      {/* {isCollapsed && (
         <div className="px-3 py-2 bg-white/70 text-center">
           <p className="text-[11px] text-gray-500">
             Click to expand and view {products.length} grouped {products.length === 1 ? 'item' : 'items'}
           </p>
         </div>
-      )}
+      )} */}
     </div>
   );
 }
