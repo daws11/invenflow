@@ -13,11 +13,11 @@ interface ThresholdSettingsSectionProps {
   products?: any[];
 }
 
-export function ThresholdSettingsSection({ 
-  thresholdRules, 
-  onChange, 
+export function ThresholdSettingsSection({
+  thresholdRules,
+  onChange,
   kanbanType: _kanbanType = 'order',
-  products = []
+  products: _products = []
 }: ThresholdSettingsSectionProps) {
   const rawRules = thresholdRules || [];
 
