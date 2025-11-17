@@ -1,0 +1,1 @@
+ALTER TABLE "product_groups" ADD COLUMN "column_position" integer;

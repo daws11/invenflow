@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useDraggable } from '@dnd-kit/core';
+import { useSortable } from '@dnd-kit/sortable';
 import { Product, Kanban, ProductGroupWithDetails, Location } from '@invenflow/shared';
 import { ChevronDownIcon, ChevronUpIcon, XMarkIcon, RectangleGroupIcon } from '@heroicons/react/24/outline';
 import { useBulkSelectionStore } from '../store/bulkSelectionStore';
@@ -60,21 +60,27 @@ export function CompactGroupedProductCard({
     listeners,
     setNodeRef,
     transform,
+    transition,
     isDragging,
-  } = useDraggable({
+  } = useSortable({
     id: group.id,
   });
 
-  const style = transform
+  const style = {
+    ...(transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
+      : {}),
+    ...(transition ? { transition } : {}),
+  };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`border border-blue-200 bg-blue-50/60 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 ${
-        isDragging ? 'cursor-grabbing opacity-90' : 'cursor-grab'
+      className={`border border-blue-200 bg-blue-50/60 rounded-lg overflow-hidden transition-all duration-200 ${
+        isDragging
+          ? 'cursor-grabbing opacity-95 shadow-2xl scale-[1.02] border-blue-500'
+          : 'cursor-grab hover:shadow-md'
       }`}
       {...attributes}
       {...listeners}

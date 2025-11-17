@@ -231,7 +231,7 @@ export const productApi = {
   reorder: async (
     kanbanId: string,
     columnStatus: string,
-    orderedProductIds: string[]
+    orderedItems: { id: string; type: 'product' | 'group' }[],
   ): Promise<{
     message: string;
     affectedCount: number;
@@ -239,7 +239,7 @@ export const productApi = {
     const response = await api.post('/api/products/reorder', {
       kanbanId,
       columnStatus,
-      orderedProductIds,
+      orderedItems,
     });
     return response.data;
   },

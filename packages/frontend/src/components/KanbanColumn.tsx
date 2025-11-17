@@ -21,6 +21,34 @@ export default function KanbanColumn({ id, title, products, onProductView, kanba
     id: id,
   });
 
+  // Build mixed list of group blocks and ungrouped products, ordered by columnPosition then createdAt
+  const columnGroups: ProductGroupWithDetails[] =
+    (kanban?.productGroups || []).filter((group) => group.columnStatus === id);
+
+  const ungroupedProducts = products.filter((product) => !product.productGroupId);
+
+  const mixedItems = [
+    ...columnGroups.map((group) => ({
+      kind: 'group' as const,
+      id: group.id,
+      group,
+      columnPosition: (group as any).columnPosition ?? null,
+      createdAt: new Date(group.createdAt as unknown as string).getTime(),
+    })),
+    ...ungroupedProducts.map((product) => ({
+      kind: 'product' as const,
+      id: product.id,
+      product,
+      columnPosition: product.columnPosition ?? null,
+      createdAt: new Date(product.createdAt as unknown as string).getTime(),
+    })),
+  ].sort((a, b) => {
+    const posA = a.columnPosition ?? Number.MAX_SAFE_INTEGER;
+    const posB = b.columnPosition ?? Number.MAX_SAFE_INTEGER;
+    if (posA !== posB) return posA - posB;
+    return a.createdAt - b.createdAt;
+  });
+
   return (
     <div
       ref={setNodeRef}
@@ -46,8 +74,14 @@ export default function KanbanColumn({ id, title, products, onProductView, kanba
       </div>
 
       <div className="space-y-2 min-h-[150px] p-3" role="list">
-        {/* Render Product Groups for this column */}
-        {kanban?.productGroups?.filter(group => group.columnStatus === id).map((group) => (
+        <SortableContext
+          items={mixedItems.map((item) => item.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {mixedItems.map((item) => {
+            if (item.kind === 'group') {
+              const group = item.group;
+              return (
           <GroupedProductCard
             key={group.id}
             group={group}
@@ -65,23 +99,19 @@ export default function KanbanColumn({ id, title, products, onProductView, kanba
               }
             }}
           />
-        ))}
+              );
+            }
 
-        {/* Render ungrouped products with sortable context */}
-        <SortableContext
-          items={products.filter(product => !product.productGroupId).map(product => product.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {products
-            .filter(product => !product.productGroupId)
-            .map((product) => (
+            const product = item.product as Product;
+            return (
               <ProductCard
                 key={product.id}
                 product={product}
                 onView={() => onProductView?.(product)}
                 kanban={kanban}
               />
-            ))}
+            );
+          })}
         </SortableContext>
 
         {products.length === 0 && (!kanban?.productGroups || kanban.productGroups.filter(g => g.columnStatus === id).length === 0) && (

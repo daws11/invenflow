@@ -10,6 +10,7 @@ export const ProductGroupSchema = z.object({
   kanbanId: z.string().uuid(),
   groupTitle: z.string().min(1).max(255),
   columnStatus: z.string(),
+  columnPosition: z.number().nullable().optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -47,6 +48,7 @@ export const UpdateProductGroupSchema = z.object({
   unifiedValues: UnifiedValuesSchema.optional(),
   // Allow moving groups between columns
   columnStatus: z.string().optional(),
+  columnPosition: z.number().nullable().optional(),
 });
 
 // Add Products to Group Schema

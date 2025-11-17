@@ -629,13 +629,16 @@ export default function KanbanBoard() {
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
-    const product = currentKanban?.products.find(p => p.id === active.id);
-    if (product) {
-      setActiveProduct(product);
-    } else {
-      // For group drag we don't show overlay yet
-      setActiveProduct(null);
-    }
+    const activeId = active.id.toString();
+
+    const product = currentKanban?.products.find(p => p.id === activeId);
+    const group =
+      (currentKanban as any)?.productGroups?.find(
+        (g: ProductGroupWithDetails) => g.id === activeId
+      ) || null;
+
+    setActiveProduct(product || null);
+    setActiveGroup(group);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
@@ -656,6 +659,7 @@ export default function KanbanBoard() {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveProduct(null);
+    setActiveGroup(null);
 
     if (!over || !currentKanban) return;
 
@@ -667,26 +671,91 @@ export default function KanbanBoard() {
       (currentKanban as any).productGroups?.find((g: ProductGroupWithDetails) => g.id === activeId);
     const activeProduct = currentKanban.products.find(p => p.id === activeId);
 
+    // Helper: build ordered list of all groups + ungrouped products in a column
+    const buildColumnItems = (columnStatus: string) => {
+      const columnGroups: ProductGroupWithDetails[] =
+        ((currentKanban as any).productGroups || []).filter(
+          (group: ProductGroupWithDetails) => group.columnStatus === columnStatus
+        );
+      const columnProducts = currentKanban.products.filter(
+        p => p.columnStatus === columnStatus && !p.productGroupId
+      );
+
+      return [
+        ...columnGroups.map(group => ({
+          id: group.id,
+          type: 'group' as const,
+          columnStatus: group.columnStatus,
+          columnPosition: (group as any).columnPosition ?? null,
+          createdAt: new Date(group.createdAt as unknown as string).getTime(),
+        })),
+        ...columnProducts.map(product => ({
+          id: product.id,
+          type: 'product' as const,
+          columnStatus: product.columnStatus,
+          columnPosition: product.columnPosition ?? null,
+          createdAt: new Date(product.createdAt as unknown as string).getTime(),
+        })),
+      ].sort((a, b) => {
+        const posA = a.columnPosition ?? Number.MAX_SAFE_INTEGER;
+        const posB = b.columnPosition ?? Number.MAX_SAFE_INTEGER;
+        if (posA !== posB) return posA - posB;
+        return a.createdAt - b.createdAt;
+      });
+    };
+
     // Handle dragging a whole product group as a unit
     if (activeGroup) {
       const groupColumn = activeGroup.columnStatus;
 
-      // Determine target column from drop target
+      // Determine target column and (optional) target item from drop target
       let targetColumn: string | null = null;
+      let targetItemId: string | null = null;
 
       if (columns.includes(overId)) {
         targetColumn = overId;
       } else {
+        const overGroup: ProductGroupWithDetails | undefined =
+          (currentKanban as any).productGroups?.find((g: ProductGroupWithDetails) => g.id === overId);
+        if (overGroup) {
+          targetColumn = overGroup.columnStatus;
+          targetItemId = overGroup.id;
+      } else {
         const overProduct = currentKanban.products.find(p => p.id === overId);
         if (overProduct) {
           targetColumn = overProduct.columnStatus;
+            targetItemId = overProduct.id;
+          }
         }
       }
 
-      if (!targetColumn || targetColumn === groupColumn) {
+      if (!targetColumn) {
         return;
       }
 
+      // Same column: reorder group within mixed list (groups + ungrouped products)
+      if (targetColumn === groupColumn && targetItemId) {
+        const columnItems = buildColumnItems(groupColumn);
+
+        const oldIndex = columnItems.findIndex(item => item.type === 'group' && item.id === activeGroup.id);
+        const newIndex = columnItems.findIndex(item => item.id === targetItemId);
+
+        if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) {
+          return;
+        }
+
+        const newOrdered = arrayMove(columnItems, oldIndex, newIndex);
+        const orderedItems = newOrdered.map(item => ({
+          id: item.id,
+          type: item.type,
+        }));
+
+        await reorderColumnProducts(currentKanban.id, groupColumn, orderedItems);
+        return;
+      }
+
+      // Different column: move entire group to target column (keep existing behaviour)
+      if (targetColumn !== groupColumn) {
       const productIds = (activeGroup.products || []).map(p => p.id);
       if (productIds.length === 0) {
         return;
@@ -707,6 +776,9 @@ export default function KanbanBoard() {
         console.error('Failed to move group:', error);
         toast.error('Failed to move group');
       }
+        return;
+      }
+
       return;
     }
 
@@ -720,30 +792,36 @@ export default function KanbanBoard() {
       return;
     }
 
-    // Dropped on another product card
+    // Dropped on another item (product or group)
+    const overGroup: ProductGroupWithDetails | undefined =
+      (currentKanban as any).productGroups?.find((g: ProductGroupWithDetails) => g.id === overId);
     const overProduct = currentKanban.products.find(p => p.id === overId);
-    if (!overProduct) return;
+
+    if (!overGroup && !overProduct) return;
 
     const sourceColumn = activeProduct.columnStatus;
-    const targetColumn = overProduct.columnStatus;
+    const targetColumn = overGroup ? overGroup.columnStatus : (overProduct as Product).columnStatus;
 
-    // Same column: reorder vertically (ungrouped products only)
+    // Same column: reorder within mixed list (groups + ungrouped products)
     if (sourceColumn === targetColumn) {
-      const columnProducts = currentKanban.products.filter(
-        p => p.columnStatus === sourceColumn && !p.productGroupId
-      );
+      const columnItems = buildColumnItems(sourceColumn);
 
-      const oldIndex = columnProducts.findIndex(p => p.id === activeProduct.id);
-      const newIndex = columnProducts.findIndex(p => p.id === overProduct.id);
+      const oldIndex = columnItems.findIndex(
+        item => item.type === 'product' && item.id === activeProduct.id
+      );
+      const newIndex = columnItems.findIndex(item => item.id === overId);
 
       if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) {
         return;
       }
 
-      const newOrdered = arrayMove(columnProducts, oldIndex, newIndex);
-      const orderedIds = newOrdered.map(p => p.id);
+      const newOrdered = arrayMove(columnItems, oldIndex, newIndex);
+      const orderedItems = newOrdered.map(item => ({
+        id: item.id,
+        type: item.type,
+      }));
 
-      await reorderColumnProducts(currentKanban.id, sourceColumn, orderedIds);
+      await reorderColumnProducts(currentKanban.id, sourceColumn, orderedItems);
       return;
     }
 
@@ -1357,6 +1435,67 @@ export default function KanbanBoard() {
             {/* Drag hint */}
             <div className="mt-3 text-xs text-gray-400 text-center italic">
               Moving to new column...
+            </div>
+          </div>
+        ) : activeGroup ? (
+          <div className="bg-white rounded-xl shadow-2xl border-2 border-blue-500 p-4 opacity-95 rotate-1 transform scale-105 max-w-sm">
+            {/* Drag indicator */}
+            <div className="flex items-center justify-center mb-3">
+              <div className="bg-blue-100 rounded-lg p-2">
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h10M4 18h6"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* Group title */}
+            <h4 className="font-semibold text-gray-900 mb-2 text-center">
+              {activeGroup.groupTitle}
+            </h4>
+
+            {/* Group summary */}
+            <div className="space-y-2 text-center">
+              <div className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-800 border border-blue-200">
+                {activeGroup.products?.length ?? 0} grouped item
+                {(activeGroup.products?.length ?? 0) === 1 ? '' : 's'}
+              </div>
+
+              {activeGroup.settings?.unifiedFields && (
+                <div className="flex flex-wrap gap-1 justify-center mt-1">
+                  {Object.entries(activeGroup.settings.unifiedFields)
+                    .filter(([_, enabled]) => enabled)
+                    .slice(0, 3)
+                    .map(([field]) => (
+                      <span
+                        key={field}
+                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-100 text-blue-800 border border-blue-200"
+                      >
+                        {field}
+                      </span>
+                    ))}
+                  {Object.entries(activeGroup.settings.unifiedFields).filter(
+                    ([_, enabled]) => enabled
+                  ).length > 3 && (
+                    <span className="text-[11px] text-gray-500">
+                      +
+                      {Object.entries(activeGroup.settings.unifiedFields).filter(
+                        ([_, enabled]) => enabled
+                      ).length - 3}{' '}
+                      more
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Drag hint */}
+            <div className="mt-3 text-xs text-gray-400 text-center italic">
+              Moving grouped items...
             </div>
           </div>
         ) : null}

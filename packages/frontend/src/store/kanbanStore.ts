@@ -26,7 +26,11 @@ interface KanbanState {
   transferProduct: (id: string, targetKanbanId: string) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
 
-  reorderColumnProducts: (kanbanId: string, columnStatus: string, orderedProductIds: string[]) => Promise<void>;
+  reorderColumnProducts: (
+    kanbanId: string,
+    columnStatus: string,
+    orderedItems: { id: string; type: 'product' | 'group' }[]
+  ) => Promise<void>;
 
   refreshCurrentKanban: () => Promise<void>;
   clearError: () => void;
@@ -333,11 +337,11 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     }
   },
 
-  reorderColumnProducts: async (kanbanId: string, columnStatus: string, orderedProductIds: string[]) => {
+  reorderColumnProducts: async (kanbanId: string, columnStatus: string, orderedItems: { id: string; type: 'product' | 'group' }[]) => {
     const { currentKanban, refreshCurrentKanban } = get();
     if (!currentKanban || currentKanban.id !== kanbanId) return;
 
-    const previousProducts = currentKanban.products;
+    const previousKanban = currentKanban;
 
     // OPTIMISTIC UPDATE: reorder products locally
     set(state => {
@@ -346,41 +350,62 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
       }
 
       const products = state.currentKanban.products;
-      const productsById = new Map(products.map(p => [p.id, p]));
+      const productGroups = (state.currentKanban as any).productGroups || [];
 
-      // Build reordered list for this column (ungrouped products only)
-      const reorderedColumnProducts = orderedProductIds
-        .map((id, index) => {
-          const product = productsById.get(id);
-          if (!product) return null;
+      // Update columnPosition for ungrouped products in this column
+      const newProducts = products.map((product) => {
           if (product.columnStatus !== columnStatus || product.productGroupId) {
-            return null;
+          return product;
+        }
+
+        const index = orderedItems.findIndex(
+          (item) => item.type === 'product' && item.id === product.id
+        );
+
+        if (index === -1) {
+          return product;
           }
+
           return {
             ...product,
             columnPosition: index,
           } as Product;
-        })
-        .filter((p): p is Product => Boolean(p));
+      });
 
-      // Keep other products (including grouped ones and other columns) as-is
-      const otherProducts = products.filter(
-        p => !(p.columnStatus === columnStatus && !p.productGroupId)
-      );
+      // Update columnPosition for groups in this column
+      const newProductGroups = productGroups.map((group: any) => {
+        if (group.columnStatus !== columnStatus) {
+          return group;
+        }
+
+        const index = orderedItems.findIndex(
+          (item) => item.type === 'group' && item.id === group.id
+        );
+
+        if (index === -1) {
+          return group;
+        }
+
+        return {
+          ...group,
+          columnPosition: index,
+        };
+      });
 
       return {
         ...state,
         currentKanban: state.currentKanban
           ? {
               ...state.currentKanban,
-              products: [...otherProducts, ...reorderedColumnProducts],
+              products: newProducts,
+              productGroups: newProductGroups,
             }
           : null,
       };
     });
 
     try {
-      await productApi.reorder(kanbanId, columnStatus, orderedProductIds);
+      await productApi.reorder(kanbanId, columnStatus, orderedItems);
     } catch (error) {
       // ROLLBACK: refresh kanban from server on error
       await refreshCurrentKanban();

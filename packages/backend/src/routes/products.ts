@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { products, kanbans, transferLogs, locations, productValidations, kanbanLinks, skuAliases } from '../db/schema';
+import { products, kanbans, transferLogs, locations, productValidations, kanbanLinks, skuAliases, productGroups } from '../db/schema';
 import { eq, and, desc, getTableColumns, sql, inArray, isNull } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import type { NewProduct } from '../db/schema';
@@ -986,17 +986,38 @@ router.post('/bulk-move', async (req, res, next) => {
   }
 });
 
-// Reorder products within a single kanban column
+// Reorder products and groups within a single kanban column
 router.post('/reorder', async (req, res, next) => {
   try {
-    const { kanbanId, columnStatus, orderedProductIds } = req.body as {
+    const {
+      kanbanId,
+      columnStatus,
+      orderedProductIds,
+      orderedItems,
+    } = req.body as {
       kanbanId?: string;
       columnStatus?: string;
       orderedProductIds?: string[];
+      orderedItems?: { id: string; type: 'product' | 'group' }[];
     };
 
-    if (!kanbanId || !columnStatus || !Array.isArray(orderedProductIds) || orderedProductIds.length === 0) {
-      throw createError('kanbanId, columnStatus and orderedProductIds are required', 400);
+    if (!kanbanId || !columnStatus) {
+      throw createError('kanbanId and columnStatus are required', 400);
+    }
+
+    // Build normalized ordered items: prefer explicit orderedItems,
+    // but fall back to orderedProductIds for backward-compatibility.
+    let normalizedOrderedItems: { id: string; type: 'product' | 'group' }[] = [];
+
+    if (Array.isArray(orderedItems) && orderedItems.length > 0) {
+      normalizedOrderedItems = orderedItems;
+    } else if (Array.isArray(orderedProductIds) && orderedProductIds.length > 0) {
+      normalizedOrderedItems = orderedProductIds.map((id) => ({
+        id,
+        type: 'product' as const,
+      }));
+    } else {
+      throw createError('orderedItems or orderedProductIds are required', 400);
     }
 
     // Verify kanban exists and get its type
@@ -1023,7 +1044,7 @@ router.post('/reorder', async (req, res, next) => {
       throw createError('Invalid columnStatus for this kanban type', 400);
     }
 
-    // Fetch existing ungrouped products in this kanban & column
+    // Fetch existing ungrouped products and groups in this kanban & column
     const existingProducts = await db
       .select({
         id: products.id,
@@ -1037,23 +1058,63 @@ router.post('/reorder', async (req, res, next) => {
         )
       );
 
-    const existingIds = existingProducts.map(p => p.id);
-    const orderedSet = new Set(orderedProductIds);
+    const existingGroups = await db
+      .select({
+        id: productGroups.id,
+      })
+      .from(productGroups)
+      .where(
+        and(
+          eq(productGroups.kanbanId, kanbanId),
+          eq(productGroups.columnStatus, columnStatus)
+        )
+      );
 
-    // Ensure orderedProductIds exactly match existing products (no missing or extra IDs)
-    const hasSameLength = existingIds.length === orderedProductIds.length;
-    const hasNoDuplicates = orderedSet.size === orderedProductIds.length;
-    const allIdsMatch = existingIds.every(id => orderedSet.has(id));
+    const existingProductIds = existingProducts.map((p) => p.id);
+    const existingGroupIds = existingGroups.map((g) => g.id);
 
-    if (!hasSameLength || !hasNoDuplicates || !allIdsMatch) {
-      throw createError('orderedProductIds must match all products in the target kanban column', 400);
+    const productIdsInOrder = normalizedOrderedItems
+      .filter((item) => item.type === 'product')
+      .map((item) => item.id);
+    const groupIdsInOrder = normalizedOrderedItems
+      .filter((item) => item.type === 'group')
+      .map((item) => item.id);
+
+    const productIdSet = new Set(productIdsInOrder);
+    const groupIdSet = new Set(groupIdsInOrder);
+
+    // Ensure ordered items exactly match existing ungrouped products and groups
+    const productsLengthMatches = existingProductIds.length === productIdsInOrder.length;
+    const groupsLengthMatches = existingGroupIds.length === groupIdsInOrder.length;
+    const noDuplicateProducts = productIdSet.size === productIdsInOrder.length;
+    const noDuplicateGroups = groupIdSet.size === groupIdsInOrder.length;
+    const allProductIdsMatch = existingProductIds.every((id) => productIdSet.has(id));
+    const allGroupIdsMatch = existingGroupIds.every((id) => groupIdSet.has(id));
+
+    if (
+      !productsLengthMatches ||
+      !groupsLengthMatches ||
+      !noDuplicateProducts ||
+      !noDuplicateGroups ||
+      !allProductIdsMatch ||
+      !allGroupIdsMatch
+    ) {
+      throw createError(
+        'orderedItems must match all ungrouped products and product groups in the target kanban column',
+        400
+      );
     }
 
-    // Apply new positions
-    const updatedProducts = [];
-    for (let index = 0; index < orderedProductIds.length; index++) {
-      const productId = orderedProductIds[index];
-      const [updated] = await db
+    // Apply new positions inside a transaction for consistency
+    const updatedProducts: unknown[] = [];
+    const updatedGroups: unknown[] = [];
+
+    await db.transaction(async (tx) => {
+      for (let index = 0; index < normalizedOrderedItems.length; index++) {
+        const item = normalizedOrderedItems[index];
+
+        if (item.type === 'product') {
+          const [updated] = await tx
         .update(products)
         .set({
           columnPosition: index,
@@ -1061,9 +1122,10 @@ router.post('/reorder', async (req, res, next) => {
         })
         .where(
           and(
-            eq(products.id, productId),
+                eq(products.id, item.id),
             eq(products.kanbanId, kanbanId),
-            eq(products.columnStatus, columnStatus)
+                eq(products.columnStatus, columnStatus),
+                isNull(products.productGroupId)
           )
         )
         .returning();
@@ -1071,15 +1133,36 @@ router.post('/reorder', async (req, res, next) => {
       if (updated) {
         updatedProducts.push(updated);
       }
-    }
+        } else if (item.type === 'group') {
+          const [updated] = await tx
+            .update(productGroups)
+            .set({
+              columnPosition: index,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(productGroups.id, item.id),
+                eq(productGroups.kanbanId, kanbanId),
+                eq(productGroups.columnStatus, columnStatus)
+              )
+            )
+            .returning();
+
+          if (updated) {
+            updatedGroups.push(updated);
+          }
+        }
+      }
+    });
 
     // Invalidate caches
     invalidateCache('/api/inventory');
     invalidateCache('/api/kanbans');
 
     res.json({
-      message: 'Products reordered successfully',
-      affectedCount: updatedProducts.length,
+      message: 'Items reordered successfully',
+      affectedCount: updatedProducts.length + updatedGroups.length,
     });
   } catch (error) {
     next(error);

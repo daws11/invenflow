@@ -40,6 +40,48 @@ export default function CompactKanbanColumn({
     }
   };
 
+  // Build mixed, ordered list of groups and ungrouped products for this column
+  const columnGroups: ProductGroupWithDetails[] =
+    (kanban?.productGroups || []).filter((group) => group.columnStatus === id);
+
+  const ungroupedProducts = products.filter((product) => !product.productGroupId);
+
+  const mixedItems = [
+    ...columnGroups.map((group) => ({
+      kind: 'group' as const,
+      id: group.id,
+      group,
+      columnPosition: (group as any).columnPosition ?? null,
+      createdAt: new Date(group.createdAt as unknown as string).getTime(),
+    })),
+    ...ungroupedProducts.map((product) => ({
+      kind: 'product' as const,
+      id: product.id,
+      product,
+      columnPosition: product.columnPosition ?? null,
+      createdAt: new Date(product.createdAt as unknown as string).getTime(),
+    })),
+  ].sort((a, b) => {
+    const posA = a.columnPosition ?? Number.MAX_SAFE_INTEGER;
+    const posB = b.columnPosition ?? Number.MAX_SAFE_INTEGER;
+    if (posA !== posB) return posA - posB;
+    return a.createdAt - b.createdAt;
+  });
+
+  // Apply visibleCount only for products to keep UX predictable
+  const visibleMixedItems = (() => {
+    const result: typeof mixedItems = [];
+    let productSeen = 0;
+    for (const item of mixedItems) {
+      if (item.kind === 'product') {
+        if (productSeen >= visibleCount) continue;
+        productSeen += 1;
+      }
+      result.push(item);
+    }
+    return result;
+  })();
+
   return (
     <div
       ref={setNodeRef}
@@ -85,10 +127,26 @@ export default function CompactKanbanColumn({
       {/* Column Content */}
       {!isCollapsed && (
         <div className="divide-y divide-gray-200" role="list">
-          {/* Render product groups for this column in compact style */}
-          {kanban?.productGroups
-            ?.filter((group) => group.columnStatus === id)
-            .map((group) => (
+          {mixedItems.length === 0 && (
+            <div
+              className={`text-center py-8 text-sm ${
+                isOver ? 'text-blue-600 font-medium' : 'text-gray-400'
+              }`}
+            >
+              {isOver ? 'Drop product here' : 'No products in this column'}
+            </div>
+          )}
+
+          {mixedItems.length > 0 && (
+            <>
+              <SortableContext
+                items={visibleMixedItems.map((item) => item.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {visibleMixedItems.map((item) => {
+                  if (item.kind === 'group') {
+                    const group = item.group;
+                    return (
               <div key={group.id} className="p-2">
                 <CompactGroupedProductCard
                   group={group}
@@ -102,42 +160,18 @@ export default function CompactKanbanColumn({
                     // ungroup via API and then refresh page.
                     // We don't have direct access to deleteGroup here, so rely on existing board flow.
                     try {
-                      // Trigger ungroup by navigating through existing GroupItemsModal flow (not available here),
-                      // fallback to full reload so backend changes are reflected.
                       window.location.reload();
                     } catch (error) {
                       console.error('Failed to ungroup:', error);
                     }
                   }}
                 />
-              </div>
-            ))}
-
-          {/* Render ungrouped products with sortable context */}
-          {(() => {
-            const ungroupedProducts = products.filter((product) => !product.productGroupId);
-            const visibleUngrouped = ungroupedProducts.slice(0, visibleCount);
-
-            if (ungroupedProducts.length === 0 && (!kanban?.productGroups || !kanban.productGroups.some((g) => g.columnStatus === id))) {
-              return (
-                <div
-                  className={`text-center py-8 text-sm ${
-                    isOver ? 'text-blue-600 font-medium' : 'text-gray-400'
-                  }`}
-                >
-                  {isOver ? 'Drop product here' : 'No products in this column'}
                 </div>
               );
             }
 
+                  const product = item.product as Product;
             return (
-              <>
-                {visibleUngrouped.length > 0 && (
-                  <SortableContext
-                    items={visibleUngrouped.map((product) => product.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {visibleUngrouped.map((product) => (
                       <CompactProductRow
                         key={product.id}
                         product={product}
@@ -149,9 +183,9 @@ export default function CompactKanbanColumn({
                             : null
                         }
                       />
-                    ))}
+                  );
+                })}
                   </SortableContext>
-                )}
 
                 {ungroupedProducts.length > visibleCount && (
                   <div className="p-3 text-center">
@@ -165,8 +199,7 @@ export default function CompactKanbanColumn({
                   </div>
                 )}
               </>
-            );
-          })()}
+          )}
         </div>
       )}
     </div>

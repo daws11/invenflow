@@ -51,6 +51,34 @@ router.post('/', async (req, res, next) => {
       throw createError('All products must be in the same column', 400);
     }
 
+    // Determine initial columnPosition for the new group so it fits into the global column ordering
+    let initialColumnPosition: number | null = null;
+    try {
+      // Look at existing groups in this kanban & column and place the new group at the bottom
+      const existingGroupsInColumn = await db
+        .select({ columnPosition: productGroups.columnPosition })
+        .from(productGroups)
+        .where(
+          and(
+            eq(productGroups.kanbanId, kanbanId),
+            eq(productGroups.columnStatus, columnStatus)
+          )
+        );
+
+      if (existingGroupsInColumn.length > 0) {
+        const maxPos = existingGroupsInColumn.reduce((max, g) => {
+          const pos = g.columnPosition ?? 0;
+          return pos > max ? pos : max;
+        }, 0);
+        initialColumnPosition = maxPos + 1;
+      } else {
+        initialColumnPosition = 0;
+      }
+    } catch {
+      // If anything goes wrong calculating the position, fall back to null
+      initialColumnPosition = null;
+    }
+
     // Create the group
     const [newGroup] = await db
       .insert(productGroups)
@@ -58,6 +86,7 @@ router.post('/', async (req, res, next) => {
         kanbanId,
         groupTitle: groupTitle.trim(),
         columnStatus,
+        columnPosition: initialColumnPosition,
       })
       .returning();
 
@@ -235,8 +264,16 @@ router.delete('/:id', async (req, res, next) => {
       throw createError('Product group not found', 404);
     }
 
+    // Ungroup products and normalize their column positions so they appear in a sensible order
+    await db.transaction(async (tx) => {
+      // Get group products before ungrouping
+      const groupProducts = await tx
+        .select()
+        .from(products)
+        .where(eq(products.productGroupId, id));
+
     // Remove products from group
-    await db
+      await tx
       .update(products)
       .set({
         productGroupId: null,
@@ -246,9 +283,45 @@ router.delete('/:id', async (req, res, next) => {
       .where(eq(products.productGroupId, id));
 
     // Delete group (settings will cascade delete)
-    await db
+      await tx
       .delete(productGroups)
       .where(eq(productGroups.id, id));
+
+      // If we have group metadata and products, normalize columnPosition for all ungrouped products
+      if (group && groupProducts.length > 0) {
+        const kanbanId = group.kanbanId;
+        const columnStatus = group.columnStatus;
+
+        const ungroupedProducts = await tx
+          .select()
+          .from(products)
+          .where(
+            and(
+              eq(products.kanbanId, kanbanId),
+              eq(products.columnStatus, columnStatus),
+              isNull(products.productGroupId)
+            )
+          );
+
+        // Order ungrouped products by createdAt to get a stable, predictable sequence
+        const ordered = [...ungroupedProducts].sort((a, b) => {
+          const createdA = new Date(a.createdAt as unknown as string).getTime();
+          const createdB = new Date(b.createdAt as unknown as string).getTime();
+          return createdA - createdB;
+        });
+
+        for (let index = 0; index < ordered.length; index++) {
+          const product = ordered[index];
+          await tx
+            .update(products)
+            .set({
+              columnPosition: index,
+              updatedAt: new Date(),
+            })
+            .where(eq(products.id, product.id));
+        }
+      }
+    });
 
     // Invalidate caches
     invalidateCache('/api/inventory');

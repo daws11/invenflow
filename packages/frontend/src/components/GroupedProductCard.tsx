@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useDraggable } from '@dnd-kit/core';
+import { useSortable } from '@dnd-kit/sortable';
 import { Product, Kanban, ProductGroupWithDetails } from '@invenflow/shared';
 import { ChevronDownIcon, ChevronUpIcon, XMarkIcon, RectangleGroupIcon } from '@heroicons/react/24/outline';
 import ProductCard from './ProductCard';
@@ -46,27 +46,33 @@ export function GroupedProductCard({
 
   const activeUnifiedFields = Object.keys(unifiedFields).filter(key => unifiedFields[key]);
 
-  // Draggable group card – moves whole group between columns
+  // Sortable group card – moves whole group between columns and within column ordering
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
+    transition,
     isDragging,
-  } = useDraggable({
+  } = useSortable({
     id: group.id,
   });
 
-  const style = transform
+  const style = {
+    ...(transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
+      : {}),
+    ...(transition ? { transition } : {}),
+  };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`border-l-4 border-blue-400 bg-gradient-to-r from-blue-50 to-blue-25 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 ${
-        isDragging ? 'cursor-grabbing opacity-90' : 'cursor-grab'
+      className={`border-l-4 border-blue-400 bg-gradient-to-r from-blue-50 to-blue-25 rounded-lg overflow-hidden transition-all duration-200 ${
+        isDragging
+          ? 'cursor-grabbing opacity-95 shadow-2xl scale-[1.02] border-blue-500'
+          : 'cursor-grab hover:shadow-lg'
       }`}
       {...attributes}
       {...listeners}

@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, index, jsonb, unique } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, index, jsonb, unique, integer } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { kanbans } from './kanbans';
 import { products } from './products';
@@ -12,6 +12,7 @@ export const productGroups = pgTable(
       .references(() => kanbans.id, { onDelete: 'cascade' }),
     groupTitle: text('group_title').notNull(),
     columnStatus: text('column_status').notNull(), // groups are column-specific
+    columnPosition: integer('column_position'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

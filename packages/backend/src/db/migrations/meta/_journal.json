@@ -197,6 +197,13 @@
       "when": 1763357314787,
       "tag": "0027_sloppy_la_nuit",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1763362079389,
+      "tag": "0028_closed_the_watchers",
+      "breakpoints": true
     }
   ]
 }
