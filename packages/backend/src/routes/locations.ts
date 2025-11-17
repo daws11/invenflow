@@ -3,6 +3,7 @@ import { db } from '../db';
 import { locations, products } from '../db/schema';
 import { eq, desc, asc, and, or, ilike, SQL, ne, sql } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
+import { invalidateCache } from '../middleware/cache';
 import {
   LocationSchema,
   CreateLocationSchema,
@@ -189,6 +190,9 @@ router.post('/', async (req, res, next) => {
       .values(newLocation)
       .returning();
 
+    // Invalidate cache setelah pembuatan berhasil
+    invalidateCache('/api/locations');
+
     res.status(201).json(createdLocation);
   } catch (error) {
     next(error);
@@ -254,6 +258,9 @@ router.put('/:id', async (req, res, next) => {
       .where(eq(locations.id, id))
       .returning();
 
+    // Invalidate cache setelah update berhasil
+    invalidateCache('/api/locations');
+
     res.json(updatedLocation);
   } catch (error) {
     next(error);
@@ -291,6 +298,9 @@ router.delete('/:id', async (req, res, next) => {
       .delete(locations)
       .where(eq(locations.id, id))
       .returning();
+
+    // Invalidate cache setelah penghapusan berhasil
+    invalidateCache('/api/locations');
 
     res.json({ message: 'Location deleted successfully' });
   } catch (error) {

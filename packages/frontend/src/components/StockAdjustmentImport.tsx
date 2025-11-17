@@ -179,9 +179,6 @@ export function StockAdjustmentImport({ onSuccess }: StockAdjustmentImportProps)
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Direct Import</h2>
-            <p className="text-xs text-gray-500 mt-1">
-              Upload CSV to create products directly to locations without kanban association.
-            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -197,10 +194,6 @@ export function StockAdjustmentImport({ onSuccess }: StockAdjustmentImportProps)
         </div>
 
         <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
-          <div className="text-xs text-gray-600 bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
-            <strong>Direct Import:</strong> Products will be created directly to locations without kanban association. 
-            Provide Location Code or Area+Location Name in CSV for each product. Locations will be auto-created if they don't exist.
-          </div>
           <div className="flex items-center gap-2">
             <label className="text-xs text-gray-600">CSV File</label>
             <label className="inline-flex items-center px-3 py-2 text-xs font-medium border rounded-md bg-white hover:bg-gray-50 cursor-pointer">
@@ -226,10 +219,6 @@ export function StockAdjustmentImport({ onSuccess }: StockAdjustmentImportProps)
         {preview.length === 0 && (
           <div className="text-xs text-gray-500 border border-dashed border-gray-300 rounded-md p-4">
             Upload a CSV file to see a preview here. Use the template for correct columns.
-            <div className="mt-2">
-              <strong>Direct Import:</strong> Provide Location Code or Area+Location Name for each product. 
-              Locations will be auto-created if they don't exist.
-            </div>
           </div>
         )}
 

@@ -207,6 +207,9 @@ router.post('/', async (req, res, next) => {
       .values(newKanban)
       .returning();
 
+    // Invalidate cache setelah pembuatan berhasil
+    invalidateCache('/api/kanbans');
+
     res.status(201).json(createdKanban);
   } catch (error) {
     next(error);
@@ -316,6 +319,9 @@ router.put('/:id', async (req, res, next) => {
       .where(eq(kanbans.id, id))
       .returning();
 
+    // Invalidate cache setelah update berhasil
+    invalidateCache('/api/kanbans');
+
     res.json(updatedKanban);
   } catch (error) {
     next(error);
@@ -374,6 +380,9 @@ router.put('/:id/public-form-settings', async (req, res, next) => {
       .set(updateData)
       .where(eq(kanbans.id, id))
       .returning();
+
+    // Invalidate cache setelah update public form settings berhasil
+    invalidateCache('/api/kanbans');
 
     res.json(updatedKanban);
   } catch (error) {
@@ -532,6 +541,9 @@ router.post('/:id/links', async (req, res, next) => {
       }
     }
 
+    // Invalidate cache setelah menambah link berhasil
+    invalidateCache('/api/kanbans');
+
     res.status(201).json(linkedKanbans);
   } catch (error) {
     next(error);
@@ -595,6 +607,9 @@ router.delete('/:id/links/:linkId', async (req, res, next) => {
       .leftJoin(locations, eq(kanbans.locationId, locations.id))
       .where(eq(kanbanLinks.orderKanbanId, id));
 
+    // Invalidate cache setelah menghapus link berhasil
+    invalidateCache('/api/kanbans');
+
     res.json(linkedKanbans);
   } catch (error) {
     next(error);
@@ -614,6 +629,9 @@ router.delete('/:id', async (req, res, next) => {
     if (!deletedKanban) {
       throw createError('Kanban not found', 404);
     }
+
+    // Invalidate cache setelah penghapusan berhasil
+    invalidateCache('/api/kanbans');
 
     res.json({ message: 'Kanban deleted successfully' });
   } catch (error) {
