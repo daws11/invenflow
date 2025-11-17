@@ -341,8 +341,6 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     const { currentKanban, refreshCurrentKanban } = get();
     if (!currentKanban || currentKanban.id !== kanbanId) return;
 
-    const previousKanban = currentKanban;
-
     // OPTIMISTIC UPDATE: reorder products locally
     set(state => {
       if (!state.currentKanban || state.currentKanban.id !== kanbanId) {

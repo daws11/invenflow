@@ -39,7 +39,7 @@ export function GroupedProductCard({
     return labels[fieldName] || fieldName;
   };
 
-  const getFieldDisplayValue = (fieldName: string, value: any) => {
+  const getFieldDisplayValue = (value: any) => {
     // For IDs, we might want to show names instead - but for now just show the value
     return value?.toString() || 'N/A';
   };
@@ -100,16 +100,24 @@ export function GroupedProductCard({
                 <span
                   key={fieldName}
                   className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-200 text-blue-800"
-                  title={`${getFieldLabel(fieldName)}: ${getFieldDisplayValue(fieldName, unifiedValues[fieldName])}`}
+                  title={`${getFieldLabel(fieldName)}: ${getFieldDisplayValue(unifiedValues[fieldName])}`}
                 >
-                  {getFieldLabel(fieldName)}: {getFieldDisplayValue(fieldName, unifiedValues[fieldName])}
+                  {getFieldLabel(fieldName)}: {getFieldDisplayValue(unifiedValues[fieldName])}
                 </span>
               ))}
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div
+          className="flex items-center gap-2"
+          onClick={(e) => {
+            // Klik di area kanan header (bukan tombol collapse) akan melakukan ungroup
+            if (!onUngroup || selectionActive) return;
+            e.stopPropagation();
+            onUngroup();
+          }}
+        >
           {/* Ungroup Button */}
           {onUngroup && !selectionActive && (
             <button
@@ -145,7 +153,7 @@ export function GroupedProductCard({
       {/* Group Content */}
       {!isCollapsed && (
         <div className="p-3 space-y-3 bg-white/70">
-          {products.map((product, index) => (
+          {products.map((product) => (
             <div key={product.id} className="relative">
               {/* Visual indicator that this is part of a group */}
               {/* <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-400 rounded-r" /> */}

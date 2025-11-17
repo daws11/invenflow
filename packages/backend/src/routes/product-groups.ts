@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db';
 import { productGroups, productGroupSettings, products, kanbans } from '../db/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
 import { invalidateCache } from '../middleware/cache';

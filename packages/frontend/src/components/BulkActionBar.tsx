@@ -1,10 +1,8 @@
-import { useState } from 'react';
 import {
   XMarkIcon,
   TrashIcon,
   XCircleIcon,
   RectangleGroupIcon,
-  ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 import { Product } from '@invenflow/shared';
 import { useBulkSelectionStore } from '../store/bulkSelectionStore';
@@ -14,7 +12,6 @@ interface BulkActionBarProps {
   onReject: () => void;
   onDelete: () => void;
   onGroup: () => void;
-  onMove: () => void;
 }
 
 export function BulkActionBar({
@@ -22,7 +19,6 @@ export function BulkActionBar({
   onReject,
   onDelete,
   onGroup,
-  onMove,
 }: BulkActionBarProps) {
   const { selectedProductIds, clearSelection, getSelectedColumn } = useBulkSelectionStore();
   const selectedCount = selectedProductIds.size;

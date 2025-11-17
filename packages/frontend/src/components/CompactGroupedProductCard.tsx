@@ -46,7 +46,7 @@ export function CompactGroupedProductCard({
     return labels[fieldName] || fieldName;
   };
 
-  const getFieldDisplayValue = (fieldName: string, value: any) => {
+  const getFieldDisplayValue = (value: any) => {
     return value?.toString() || 'N/A';
   };
 
@@ -109,18 +109,25 @@ export function CompactGroupedProductCard({
                   key={fieldName}
                   className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-200 text-blue-800"
                   title={`${getFieldLabel(fieldName)}: ${getFieldDisplayValue(
-                    fieldName,
                     unifiedValues[fieldName]
                   )}`}
                 >
-                  {getFieldLabel(fieldName)}: {getFieldDisplayValue(fieldName, unifiedValues[fieldName])}
+                  {getFieldLabel(fieldName)}: {getFieldDisplayValue(unifiedValues[fieldName])}
                 </span>
               ))}
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-1 ml-3">
+        <div
+          className="flex items-center gap-1 ml-3"
+          onClick={(e) => {
+            // Klik di area kanan header (di sekitar ikon) akan melakukan ungroup
+            if (!onUngroup || selectionActive) return;
+            e.stopPropagation();
+            onUngroup();
+          }}
+        >
           {/* Ungroup Button */}
           {onUngroup && !selectionActive && (
             <button
@@ -158,7 +165,7 @@ export function CompactGroupedProductCard({
       {/* Group Content */}
       {!isCollapsed && (
         <div className="bg-white/80 divide-y divide-gray-100">
-          {products.map((product, index) => (
+          {products.map((product) => (
             <div key={product.id} className="relative">
               {/* Visual indicator that this is part of a group */}
               {/* <div className="absolute left-2 top-0 bottom-0 w-px bg-blue-200" /> */}

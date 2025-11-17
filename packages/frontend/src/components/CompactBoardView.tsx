@@ -11,7 +11,7 @@ import {
   DragEndEvent,
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { Product, Kanban, ORDER_COLUMNS, RECEIVE_COLUMNS, Location, ProductGroupWithDetails } from '@invenflow/shared';
+import { Product, Kanban, ORDER_COLUMNS, RECEIVE_COLUMNS, Location, ProductGroupWithDetails, ColumnStatus } from '@invenflow/shared';
 import CompactKanbanColumn from './CompactKanbanColumn';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
 import { useKanbanStore } from '../store/kanbanStore';
@@ -22,7 +22,7 @@ import { useToast } from '../store/toastStore';
 interface CompactBoardViewProps {
   kanban: Kanban & { products: Product[] };
   onProductView: (product: Product) => void;
-  onMoveProduct: (productId: string, newColumn: string) => Promise<void>;
+  onMoveProduct: (productId: string, newColumn: ColumnStatus) => Promise<void>;
   searchQuery: string;
   locations: Location[];
   onOpenGroupSettings?: (group: ProductGroupWithDetails) => void;
@@ -44,7 +44,7 @@ export default function CompactBoardView({
     updatedFrom, updatedTo, updatedPreset,
   } = useViewPreferencesStore();
   const { reorderColumnProducts, refreshCurrentKanban } = useKanbanStore();
-  const { updateGroup } = useProductGroupStore();
+  const { updateGroup, deleteGroup } = useProductGroupStore();
   const toast = useToast();
 
   const sensors = useSensors(
@@ -170,6 +170,18 @@ export default function CompactBoardView({
     });
   };
 
+  const handleDeleteGroup = async (groupId: string) => {
+    try {
+      await deleteGroup(groupId);
+      await refreshCurrentKanban();
+      toast.success('Group deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete group', error);
+      toast.error('Failed to delete group');
+      throw error;
+    }
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const activeId = active.id.toString();
@@ -193,7 +205,7 @@ export default function CompactBoardView({
 
     const activeId = active.id.toString();
     const overId = over.id.toString();
-    const columns = getColumns() as string[];
+    const columns = [...getColumns()];
 
     const activeGroup: ProductGroupWithDetails | undefined =
       (kanban as any).productGroups?.find((g: ProductGroupWithDetails) => g.id === activeId);
@@ -237,21 +249,21 @@ export default function CompactBoardView({
       const groupColumn = activeGroup.columnStatus;
 
       // Determine target column and target item from drop target
-      let targetColumn: string | null = null;
+      let targetColumn: ColumnStatus | null = null;
       let targetItemId: string | null = null;
 
-      if (columns.includes(overId)) {
-        targetColumn = overId;
+      if (columns.includes(overId as ColumnStatus)) {
+        targetColumn = overId as ColumnStatus;
       } else {
         const overGroup: ProductGroupWithDetails | undefined =
           (kanban as any).productGroups?.find((g: ProductGroupWithDetails) => g.id === overId);
         if (overGroup) {
-          targetColumn = overGroup.columnStatus;
+          targetColumn = overGroup.columnStatus as ColumnStatus;
           targetItemId = overGroup.id;
         } else {
           const overProduct = kanban.products.find((p) => p.id === overId);
         if (overProduct) {
-          targetColumn = overProduct.columnStatus;
+          targetColumn = overProduct.columnStatus as ColumnStatus;
             targetItemId = overProduct.id;
           }
         }
@@ -314,9 +326,9 @@ export default function CompactBoardView({
     if (!activeProduct) return;
 
     // Dropped on a column area: move between columns
-    if (columns.includes(overId)) {
+    if (columns.includes(overId as ColumnStatus)) {
       if (activeProduct.columnStatus !== overId) {
-        await onMoveProduct(activeProduct.id, overId);
+        await onMoveProduct(activeProduct.id, overId as ColumnStatus);
       }
       return;
     }
@@ -355,8 +367,8 @@ export default function CompactBoardView({
     }
 
     // Different column: treat as move to target column
-    if (sourceColumn !== targetColumn) {
-      await onMoveProduct(activeProduct.id, targetColumn);
+    if (sourceColumn !== targetColumn && targetColumn) {
+      await onMoveProduct(activeProduct.id, targetColumn as ColumnStatus);
     }
   };
 
@@ -378,6 +390,7 @@ export default function CompactBoardView({
             kanban={kanban}
             locations={locations}
             onOpenGroupSettings={onOpenGroupSettings}
+            onDeleteGroup={handleDeleteGroup}
           />
         ))}
       </div>

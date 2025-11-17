@@ -23,12 +23,12 @@ interface ProductGroupState {
   clearError: () => void;
 }
 
-export const useProductGroupStore = create<ProductGroupState>((set, get) => ({
+export const useProductGroupStore = create<ProductGroupState>((set, _get) => ({
   groups: [],
   loading: false,
   error: null,
 
-  fetchGroupsByKanban: async (kanbanId: string) => {
+  fetchGroupsByKanban: async (_kanbanId: string) => {
     set({ loading: true, error: null });
     try {
       // For now, groups will be fetched as part of kanban data

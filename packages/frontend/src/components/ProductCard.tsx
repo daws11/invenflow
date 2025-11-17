@@ -1,11 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Product, Location, Kanban } from '@invenflow/shared';
 import { useSortable } from '@dnd-kit/sortable';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 import TransferHistoryViewer from './TransferHistoryViewer';
 import { getAppliedThreshold, calculateTimeInColumn, formatTimeDuration, formatThresholdRule } from '../utils/thresholdCalculator';
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 import { useLocationStore } from '../store/locationStore';
 import { useBulkSelectionStore } from '../store/bulkSelectionStore';
+import { useProductGroupStore } from '../store/productGroupStore';
+import { useKanbanStore } from '../store/kanbanStore';
+import { useToast } from '../store/toastStore';
 
 interface ProductCardProps {
   product: Product;
@@ -26,6 +30,11 @@ export default function ProductCard({ product, onView, location, kanban, isDragg
   const toggleSelection = useBulkSelectionStore((state) => state.toggleSelection);
   const selected = useBulkSelectionStore((state) => state.selectedProductIds.has(product.id));
   const selectionActive = useBulkSelectionStore((state) => state.selectedProductIds.size > 0);
+  const isInGroup = !!product.productGroupId;
+  const { removeProductsFromGroup } = useProductGroupStore();
+  const { refreshCurrentKanban } = useKanbanStore();
+  const toast = useToast();
+  const [isRemovingFromGroup, setIsRemovingFromGroup] = useState(false);
 
   const resolvedLocation: Location | null = useMemo(() => {
     if (location) return location;
@@ -74,6 +83,25 @@ export default function ProductCard({ product, onView, location, kanban, isDragg
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation();
     toggleSelection(product.id);
+  };
+
+  const handleRemoveFromGroupClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (!product.productGroupId || isRemovingFromGroup) return;
+
+    try {
+      setIsRemovingFromGroup(true);
+      await removeProductsFromGroup(product.productGroupId, {
+        productIds: [product.id],
+      });
+      await refreshCurrentKanban();
+      toast.success('Product removed from group');
+    } catch (error) {
+      console.error('Failed to remove product from group', error);
+      toast.error('Failed to remove product from group');
+    } finally {
+      setIsRemovingFromGroup(false);
+    }
   };
 
   // Using pointer events for click vs drag
@@ -208,35 +236,6 @@ export default function ProductCard({ product, onView, location, kanban, isDragg
       onKeyDown={handleKeyDown}
       title={appliedThreshold ? `In column for ${timeInColumn} - ${formatThresholdRule(appliedThreshold)}` : undefined}
     >
-
-      {/* Selection Checkbox */}
-      <div className="absolute top-2 right-2 z-20">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={handleCheckboxChange}
-          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 bg-transparent"
-          onClick={(e) => e.stopPropagation()}
-        />
-      </div>
-
-      {/* Threshold indicator badge */}
-      {appliedThreshold && (
-        <div 
-          className="absolute top-2 right-10 w-3 h-3 rounded-full shadow-lg z-10 animate-pulse"
-          style={{ backgroundColor: appliedThreshold.color }}
-          title={`${formatThresholdRule(appliedThreshold)} - In column for ${timeInColumn}`}
-        />
-      )}
-
-      {/* Rejected Badge */}
-      {product.isRejected && (
-        <div className="absolute top-10 right-2 z-10 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full font-medium">
-          Rejected
-        </div>
-      )}
-
-
       {/* Product Content */}
       <div className="space-y-2">
         {/* Product Image Section */}
@@ -298,17 +297,57 @@ export default function ProductCard({ product, onView, location, kanban, isDragg
             )}
           </div>
 
-          {/* Priority badge and Action Buttons */}
-          <div className="flex flex-col items-end gap-2">
-            {/* Priority badge */}
-        {product.priority && (
-          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(product.priority)}`}>
-            {product.priority}
-          </span>
-        )}
+          {/* Right side controls: selection, threshold, priority, rejected */}
+          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+            {/* Selection / group action & threshold row */}
+            <div className="flex items-center gap-2">
+              {appliedThreshold && (
+                <div
+                  className="w-3 h-3 rounded-full shadow-lg animate-pulse flex-shrink-0"
+                  style={{ backgroundColor: appliedThreshold.color }}
+                  title={`${formatThresholdRule(appliedThreshold)} - In column for ${timeInColumn}`}
+                />
+              )}
+              {isInGroup ? (
+                <button
+                  type="button"
+                  onClick={handleRemoveFromGroupClick}
+                  disabled={isRemovingFromGroup}
+                  className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
+                  title="Remove from group"
+                >
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              ) : (
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  onChange={handleCheckboxChange}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 bg-transparent"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              )}
+            </div>
 
+            {/* Priority badge */}
+            {product.priority && (
+              <span
+                className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(
+                  product.priority
+                )}`}
+              >
+                {product.priority}
+              </span>
+            )}
+
+            {/* Rejected Badge */}
+            {product.isRejected && (
+              <div className="bg-red-600 text-white text-xs px-2 py-0.5 rounded-full font-medium">
+                Rejected
+              </div>
+            )}
           </div>
-      </div>
+        </div>
 
       {/* Meta badges (compact, neutral) */}
       <div className="flex flex-wrap gap-1">

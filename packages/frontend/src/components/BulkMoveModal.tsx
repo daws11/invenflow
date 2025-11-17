@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { XMarkIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
-import { Product, Location } from '@invenflow/shared';
+import { Product } from '@invenflow/shared';
 import { useLocationStore } from '../store/locationStore';
 
 interface BulkMoveModalProps {

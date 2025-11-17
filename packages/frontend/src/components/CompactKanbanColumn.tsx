@@ -15,6 +15,7 @@ interface CompactKanbanColumnProps {
   kanban?: Kanban | null;
   locations?: Location[];
   onOpenGroupSettings?: (group: ProductGroupWithDetails) => void;
+  onDeleteGroup?: (groupId: string) => Promise<void> | void;
 }
 
 export default function CompactKanbanColumn({ 
@@ -25,6 +26,7 @@ export default function CompactKanbanColumn({
   kanban,
   locations = [],
   onOpenGroupSettings,
+  onDeleteGroup,
 }: CompactKanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: id,
@@ -151,16 +153,14 @@ export default function CompactKanbanColumn({
                 <CompactGroupedProductCard
                   group={group}
                   products={group.products || []}
-                  kanban={kanban}
+                  kanban={kanban ?? null}
                   locations={locations}
                   onProductView={onProductView}
                   onOpenSettings={onOpenGroupSettings}
                   onUngroup={async () => {
-                    // For now, reuse the same behaviour as board view:
-                    // ungroup via API and then refresh page.
-                    // We don't have direct access to deleteGroup here, so rely on existing board flow.
+                    if (!onDeleteGroup) return;
                     try {
-                      window.location.reload();
+                      await onDeleteGroup(group.id);
                     } catch (error) {
                       console.error('Failed to ungroup:', error);
                     }

@@ -185,7 +185,7 @@ export function EditGroupModal({
             <option value="">Select person...</option>
             {persons.map((person) => (
               <option key={person.id} value={person.id}>
-                {person.name} {person.role && `(${person.role})`}
+                {person.name}
               </option>
             ))}
           </select>

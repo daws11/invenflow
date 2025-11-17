@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { XMarkIcon, RectangleGroupIcon } from '@heroicons/react/24/outline';
 import { Product, UNIFIED_FIELD_OPTIONS, DEFAULT_PRIORITIES, DEFAULT_CATEGORIES } from '@invenflow/shared';
-import { useLocationStore } from '../store/locationStore';
 import { usePersonStore } from '../store/personStore';
 import { useKanbanStore } from '../store/kanbanStore';
 
@@ -9,8 +8,6 @@ interface GroupItemsModalProps {
   isOpen: boolean;
   onClose: () => void;
   products: Product[];
-  kanbanId: string;
-  columnStatus: string;
   onConfirm: (
     groupTitle: string,
     unifiedFields: Record<string, boolean>,
@@ -22,8 +19,6 @@ export function GroupItemsModal({
   isOpen,
   onClose,
   products,
-  kanbanId,
-  columnStatus,
   onConfirm,
 }: GroupItemsModalProps) {
   const [groupTitle, setGroupTitle] = useState('');
@@ -31,7 +26,6 @@ export function GroupItemsModal({
   const [unifiedValues, setUnifiedValues] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { locations } = useLocationStore();
   const { persons } = usePersonStore();
   const { kanbans } = useKanbanStore();
 
@@ -163,7 +157,7 @@ export function GroupItemsModal({
             <option value="">Select person...</option>
             {persons.map((person) => (
               <option key={person.id} value={person.id}>
-                {person.name} {person.role && `(${person.role})`}
+                {person.name}
               </option>
             ))}
           </select>

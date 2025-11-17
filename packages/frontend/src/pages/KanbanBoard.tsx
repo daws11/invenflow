@@ -286,7 +286,7 @@ export default function KanbanBoard() {
       // Tag multi
       if (tagFilter.length > 0) {
         if (!product.tags || !Array.isArray(product.tags)) return false;
-        const hasMatchingTag = product.tags.some(tag => tagFilter.includes(tag));
+        const hasMatchingTag = product.tags.some((tag: string) => tagFilter.includes(tag));
         if (!hasMatchingTag) return false;
       }
       
@@ -1260,6 +1260,7 @@ export default function KanbanBoard() {
                 onProductView={handleViewProduct}
                 kanban={currentKanban}
                 onOpenGroupSettings={handleOpenGroupSettings}
+                onDeleteGroup={handleDeleteGroup}
               />
             ))}
           </div>
@@ -1355,8 +1356,6 @@ export default function KanbanBoard() {
           isOpen={showGroupModal}
           onClose={() => setShowGroupModal(false)}
           products={getSelectedProducts()}
-          kanbanId={id!}
-          columnStatus={getSelectedColumn(currentKanban?.products || []) || ''}
           onConfirm={handleBulkGroup}
         />
 
@@ -1379,7 +1378,6 @@ export default function KanbanBoard() {
             onReject={() => setShowRejectModal(true)}
             onDelete={handleBulkDelete}
             onGroup={() => setShowGroupModal(true)}
-            onMove={() => setShowMoveModal(true)}
           />
         )}
       </div>

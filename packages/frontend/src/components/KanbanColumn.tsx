@@ -3,7 +3,6 @@ import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import ProductCard from './ProductCard';
 import { GroupedProductCard } from './GroupedProductCard';
-import { useProductGroupStore } from '../store/productGroupStore';
 
 interface KanbanColumnProps {
   id: string;
@@ -13,10 +12,18 @@ interface KanbanColumnProps {
   onProductMove?: (productId: string, newColumn: string) => void;
   kanban?: Kanban | null;
   onOpenGroupSettings?: (group: ProductGroupWithDetails) => void;
+  onDeleteGroup?: (groupId: string) => Promise<void> | void;
 }
 
-export default function KanbanColumn({ id, title, products, onProductView, kanban, onOpenGroupSettings }: KanbanColumnProps) {
-  const { deleteGroup } = useProductGroupStore();
+export default function KanbanColumn({
+  id,
+  title,
+  products,
+  onProductView,
+  kanban,
+  onOpenGroupSettings,
+  onDeleteGroup,
+}: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: id,
   });
@@ -82,23 +89,22 @@ export default function KanbanColumn({ id, title, products, onProductView, kanba
             if (item.kind === 'group') {
               const group = item.group;
               return (
-          <GroupedProductCard
-            key={group.id}
-            group={group}
-            products={group.products || []}
-            kanban={kanban}
-            onProductView={onProductView}
-            onOpenSettings={onOpenGroupSettings}
-            onUngroup={async () => {
-              try {
-                await deleteGroup(group.id);
-                // Refresh kanban data after ungrouping
-                window.location.reload();
-              } catch (error) {
-                console.error('Failed to ungroup:', error);
-              }
-            }}
-          />
+                <GroupedProductCard
+                  key={group.id}
+                  group={group}
+                  products={group.products || []}
+                  kanban={kanban ?? null}
+                  onProductView={onProductView}
+                  onOpenSettings={onOpenGroupSettings}
+                  onUngroup={async () => {
+                    if (!onDeleteGroup) return;
+                    try {
+                      await onDeleteGroup(group.id);
+                    } catch (error) {
+                      console.error('Failed to ungroup:', error);
+                    }
+                  }}
+                />
               );
             }
 
