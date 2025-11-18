@@ -90,6 +90,14 @@ else
     warning "No .env.production file found, using default environment"
 fi
 
+# Ensure production API URL is set correctly
+if [ -z "$VITE_API_URL" ]; then
+    export VITE_API_URL="https://inventory.ptunicorn.id"
+    log "Setting default production API URL: $VITE_API_URL"
+else
+    log "Using API URL from environment: $VITE_API_URL"
+fi
+
 # Clean previous builds
 log "🧹 Cleaning previous builds..."
 rm -rf packages/backend/dist
@@ -119,10 +127,17 @@ cd packages/frontend
 
 # Load frontend environment variables
 if [ -f "../../.env.production" ]; then
-    export VITE_API_URL="http://localhost:3002"
+    # Load production environment variables but don't override VITE_API_URL
+    # The .env.production file should contain the correct production URL
+    log "Loading production environment variables for frontend..."
+    export $(cat ../../.env.production | grep -v '^#' | grep '^VITE_' | xargs)
+else
+    warning "No .env.production file found for frontend, using default VITE_API_URL"
+    export VITE_API_URL="https://inventory.ptunicorn.id"
 fi
 
-pnpm build || error "Failed to build frontend"
+# Build with explicit environment variables to ensure production URL is used
+NODE_ENV=production VITE_API_URL="${VITE_API_URL:-https://inventory.ptunicorn.id}" pnpm build || error "Failed to build frontend"
 
 # Verify frontend build
 if [ ! -d "dist" ] || [ ! -f "dist/index.html" ]; then
