@@ -1,0 +1,11 @@
+{
+  "buildTime": "2025-11-17T09:22:42.412Z",
+  "gitCommit": "11b15f655b9369c1d0ef869f9cfcde22442abc04",
+  "gitBranch": "main",
+  "nodeVersion": "v18.19.1",
+  "pnpmVersion": "10.18.3",
+  "environment": "production",
+  "port": 3002,
+  "backendSize": "468K",
+  "frontendSize": "1.2M"
+}

@@ -30,7 +30,7 @@ import productGroupsRouter from "./routes/product-groups";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const rootDir = join(__dirname, "../..");
+const rootDir = join(__dirname, "../../..");
 
 const app = express();
 
