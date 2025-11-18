@@ -411,8 +411,11 @@ router.get('/export', authorizeRoles('admin', 'manager'), async (req, res, next)
         conditions.push(clause);
       }
     };
-    // Only receive kanban items
-    pushCondition(eq(kanbans.type, 'receive'));
+    // Include receive kanban items OR direct import products (kanban_id IS NULL)
+    // Using raw SQL condition to handle LEFT JOIN properly
+    pushCondition(
+      sql`(${kanbans.type} = 'receive' OR ${products.kanbanId} IS NULL)`
+    );
     // Status
     if (columnStatusValues.length > 0) {
       pushCondition(inArray(products.columnStatus, columnStatusValues));
@@ -473,7 +476,7 @@ router.get('/export', authorizeRoles('admin', 'manager'), async (req, res, next)
 
     if (grouped) {
       // Use raw grouped query similar to /grouped
-      const whereClauses: string[] = ["k.type = 'receive'", "p.sku IS NOT NULL", "p.is_draft = false"];
+      const whereClauses: string[] = ["(k.type = 'receive' OR p.kanban_id IS NULL)", "p.sku IS NOT NULL", "p.is_draft = false"];
       if (searchValue) {
         const escaped = searchValue.replace(/'/g, "''");
         whereClauses.push(`(p.product_details ILIKE '%${escaped}%' OR p.sku ILIKE '%${escaped}%')`);
@@ -495,6 +498,7 @@ router.get('/export', authorizeRoles('admin', 'manager'), async (req, res, next)
             MAX(p.product_details) as "productName",
             MAX(p.category) as category,
             MAX(p.supplier) as supplier,
+            MAX(p.dimensions) as dimensions,
             COALESCE(SUM(CASE WHEN p.column_status = 'Purchased' THEN COALESCE(p.stock_level, 1) ELSE 0 END), 0)::int as incoming,
             COALESCE(SUM(CASE WHEN p.column_status = 'Received' THEN COALESCE(p.stock_level, 1) ELSE 0 END), 0)::int as received,
             COALESCE(SUM(CASE WHEN p.column_status = 'Stored' AND p.assigned_to_person_id IS NULL THEN COALESCE(p.stock_level, 1) ELSE 0 END), 0)::int as stored,
@@ -503,10 +507,16 @@ router.get('/export', authorizeRoles('admin', 'manager'), async (req, res, next)
               COALESCE(SUM(CASE WHEN p.column_status = 'Received' THEN COALESCE(p.stock_level, 1) ELSE 0 END), 0) +
               COALESCE(SUM(CASE WHEN p.column_status = 'Stored' THEN COALESCE(p.stock_level, 1) ELSE 0 END), 0)
             )::int as "totalStock",
+            MAX(p.unit) as unit,
+            MAX(l.area) as area,
+            MAX(l.name) as "locationName",
             MAX(p.unit_price) as "unitPrice",
+            MAX(p.notes) as notes,
+            MAX(p.original_purchase_date) as "originalPurchaseDate",
             MAX(p.updated_at) as "lastUpdated"
           FROM products p
-          INNER JOIN kanbans k ON p.kanban_id = k.id
+          LEFT JOIN kanbans k ON p.kanban_id = k.id
+          LEFT JOIN locations l ON p.location_id = l.id
           ${sql.raw(whereClause)}
           GROUP BY p.sku
           ORDER BY MAX(p.updated_at) DESC
@@ -514,16 +524,22 @@ router.get('/export', authorizeRoles('admin', 'manager'), async (req, res, next)
       );
       const rows = Array.from(groupedResult).map((r: any) => ({
         SKU: r.sku,
-        ProductName: r.productName,
-        Category: r.category,
+        'Product Name': r.productName,
         Supplier: r.supplier,
+        Category: r.category,
+        Dimensions: r.dimensions ?? '',
         Incoming: Number(r.incoming ?? 0),
         Received: Number(r.received ?? 0),
         Stored: Number(r.stored ?? 0),
         Used: Number(r.used ?? 0),
         TotalStock: Number(r.totalStock ?? 0),
-        UnitPrice: r.unitPrice ? Number(r.unitPrice) : '',
-        LastUpdated: r.lastUpdated,
+        Unit: r.unit ?? '',
+        Area: r.area ?? '',
+        'Location Name': r.locationName ?? '',
+        'Unit Price': r.unitPrice ? Number(r.unitPrice) : '',
+        Notes: r.notes ?? '',
+        'Original Purchase Date': r.originalPurchaseDate ? new Date(r.originalPurchaseDate).toISOString().split('T')[0] : '',
+        'Last Updated': r.lastUpdated ? new Date(r.lastUpdated).toISOString() : '',
       }));
       const csv = toCsv(rows);
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -538,29 +554,40 @@ router.get('/export', authorizeRoles('admin', 'manager'), async (req, res, next)
           productDetails: products.productDetails,
           category: products.category,
           supplier: products.supplier,
+          dimensions: products.dimensions,
           columnStatus: products.columnStatus,
           stockLevel: products.stockLevel,
+          unit: products.unit,
           unitPrice: products.unitPrice,
-          locationId: products.locationId,
+          notes: products.notes,
+          originalPurchaseDate: products.originalPurchaseDate,
           createdAt: products.createdAt,
           updatedAt: products.updatedAt,
+          locationArea: locations.area,
+          locationName: locations.name,
         })
         .from(products)
-        .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
+        .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
+        .leftJoin(locations, eq(products.locationId, locations.id))
         .where(whereCombined)
         .orderBy(desc(products.updatedAt));
 
       const rows = itemRows.map((r: any) => ({
         SKU: r.sku,
-        ProductName: r.productDetails,
-        Category: r.category,
+        'Product Name': r.productDetails,
         Supplier: r.supplier,
+        Category: r.category,
+        Dimensions: r.dimensions ?? '',
+        'New Stock Level': r.stockLevel ?? '',
+        Unit: r.unit ?? '',
+        Area: r.locationArea ?? '',
+        'Location Name': r.locationName ?? '',
+        'Unit Price': r.unitPrice ? Number(r.unitPrice) : '',
+        Notes: r.notes ?? '',
+        'Original Purchase Date': r.originalPurchaseDate ? new Date(r.originalPurchaseDate).toISOString().split('T')[0] : '',
         Status: r.columnStatus,
-        StockLevel: r.stockLevel ?? '',
-        UnitPrice: r.unitPrice ? Number(r.unitPrice) : '',
-        LocationId: r.locationId ?? '',
-        CreatedAt: r.createdAt,
-        UpdatedAt: r.updatedAt,
+        'Created At': r.createdAt ? new Date(r.createdAt).toISOString() : '',
+        'Updated At': r.updatedAt ? new Date(r.updatedAt).toISOString() : '',
       }));
       const csv = toCsv(rows);
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
