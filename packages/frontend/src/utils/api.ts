@@ -28,6 +28,10 @@ import {
   PublicBulkMovementResponse,
   FormFieldSettings,
   LinkedReceiveKanban,
+  StoredLogWithRelations,
+  StoredLogListResponse,
+  StoredLogFilters,
+  StoredLog,
 } from "@invenflow/shared";
 import { useAuthStore } from "../store/authStore";
 
@@ -352,6 +356,19 @@ export const transferLogApi = {
   },
 };
 
+export const storedLogApi = {
+  list: async (
+    params?: Partial<StoredLogFilters>,
+  ): Promise<StoredLogListResponse> => {
+    const response = await api.get("/api/stored-logs", { params });
+    return response.data;
+  },
+  getById: async (id: string): Promise<StoredLogWithRelations> => {
+    const response = await api.get(`/api/stored-logs/${id}`);
+    return response.data;
+  },
+};
+
 // Movement log API calls
 export interface MovementLog {
   id: string;
@@ -361,7 +378,8 @@ export interface MovementLog {
   fromPersonId: string | null;
   toPersonId: string | null;
   fromStockLevel: number | null;
-  toStockLevel: number;
+  toStockLevel: number | null;
+  quantityMoved: number;
   notes: string | null;
   movedBy: string | null;
   createdAt: string;

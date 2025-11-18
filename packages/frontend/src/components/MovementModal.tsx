@@ -38,13 +38,15 @@ interface SelectedProduct {
 export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }: MovementModalProps) {
   const { createMovement, loading } = useMovementStore();
   const { fetchInventory } = useInventoryStore();
-  const { locations, fetchLocations } = useLocationStore();
+  const { locations, areas, fetchLocations } = useLocationStore();
   const { persons, fetchPersons } = usePersonStore();
   const { error: showError } = useToast();
 
   // State
+  const [fromArea, setFromArea] = useState<string>('');
   const [fromLocationId, setFromLocationId] = useState<string | null>(null);
   const [destinationType, setDestinationType] = useState<'location' | 'person'>('location');
+  const [toArea, setToArea] = useState<string>('');
   const [toLocationId, setToLocationId] = useState<string | null>(null);
   const [toPersonId, setToPersonId] = useState<string | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
@@ -54,6 +56,8 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
   const [linkCopied, setLinkCopied] = useState<boolean>(false);
   const [availableAtLocation, setAvailableAtLocation] = useState<InventoryItem[]>([]);
   const [loadingAvailable, setLoadingAvailable] = useState<boolean>(false);
+  const [availablePage, setAvailablePage] = useState<number>(1);
+  const [availableTotalPages, setAvailableTotalPages] = useState<number>(1);
 
   // Load data on mount
   useEffect(() => {
@@ -64,25 +68,26 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
     }
   }, [isOpen, fetchInventory, fetchLocations, fetchPersons]);
 
-  // Load available products for selected source location directly from server (avoid pagination/stale data)
+  // Load available products for selected source area directly from server (avoid pagination/stale data)
   useEffect(() => {
     const loadAvailable = async () => {
-      if (!isOpen || !fromLocationId) {
+      if (!isOpen || !fromArea) {
         setAvailableAtLocation([]);
         return;
       }
       setLoadingAvailable(true);
       try {
         const res = await inventoryApi.getInventory({
-          location: [fromLocationId],
+          area: [fromArea],
           columnStatus: ['Stored'],
-          page: 1,
-          pageSize: 1000,
+          page: availablePage,
+          pageSize: 50,
           sortBy: 'updatedAt',
           sortOrder: 'desc',
           viewMode: 'unified',
         });
         setAvailableAtLocation(res.items);
+        setAvailableTotalPages(res.totalPages);
       } catch (_e) {
         setAvailableAtLocation([]);
       } finally {
@@ -90,12 +95,16 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
       }
     };
     void loadAvailable();
-  }, [isOpen, fromLocationId]);
+  }, [isOpen, fromArea, availablePage]);
 
   // Initialize from preselected product
   useEffect(() => {
     if (preselectedProduct && preselectedProduct.locationId && isOpen) {
+      const sourceLocation = locations.find(l => l.id === preselectedProduct.locationId);
+      if (sourceLocation) {
+        setFromArea(sourceLocation.area);
       setFromLocationId(preselectedProduct.locationId);
+      }
       
       // Use functional update to avoid stale closure bug
       setSelectedProducts(prev => {
@@ -118,8 +127,10 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
   // Cleanup state when modal closes
   useEffect(() => {
     if (!isOpen) {
+      setFromArea('');
       setFromLocationId(null);
       setDestinationType('location');
+      setToArea('');
       setToLocationId(null);
       setToPersonId(null);
       setSelectedProducts([]);
@@ -130,8 +141,8 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
     }
   }, [isOpen]);
 
-  // Filter products sourced from server by location
-  const availableProducts = fromLocationId ? availableAtLocation : [];
+  // Filter products sourced from server by area
+  const availableProducts = fromArea ? availableAtLocation : [];
   const filteredProducts = availableProducts.filter(item =>
     !selectedProducts.some(sp => sp.productId === item.id) &&
     (item.productDetails.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -180,19 +191,31 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const hasValidDestination = destinationType === 'location' ? toLocationId : toPersonId;
+    const hasValidDestination =
+      destinationType === 'location'
+        ? Boolean(toArea)
+        : Boolean(toPersonId);
     
-    if (!fromLocationId || !hasValidDestination || selectedProducts.length === 0) {
-      const destinationText = destinationType === 'location' ? 'destination location' : 'person to assign to';
-      alert(`Please select from location, ${destinationText}, and at least one product`);
+    if (!fromArea || !hasValidDestination || selectedProducts.length === 0) {
+      const destinationText = destinationType === 'location' ? 'destination area' : 'person to assign to';
+      alert(`Please select from area, ${destinationText}, and at least one product`);
       return;
     }
 
     try {
       if (isBulkMovement) {
+        const fromLocation = fromLocationId
+          ? locations.find(l => l.id === fromLocationId)
+          : undefined;
+        const toLocation = toLocationId
+          ? locations.find(l => l.id === toLocationId)
+          : undefined;
+
         const result = await bulkMovementApi.create({
-          fromLocationId,
-          toLocationId: toLocationId!,
+          fromLocationId: fromLocationId || null,
+          fromArea: fromArea || fromLocation?.area || null,
+          toArea: toArea || toLocation?.area || null,
+          toLocationId: toLocationId || null,
           items: selectedProducts.map(item => ({
             productId: item.productId,
             quantitySent: item.quantity,
@@ -201,8 +224,12 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
         });
         
         const publicUrl = `${window.location.origin}/bulk-movement/confirm/${result.publicToken}`;
-        const fromLocation = locations.find(l => l.id === fromLocationId);
-        const toLocation = locations.find(l => l.id === toLocationId);
+        const fromLocationResolved = fromLocation;
+        const toLocationResolved = toLocationId
+          ? toLocation
+          : locations.find(
+              (l) => l.area === (toArea || toLocation?.area) && l.name === 'General'
+            ) || toLocation;
         
         // Show success modal instead of alert
         setBulkMovementResult({
@@ -211,8 +238,16 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
           publicUrl,
           totalItems,
           totalQuantity,
-          fromLocationName: fromLocation ? `${fromLocation.name}${fromLocation.area ? ` - ${fromLocation.area}` : ''}` : 'Unknown',
-          toLocationName: toLocation ? `${toLocation.name}${toLocation.area ? ` - ${toLocation.area}` : ''}` : 'Unknown',
+          fromLocationName: fromLocationResolved
+            ? `${fromLocationResolved.name}${
+                fromLocationResolved.area ? ` - ${fromLocationResolved.area}` : ''
+              }`
+            : 'Unknown',
+          toLocationName: toLocationResolved
+            ? `${toLocationResolved.name}${
+                toLocationResolved.area ? ` - ${toLocationResolved.area}` : ''
+              }`
+            : toArea || 'Unknown',
         });
         
         // Auto copy to clipboard
@@ -222,8 +257,14 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
         }).catch(() => console.log('Could not copy'));
       } else {
         const product = selectedProducts[0];
+        const fromLocation = fromLocationId
+          ? locations.find(l => l.id === fromLocationId)
+          : undefined;
+
         await createMovement({
           productId: product.productId,
+          fromArea: fromArea || fromLocation?.area || null,
+          toArea: destinationType === 'location' ? (toArea || null) : null,
           toLocationId: destinationType === 'location' ? toLocationId : null,
           toPersonId: destinationType === 'person' ? toPersonId : null,
           quantityToMove: product.quantity,
@@ -233,6 +274,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
         // Reset and close for single movement
         setFromLocationId(null);
         setDestinationType('location');
+        setToArea('');
         setToLocationId(null);
         setToPersonId(null);
         setSelectedProducts([]);
@@ -346,39 +388,66 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
               <div className="px-6 py-6 space-y-6">
                 
-                {/* 1. FROM LOCATION */}
+                {/* 1. FROM AREA & OPTIONAL LOCATION */}
                 <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm">
                   <label className="block text-sm font-semibold text-gray-900 mb-3">
                     <span className="flex items-center">
-                      📍 From Location <span className="text-red-500 ml-1">*</span>
+                      📍 From Area <span className="text-red-500 ml-1">*</span>
                     </span>
                   </label>
+                  <div className="space-y-3">
+                    {/* From Area (required) */}
                   <select
-                    value={fromLocationId || ''}
+                      value={fromArea}
                     onChange={(e) => {
-                      setFromLocationId(e.target.value || null);
-                      setSelectedProducts([]); // Reset products when changing from location
+                        setFromArea(e.target.value);
+                        setFromLocationId(null);
+                        setSelectedProducts([]);
+                        setAvailablePage(1);
                     }}
                     required
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">Select source location...</option>
-                    {locations.map((loc) => (
+                      <option value="">Select source area...</option>
+                      {areas.map((areaValue) => (
+                        <option key={areaValue} value={areaValue}>
+                          {areaValue}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Optional From Location (for context only) */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        From Location (optional, for context)
+                      </label>
+                      <select
+                        value={fromLocationId || ''}
+                        onChange={(e) => setFromLocationId(e.target.value || null)}
+                        disabled={!fromArea}
+                        className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                      >
+                        <option value="">All locations in this area</option>
+                        {locations
+                          .filter((loc) => loc.area === fromArea)
+                          .map((loc) => (
                       <option key={loc.id} value={loc.id}>
-                        {loc.name} - {loc.area} ({loc.code})
+                              {loc.name} ({loc.code})
                       </option>
                     ))}
                   </select>
-                  {fromLocation && (
-                    <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                      <p className="text-sm text-blue-900">
-                        <strong>{fromLocation.name}</strong>
-                      </p>
-                      <p className="text-xs text-blue-700 mt-1">
-                        {loadingAvailable ? 'Loading...' : `${availableProducts.length} products available`}
+                    </div>
+
+                    {fromArea && (
+                      <div className="mt-1 p-3 bg-blue-50 rounded-lg">
+                        <p className="text-xs text-blue-700">
+                          {loadingAvailable
+                            ? 'Loading products...'
+                            : `Showing products stored in area "${fromArea}"`}
                       </p>
                     </div>
                   )}
+                  </div>
                 </div>
 
                 {/* 2. DESTINATION SELECTION */}
@@ -394,7 +463,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                     <button
                       type="button"
                       onClick={() => handleDestinationTypeChange('location')}
-                      disabled={!fromLocationId}
+                      disabled={!fromArea}
                       className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                         destinationType === 'location'
                           ? 'bg-white text-blue-700 shadow-sm'
@@ -406,7 +475,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                     <button
                       type="button"
                       onClick={() => handleDestinationTypeChange('person')}
-                      disabled={!fromLocationId}
+                      disabled={!fromArea}
                       className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                         destinationType === 'person'
                           ? 'bg-white text-purple-700 shadow-sm'
@@ -417,18 +486,53 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                     </button>
                   </div>
 
-                  {/* Location Selection */}
+                  {/* Location Selection (Area + optional Location) */}
                   {destinationType === 'location' && (
+                    <div className="space-y-3">
+                      {/* Destination Area (required) */}
                     <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
+                          Destination Area
+                        </label>
+                        <select
+                          value={toArea}
+                          onChange={(e) => {
+                            setToArea(e.target.value);
+                            setToLocationId(null);
+                          }}
+                          disabled={!fromArea}
+                          required
+                          className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                        >
+                          <option value="">Select destination area...</option>
+                          {areas.map((areaValue) => (
+                            <option key={areaValue} value={areaValue}>
+                              {areaValue}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Destination Location (optional within area) */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
+                          Destination Location (optional)
+                        </label>
                       <select
                         value={toLocationId || ''}
                         onChange={(e) => setToLocationId(e.target.value || null)}
-                        required
-                        disabled={!fromLocationId}
-                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                          disabled={!fromArea || !toArea}
+                          className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                       >
-                        <option value="">Select destination location...</option>
-                        {locations.filter(l => l.id !== fromLocationId).map((loc) => (
+                          <option value="">
+                            Use general location for this area
+                          </option>
+                          {locations
+                            .filter(
+                              (loc) =>
+                                loc.id !== fromLocationId && loc.area === toArea
+                            )
+                            .map((loc) => (
                           <option key={loc.id} value={loc.id}>
                             {loc.name} - {loc.area} ({loc.code})
                           </option>
@@ -440,10 +544,19 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                             <strong>📍 {toLocation.name}</strong>
                           </p>
                           <p className="text-xs text-blue-700 mt-1">
-                            Products will be moved to this location
+                              Products will be moved to this specific location in{' '}
+                              {toLocation.area}
                           </p>
                         </div>
                       )}
+                        {!toLocationId && toArea && (
+                          <div className="mt-2 text-xs text-gray-600">
+                            If you do not choose a specific location, the{' '}
+                            <span className="font-semibold">general location</span>{' '}
+                            for <span className="font-semibold">{toArea}</span> will be used.
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -454,7 +567,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                         value={toPersonId || ''}
                         onChange={(e) => setToPersonId(e.target.value || null)}
                         required
-                        disabled={!fromLocationId}
+                        disabled={!fromArea}
                         className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100"
                       >
                         <option value="">Select person to assign...</option>
@@ -483,8 +596,8 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                   )}
 
                   {/* Destination Requirement Notice */}
-                  {fromLocationId && (
-                    (destinationType === 'location' && !toLocationId) ||
+                  {fromArea && (
+                    (destinationType === 'location' && !toArea) ||
                     (destinationType === 'person' && !toPersonId)
                   ) && (
                     <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
@@ -503,7 +616,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                 </div>
 
                 {/* 4. SELECT PRODUCTS */}
-                {fromLocationId && (
+                {fromArea && (
                   <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm">
                     <label className="block text-sm font-semibold text-gray-900 mb-3">
                       <span className="flex items-center">
@@ -522,7 +635,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                       className="w-full px-4 py-2 mb-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
 
-                    {searchQuery && filteredProducts.length > 0 && (
+                    {filteredProducts.length > 0 && (
                       <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg mb-3">
                         {filteredProducts.map(product => (
                           <div
@@ -544,6 +657,31 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
 
                     {searchQuery && filteredProducts.length === 0 && (
                       <p className="text-sm text-gray-500 text-center py-4">No products found</p>
+                    )}
+
+                    {/* Simple pagination controls */}
+                    {availableTotalPages > 1 && (
+                      <div className="mt-2 flex items-center justify-between text-xs text-gray-600">
+                        <button
+                          type="button"
+                          onClick={() => setAvailablePage(p => Math.max(1, p - 1))}
+                          disabled={availablePage <= 1}
+                          className="px-2 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Previous
+                        </button>
+                        <span>
+                          Page {availablePage} of {availableTotalPages}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setAvailablePage(p => Math.min(availableTotalPages, p + 1))}
+                          disabled={availablePage >= availableTotalPages}
+                          className="px-2 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Next
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}
@@ -637,7 +775,12 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                 <button
                   type="submit"
                   onClick={handleSubmit}
-                  disabled={loading || !fromLocationId || !(destinationType === 'location' ? toLocationId : toPersonId) || selectedProducts.length === 0}
+                  disabled={
+                    loading ||
+                    !fromArea ||
+                    !(destinationType === 'location' ? toArea : toPersonId) ||
+                    selectedProducts.length === 0
+                  }
                   className="px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                 >
                   {loading ? 'Creating...' : (isBulkMovement ? 'Create Bulk Movement' : (destinationType === 'location' ? 'Move Product' : 'Assign Product'))}

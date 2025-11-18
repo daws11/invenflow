@@ -27,6 +27,8 @@ import { usersRouter } from "./routes/users";
 import { bulkMovementsRouter } from "./routes/bulk-movements";
 import { publicBulkMovementsRouter } from "./routes/public-bulk-movements";
 import productGroupsRouter from "./routes/product-groups";
+import { storedLogsRouter } from "./routes/stored-logs";
+import { startStoredCleanup } from "./services/storedCleanup";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -139,6 +141,7 @@ app.use("/api/persons", personsRouter);
 app.use("/api/products", productsRouter);
 app.use("/api/product-groups", productGroupsRouter);
 app.use("/api/transfer-logs", transferLogsRouter);
+app.use("/api/stored-logs", storedLogsRouter);
 app.use("/api/upload", uploadRouter);
 app.use("/api/validations", validationsRouter);
 
@@ -161,6 +164,8 @@ app.get("/", (req, res) => {
   } else {
     res.json({ message: "InvenFlow API is running" });
   }
+
+  startStoredCleanup();
 });
 
 // Production: SPA fallback - serve React app for all non-API routes

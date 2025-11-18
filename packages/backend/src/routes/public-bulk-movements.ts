@@ -208,7 +208,7 @@ router.post('/:token/confirm', async (req: Request, res: Response, next: NextFun
               fromPersonId: null,
               toPersonId: null,
               fromStockLevel: item.quantitySent,
-              toStockLevel: confirmedItem.quantityReceived,
+              quantityMoved: confirmedItem.quantityReceived, // Actual quantity received and moved
               notes: `Bulk movement confirmation. ${notes || ''}`,
               movedBy: confirmedBy,
             });

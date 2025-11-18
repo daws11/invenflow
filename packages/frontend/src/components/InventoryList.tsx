@@ -227,7 +227,7 @@ export function InventoryList({
         name: location.name,
         area: location.area,
         code: location.code,
-        display: `📍 ${location.name} (${location.area})`
+        display: `${location.name} (${location.area})`
       };
     }
     

@@ -19,6 +19,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import { authenticateToken } from '../middleware/auth';
 import type { Request, Response, NextFunction } from 'express';
 import { invalidateCache } from '../middleware/cache';
+import { getOrCreateGeneralLocation } from '../utils/generalLocation';
 
 const router = Router();
 
@@ -38,24 +39,74 @@ const isTokenExpired = (expiresAt: Date): boolean => {
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const validatedData = CreateBulkMovementSchema.parse(req.body);
-    const { fromLocationId, toLocationId, items, notes } = validatedData;
+    const {
+      fromLocationId,
+      fromArea,
+      toArea,
+      toLocationId,
+      items,
+      notes,
+    } = validatedData;
 
     // Get user from auth token
     const createdBy = (req as any).user?.email || (req as any).user?.username || 'unknown';
 
     // Use transaction to ensure data consistency
     const result = await db.transaction(async (tx) => {
-      // 1. Verify both locations exist
-      const [fromLocation, toLocation] = await Promise.all([
-        tx.select().from(locations).where(eq(locations.id, fromLocationId)).limit(1),
-        tx.select().from(locations).where(eq(locations.id, toLocationId)).limit(1),
-      ]);
+      // 1. Verify source location exists
+      const [fromLocation] = await tx
+        .select()
+        .from(locations)
+        .where(eq(locations.id, fromLocationId))
+        .limit(1);
 
-      if (!fromLocation.length) {
+      if (!fromLocation) {
         throw new Error('Source location not found');
       }
-      if (!toLocation.length) {
+
+      // Resolve source area if not provided
+      const resolvedFromArea = fromArea ?? fromLocation.area;
+
+      // Resolve destination location & area
+      let effectiveToLocationId: string | null = toLocationId ?? null;
+      let resolvedToArea: string | null = toArea ?? null;
+
+      let toLocationRow: typeof locations.$inferSelect | null = null;
+
+      if (effectiveToLocationId) {
+        const [toLocation] = await tx
+          .select()
+          .from(locations)
+          .where(eq(locations.id, effectiveToLocationId))
+          .limit(1);
+
+        if (!toLocation) {
+          throw new Error('Destination location not found');
+        }
+
+        toLocationRow = toLocation;
+        if (!resolvedToArea) {
+          resolvedToArea = toLocation.area;
+        }
+      } else if (toArea) {
+        // No explicit destination location, but area provided:
+        // use (or create) the general location for this area
+        effectiveToLocationId = await getOrCreateGeneralLocation(tx, toArea);
+
+        const [toLocation] = await tx
+          .select()
+          .from(locations)
+          .where(eq(locations.id, effectiveToLocationId))
+          .limit(1);
+
+        if (!toLocation) {
         throw new Error('Destination location not found');
+        }
+
+        toLocationRow = toLocation;
+        resolvedToArea = toLocation.area;
+      } else {
+        throw new Error('Either toArea or toLocationId must be provided');
       }
 
       // 2. Fetch all products and verify they exist, are stored, and have sufficient stock
@@ -64,11 +115,13 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         .select()
         .from(products)
         .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
-        .where(and(
+        .where(
+          and(
           inArray(products.id, productIds),
           eq(products.locationId, fromLocationId),
           eq(products.columnStatus, 'Stored')
-        ));
+          )
+        );
 
       if (productsData.length !== items.length) {
         throw new Error('Some products not found, not stored, or not at source location');
@@ -98,7 +151,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         .insert(bulkMovements)
         .values({
           fromLocationId,
-          toLocationId,
+          toLocationId: effectiveToLocationId!,
           status: 'in_transit',
           publicToken,
           tokenExpiresAt,
@@ -148,8 +201,8 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       return {
         bulkMovement,
         items: createdItems,
-        fromLocation: fromLocation[0],
-        toLocation: toLocation[0],
+        fromLocation,
+        toLocation: toLocationRow!,
       };
     });
 

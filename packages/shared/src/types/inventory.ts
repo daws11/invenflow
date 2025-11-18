@@ -49,6 +49,7 @@ export const InventoryFiltersSchema = z.object({
   category: z.array(z.string()).optional(),
   supplier: z.array(z.string()).optional(),
   location: z.array(z.string()).optional(),
+  area: z.array(z.string()).optional(),
   columnStatus: z.array(z.string()).optional(), // Filter by specific column statuses
   stockMin: z.number().int().min(0).optional(),
   stockMax: z.number().int().min(0).optional(),

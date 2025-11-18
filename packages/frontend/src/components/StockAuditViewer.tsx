@@ -141,11 +141,9 @@ export function StockAuditViewer({ productId, locationId, onClose }: StockAuditV
     }
   };
 
-  const getStockChangeIndicator = (from: number | null, to: number) => {
-    if (from === null) return { icon: '➕', color: 'text-green-600', text: `Added ${to}` };
-    if (from === to) return { icon: '↔️', color: 'text-blue-600', text: 'No change' };
-    if (from > to) return { icon: '📉', color: 'text-red-600', text: `Reduced by ${from - to}` };
-    return { icon: '📈', color: 'text-green-600', text: `Increased by ${to - from}` };
+  const getStockChangeIndicator = (quantityMoved: number) => {
+    if (quantityMoved === 0) return { icon: '↔️', color: 'text-blue-600', text: 'No change' };
+    return { icon: '📦', color: 'text-blue-600', text: `Moved ${quantityMoved} units` };
   };
 
   if (loading) {
@@ -325,7 +323,7 @@ export function StockAuditViewer({ productId, locationId, onClose }: StockAuditV
         ) : (
           <div className="divide-y divide-gray-200">
             {movements.map((movement, index) => {
-              const stockChange = getStockChangeIndicator(movement.fromStockLevel, movement.toStockLevel);
+              const stockChange = getStockChangeIndicator(movement.quantityMoved);
               const fromPersonName = getPersonName(movement.fromPersonId);
               const toPersonName = getPersonName(movement.toPersonId);
 
@@ -395,9 +393,11 @@ export function StockAuditViewer({ productId, locationId, onClose }: StockAuditV
                           <span className="text-lg">{stockChange.icon}</span>
                           <span className="text-sm font-medium">{stockChange.text}</span>
                         </div>
+                        {movement.fromStockLevel !== null && (
                         <div className="text-sm text-gray-500">
-                          Stock: {movement.fromStockLevel || 0} → {movement.toStockLevel}
+                            Source Stock: {movement.fromStockLevel} → {Math.max(0, movement.fromStockLevel - movement.quantityMoved)}
                         </div>
+                        )}
                       </div>
 
                       {/* User and notes */}

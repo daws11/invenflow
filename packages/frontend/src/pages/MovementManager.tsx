@@ -66,18 +66,28 @@ export default function MovementManager() {
 
   const combinedRows = useMemo(() => {
     // Map movement logs to unified shape
-    const singleRows = movements.map((movement) => ({
-      kind: 'single' as const,
-      id: movement.id,
-      date: movement.createdAt.toString(),
-      productLabel: movement.product?.productDetails || 'Unknown Product',
-      fromLocation: movement.fromLocation,
-      toLocation: movement.toLocation,
-      fromPerson: movement.fromPerson,
-      toPerson: movement.toPerson,
-      stockChange: `${movement.fromStockLevel || 0} → ${movement.toStockLevel}`,
-      movedBy: movement.movedBy || 'System',
-    }));
+    const singleRows = movements.map((movement) => {
+      // Parse movedBy to detect system imports
+      const isSystemImport = movement.movedBy?.startsWith('system:');
+      const importType = isSystemImport 
+        ? movement.movedBy?.split(':')[1] 
+        : null;
+      
+      return {
+        kind: 'single' as const,
+        id: movement.id,
+        date: movement.createdAt.toString(),
+        productLabel: movement.product?.productDetails || 'Unknown Product',
+        fromLocation: movement.fromLocation,
+        toLocation: movement.toLocation,
+        fromPerson: movement.fromPerson,
+        toPerson: movement.toPerson,
+        stockChange: `${movement.fromStockLevel || 0} → ${movement.quantityMoved}`,
+        movedBy: movement.movedBy || 'System',
+        isSystemImport,
+        importType,
+      };
+    });
 
     // Map bulk movements to unified shape
     const bulkRows = bulkMovements.map((bm) => {
@@ -333,8 +343,12 @@ export default function MovementManager() {
                     <td className="px-4 py-3 whitespace-nowrap text-xs font-medium text-gray-700">
                       {row.kind === 'bulk' ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">Bulk</span>
+                      ) : 'isSystemImport' in row && row.isSystemImport ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
+                          {'importType' in row && row.importType === 'direct-import' ? '📦 Direct Import' : '📦 Bulk Import'}
+                        </span>
                       ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">Single</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">Manual</span>
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
@@ -432,43 +446,34 @@ export default function MovementManager() {
                           const movement = movements.find(m => m.id === row.id);
                           if (!movement) return <span className="text-gray-400">—</span>;
 
-                          const fromStockLevel = movement.fromStockLevel || 0;
-                          const toStockLevel = movement.toStockLevel;
-
-                          // Calculate quantity moved - improved estimation
-                          // For demonstration, we'll use a more reasonable calculation
-                          // If fromStockLevel > toStockLevel, assume quantity is the difference
-                          // Otherwise, use a portion of the stock levels
-                          let quantityMoved;
-                          if (fromStockLevel > toStockLevel) {
-                            quantityMoved = Math.max(1, Math.round(fromStockLevel * 0.1)); // Assume 10% of from stock
-                          } else {
-                            quantityMoved = Math.max(1, Math.round((fromStockLevel + toStockLevel) / 15)); // Fallback calculation
-                          }
-
-                          // Alternative: if you know the logic, you can adjust this calculation
-                          // For the example: 100 (from) -> 20 (to) = quantity 10
-                          // This assumes: final_TO = initial_TO + quantity, final_FROM = initial_FROM - quantity
-
-                          // Calculate final stock levels
-                          const finalFromStock = Math.max(0, fromStockLevel - quantityMoved);
-                          const finalToStock = toStockLevel;
+                          const fromStock = movement.fromStockLevel ?? 0;
+                          const quantityMoved = movement.quantityMoved ?? 0;
+                          const remainingFrom = Math.max(0, fromStock - quantityMoved);
+                          const toStockLevel = movement.toStockLevel ?? null;
 
                           return (
                             <div className="flex items-center space-x-3">
-                              {/* FROM location final stock */}
+                              {/* FROM location: remaining stock and negative delta */}
                               <div className="text-center">
-                                <div className="font-medium text-gray-900 text-sm">{finalFromStock}</div>
-                                <div className="text-red-600 text-xs">(-{quantityMoved})</div>
+                                <div className="font-medium text-gray-900 text-sm">
+                                  {remainingFrom}
+                                </div>
+                                <div className="text-red-600 text-xs">
+                                  (-{quantityMoved})
+                                </div>
                               </div>
 
                               {/* Arrow */}
                               <ArrowRightIcon className="h-3 w-3 text-gray-400 flex-shrink-0" />
 
-                              {/* TO location final stock */}
+                              {/* TO location: show total stock at destination if known, plus positive delta */}
                               <div className="text-center">
-                                <div className="font-medium text-gray-900 text-sm">{finalToStock}</div>
-                                <div className="text-green-600 text-xs">(+{quantityMoved})</div>
+                                <div className="font-medium text-gray-900 text-sm">
+                                  {toStockLevel !== null ? toStockLevel : '—'}
+                                </div>
+                                <div className="text-green-600 text-xs">
+                                  (+{quantityMoved})
+                                </div>
                               </div>
                             </div>
                           );
@@ -480,10 +485,21 @@ export default function MovementManager() {
                     <td className="px-4 py-3 whitespace-nowrap text-sm">
                       {row.movedBy ? (
                         <div className="flex items-center space-x-1.5">
-                          <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                          <span className="text-gray-900 font-medium">{row.movedBy}</span>
+                          {'isSystemImport' in row && row.isSystemImport ? (
+                            <>
+                              <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <span className="text-emerald-700 font-medium text-xs">Import System</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                              <span className="text-gray-900 font-medium">{row.movedBy}</span>
+                            </>
+                          )}
                         </div>
                       ) : (
                         <span className="text-gray-400 italic text-xs">System</span>

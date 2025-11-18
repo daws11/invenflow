@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, index, foreignKey, jsonb, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, index, foreignKey, jsonb, boolean, integer } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { products } from './products';
 import { locations } from './locations';
@@ -18,6 +18,8 @@ export const kanbans = pgTable(
     isPublicFormEnabled: boolean('is_public_form_enabled').notNull().default(true),
     formFieldSettings: jsonb('form_field_settings').default('{}'),
     thresholdRules: jsonb('threshold_rules').default('[]'),
+    storedAutoArchiveEnabled: boolean('stored_auto_archive_enabled').notNull().default(false),
+    storedAutoArchiveAfterHours: integer('stored_auto_archive_after_hours'),
     createdAt: timestamp('created_at', { mode: 'string' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { mode: 'string' }).notNull().defaultNow(),
   },

@@ -13,3 +13,4 @@ export * from './product-group.js';
 export * from './product-validation.js';
 export * from './transfer-log.js';
 export * from './user.js';
+export * from './stored-log.js';

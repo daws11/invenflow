@@ -11,6 +11,7 @@ import { useAuthStore } from './store/authStore';
 const KanbanPurchasingPage = lazy(() => import('./pages/KanbanPurchasingPage'));
 const KanbanReceivingPage = lazy(() => import('./pages/KanbanReceivingPage'));
 const KanbanBoard = lazy(() => import('./pages/KanbanBoard'));
+const StoredLogPage = lazy(() => import('./pages/StoredLogPage'));
 const InventoryManager = lazy(() => import('./pages/InventoryManager'));
 const LocationsPage = lazy(() => import('./pages/LocationsPage'));
 const PersonsPage = lazy(() => import('./pages/PersonsPage'));
@@ -104,6 +105,15 @@ function App() {
                 <ProtectedRoute>
                   <Suspense fallback={<PageLoader />}>
                     <KanbanReceivingPage />
+                  </Suspense>
+                </ProtectedRoute>
+              </Layout>
+            } />
+            <Route path="/stored-log" element={
+              <Layout>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <StoredLogPage />
                   </Suspense>
                 </ProtectedRoute>
               </Layout>

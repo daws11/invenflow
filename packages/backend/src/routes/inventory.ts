@@ -97,6 +97,7 @@ router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) 
     const categoryValues = toStringArray(req.query.category);
     const supplierValues = toStringArray(req.query.supplier);
     const locationValues = toStringArray(req.query.location);
+    const areaValues = toStringArray(req.query.area);
     const stockMinValue = toNumberValue(req.query.stockMin);
     const stockMaxValue = toNumberValue(req.query.stockMax);
     const dateFromValue = toDateValue(req.query.dateFrom);
@@ -145,6 +146,18 @@ router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) 
 
     if (locationValues.length > 0) {
       pushCondition(inArray(products.locationId, locationValues));
+    }
+
+    if (areaValues.length > 0) {
+      // Filter by area through locations table without relying on array literals
+      pushCondition(
+        sql`exists (
+          select 1
+          from ${locations}
+          where ${locations.id} = ${products.locationId}
+            and ${inArray(locations.area, areaValues)}
+        )`
+      );
     }
 
     if (stockMinValue !== undefined) {
@@ -411,11 +424,8 @@ router.get('/export', authorizeRoles('admin', 'manager'), async (req, res, next)
         conditions.push(clause);
       }
     };
-    // Include receive kanban items OR direct import products (kanban_id IS NULL)
-    // Using raw SQL condition to handle LEFT JOIN properly
-    pushCondition(
-      sql`(${kanbans.type} = 'receive' OR ${products.kanbanId} IS NULL)`
-    );
+    // Only receive kanban items
+    pushCondition(eq(kanbans.type, 'receive'));
     // Status
     if (columnStatusValues.length > 0) {
       pushCondition(inArray(products.columnStatus, columnStatusValues));
@@ -476,7 +486,7 @@ router.get('/export', authorizeRoles('admin', 'manager'), async (req, res, next)
 
     if (grouped) {
       // Use raw grouped query similar to /grouped
-      const whereClauses: string[] = ["(k.type = 'receive' OR p.kanban_id IS NULL)", "p.sku IS NOT NULL", "p.is_draft = false"];
+      const whereClauses: string[] = ["k.type = 'receive'", "p.sku IS NOT NULL", "p.is_draft = false"];
       if (searchValue) {
         const escaped = searchValue.replace(/'/g, "''");
         whereClauses.push(`(p.product_details ILIKE '%${escaped}%' OR p.sku ILIKE '%${escaped}%')`);
@@ -515,7 +525,7 @@ router.get('/export', authorizeRoles('admin', 'manager'), async (req, res, next)
             MAX(p.original_purchase_date) as "originalPurchaseDate",
             MAX(p.updated_at) as "lastUpdated"
           FROM products p
-          LEFT JOIN kanbans k ON p.kanban_id = k.id
+          INNER JOIN kanbans k ON p.kanban_id = k.id
           LEFT JOIN locations l ON p.location_id = l.id
           ${sql.raw(whereClause)}
           GROUP BY p.sku
@@ -567,7 +577,7 @@ router.get('/export', authorizeRoles('admin', 'manager'), async (req, res, next)
           locationName: locations.name,
         })
         .from(products)
-        .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
+        .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
         .leftJoin(locations, eq(products.locationId, locations.id))
         .where(whereCombined)
         .orderBy(desc(products.updatedAt));
@@ -1326,14 +1336,43 @@ router.post('/import/stored', authorizeRoles('admin', 'manager'), async (req, re
             .where(eq(products.id, productRecord.id))
             .returning();
 
+          // Get area information for movement log
+          let fromAreaName: string | null = null;
+          let toAreaName: string | null = null;
+          
+          if (prevLocationId) {
+            const [prevLoc] = await db
+              .select()
+              .from(locations)
+              .where(eq(locations.id, prevLocationId))
+              .limit(1);
+            fromAreaName = prevLoc?.area || null;
+          }
+          
+          if (resolvedLocationId) {
+            const [newLoc] = await db
+              .select()
+              .from(locations)
+              .where(eq(locations.id, resolvedLocationId))
+              .limit(1);
+            toAreaName = newLoc?.area || null;
+          }
+
+          // Determine import type for better tracking
+          const importType = bypassKanban ? 'direct-import' : 'bulk-import';
+          const stockChange = Math.abs(newStock - oldStock);
+          const changeDirection = newStock > oldStock ? 'increased' : 'decreased';
+          
           await db.insert(movementLogs).values({
             productId: productRecord.id,
             fromLocationId: prevLocationId,
             toLocationId: resolvedLocationId,
+            fromArea: fromAreaName,
+            toArea: toAreaName,
             fromStockLevel: oldStock,
-            toStockLevel: newStock,
-            notes: item.notes || `Stock adjustment via import (batch ${batchId})`,
-            movedBy,
+            quantityMoved: stockChange,
+            notes: item.notes || `📦 Stock ${changeDirection} by ${stockChange} units via ${importType} (batch: ${batchId})`,
+            movedBy: `system:${importType}:${movedBy}`,
             createdAt: now,
           });
 
@@ -1401,14 +1440,30 @@ router.post('/import/stored', authorizeRoles('admin', 'manager'), async (req, re
             })
             .returning();
 
+          // Get area information for movement log
+          let toAreaName: string | null = null;
+          if (resolvedLocationId) {
+            const [newLoc] = await db
+              .select()
+              .from(locations)
+              .where(eq(locations.id, resolvedLocationId))
+              .limit(1);
+            toAreaName = newLoc?.area || null;
+          }
+
+          // Determine import type for better tracking
+          const importType = bypassKanban ? 'direct-import' : 'bulk-import';
+          
           await db.insert(movementLogs).values({
             productId: created.id,
             fromLocationId: null,
             toLocationId: resolvedLocationId,
+            fromArea: null,
+            toArea: toAreaName,
             fromStockLevel: 0,
-            toStockLevel: item.newStockLevel,
-            notes: item.notes || `Initial setup via import (batch ${batchId})`,
-            movedBy,
+            quantityMoved: item.newStockLevel, // Initial stock quantity
+            notes: item.notes || `🆕 Initial stock of ${item.newStockLevel} units created via ${importType} (batch: ${batchId})`,
+            movedBy: `system:${importType}:${movedBy}`,
             createdAt: now,
           });
 

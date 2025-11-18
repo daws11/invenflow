@@ -19,6 +19,7 @@ import {
   DocumentTextIcon,
   MapPinIcon,
   CheckCircleIcon,
+  ArchiveBoxArrowDownIcon,
 } from '@heroicons/react/24/outline';
 import { Slider } from './Slider';
 import { SliderTabs, SliderTab } from './SliderTabs';
@@ -31,7 +32,7 @@ interface KanbanSettingsModalProps {
   productCount?: number;
 }
 
-type TabType = 'overview' | 'edit' | 'linking' | 'publicForm' | 'threshold';
+type TabType = 'overview' | 'edit' | 'linking' | 'publicForm' | 'threshold' | 'stored';
 
 export function KanbanSettingsModal({
   isOpen,
@@ -68,6 +69,12 @@ export function KanbanSettingsModal({
   // Threshold state
   const [thresholdRules, setThresholdRules] = useState<ThresholdRule[]>(kanban?.thresholdRules || []);
   const [isSavingThreshold, setIsSavingThreshold] = useState(false);
+  const [storedAutomationEnabled, setStoredAutomationEnabled] = useState(kanban?.storedAutoArchiveEnabled ?? false);
+  const [storedAutomationHours, setStoredAutomationHours] = useState<number | ''>(
+    kanban?.storedAutoArchiveAfterHours ?? '',
+  );
+  const [storedSettingsError, setStoredSettingsError] = useState<string | null>(null);
+  const [isSavingStoredSettings, setIsSavingStoredSettings] = useState(false);
   // Receive kanban default location
   const [locations, setLocations] = useState<Array<{ id: string; name: string; area?: string; code?: string }>>([]);
   const [editLocationId, setEditLocationId] = useState<string | null>(kanban?.locationId ?? null);
@@ -107,6 +114,9 @@ export function KanbanSettingsModal({
       setOptimisticPublicFormEnabled(kanban.isPublicFormEnabled);
       setFormFieldSettings(kanban.formFieldSettings || DEFAULT_FORM_FIELD_SETTINGS);
       setEditLocationId(kanban.locationId ?? null);
+      setStoredAutomationEnabled(kanban.storedAutoArchiveEnabled ?? false);
+      setStoredAutomationHours(kanban.storedAutoArchiveAfterHours ?? '');
+      setStoredSettingsError(null);
     }
   }, [kanban]);
 
@@ -252,6 +262,61 @@ export function KanbanSettingsModal({
     }
   };
 
+  const validateStoredSettings = () => {
+    if (!storedAutomationEnabled) {
+      setStoredSettingsError(null);
+      return true;
+    }
+
+    if (storedAutomationHours === '' || typeof storedAutomationHours !== 'number') {
+      setStoredSettingsError('Please provide the number of hours before auto-archive runs.');
+      return false;
+    }
+
+    if (storedAutomationHours < 1 || storedAutomationHours > 720) {
+      setStoredSettingsError('Hours must be between 1 and 720.');
+      return false;
+    }
+
+    setStoredSettingsError(null);
+    return true;
+  };
+
+  const handleSaveStoredSettings = async () => {
+    if (!kanban) return;
+    if (!validateStoredSettings()) return;
+
+    setIsSavingStoredSettings(true);
+    try {
+      await updateKanban(kanban.id, {
+        storedAutoArchiveEnabled: storedAutomationEnabled,
+        storedAutoArchiveAfterHours:
+          storedAutomationEnabled && typeof storedAutomationHours === 'number'
+            ? storedAutomationHours
+            : null,
+      });
+      toast.success('Stored column settings saved successfully!');
+      setActiveTab('overview');
+    } catch (error) {
+      console.error('Failed to save stored column settings:', error);
+      toast.error('Failed to save stored column settings');
+    } finally {
+      setIsSavingStoredSettings(false);
+    }
+  };
+
+  const handleStoredHoursInput = (value: string) => {
+    if (value === '') {
+      setStoredAutomationHours('');
+      return;
+    }
+
+    const parsed = parseInt(value, 10);
+    if (!Number.isNaN(parsed)) {
+      setStoredAutomationHours(parsed);
+    }
+  };
+
   // Get linked info from currentKanban if available and has linkedKanbans data
   // Prioritize currentKanban from store if it matches and has complete data
   const activeKanban = (currentKanban?.id === kanban.id && currentKanban.linkedKanbans !== undefined) 
@@ -336,6 +401,22 @@ export function KanbanSettingsModal({
         </div>
       )}
 
+      {kanban.type === 'receive' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <div className="flex items-center mb-2">
+            <ArchiveBoxArrowDownIcon className="w-5 h-5 text-amber-600 mr-2" />
+            <h5 className="font-medium text-amber-900">Stored Column Automation</h5>
+          </div>
+          <p className="text-sm text-amber-800">
+            {kanban.storedAutoArchiveEnabled
+              ? `Enabled • Cards older than ${kanban.storedAutoArchiveAfterHours ?? '?'} hour${
+                  kanban.storedAutoArchiveAfterHours === 1 ? '' : 's'
+                } will move to Stored Log automatically.`
+              : 'Disabled • Stored cards stay visible until removed manually.'}
+          </p>
+        </div>
+      )}
+
       {/* Quick Actions */}
       <div className="space-y-3">
         <h5 className="text-sm font-medium text-gray-700">Quick Actions</h5>
@@ -373,6 +454,25 @@ export function KanbanSettingsModal({
             </p>
           </div>
         </button>
+
+        {kanban.type === 'receive' && (
+          <button
+            onClick={() => setActiveTab('stored')}
+            className="w-full flex items-center px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors border border-gray-200"
+          >
+            <ArchiveBoxArrowDownIcon className="w-5 h-5 text-gray-400 mr-3" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900">Stored column automation</p>
+              <p className="text-xs text-gray-500">
+                {kanban.storedAutoArchiveEnabled
+                  ? `Auto-removal after ${
+                      kanban.storedAutoArchiveAfterHours || 'configured'
+                    } hour${kanban.storedAutoArchiveAfterHours === 1 ? '' : 's'}`
+                  : 'Set up automatic cleanup for Stored cards'}
+              </p>
+            </div>
+          </button>
+        )}
 
         <button
           onClick={() => setActiveTab('threshold')}
@@ -595,6 +695,122 @@ export function KanbanSettingsModal({
     </div>
   );
 
+  const resolvedStoredHours =
+    typeof storedAutomationHours === 'number'
+      ? storedAutomationHours
+      : kanban.storedAutoArchiveAfterHours ?? null;
+
+  const storedSettingsContent = (
+    <div className="space-y-6">
+      <div
+        className={`rounded-lg border p-4 ${
+          storedAutomationEnabled ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'
+        }`}
+      >
+        <div className="flex items-center gap-2 mb-1">
+          <div className={`w-2 h-2 rounded-full ${storedAutomationEnabled ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+          <p className="text-sm font-medium text-gray-900">
+            {storedAutomationEnabled ? 'Auto-removal Enabled' : 'Auto-removal Disabled'}
+          </p>
+        </div>
+        <p className="text-xs text-gray-600">
+          {storedAutomationEnabled && resolvedStoredHours
+            ? `Cards that stay in the Stored column longer than ${resolvedStoredHours} hour${
+                resolvedStoredHours === 1 ? '' : 's'
+              } (~${(resolvedStoredHours / 24).toFixed(1)} day${
+                Math.round(resolvedStoredHours / 24) === 1 ? '' : 's'
+              }) will be archived automatically.`
+            : 'Enable this setting to automatically archive Stored items after a defined time window.'}
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div>
+            <p className="text-sm font-medium text-gray-900">Enable automatic cleanup</p>
+            <p className="text-xs text-gray-600">
+              Remove Stored cards after a configurable number of hours.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setStoredAutomationEnabled((prev) => !prev);
+              setStoredSettingsError(null);
+            }}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+              storedAutomationEnabled ? 'bg-blue-600' : 'bg-gray-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                storedAutomationEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        {storedAutomationEnabled && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Auto-remove after (hours)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={720}
+              value={storedAutomationHours === '' ? '' : storedAutomationHours}
+              onChange={(e) => handleStoredHoursInput(e.target.value)}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                storedSettingsError ? 'border-red-300' : 'border-gray-300'
+              }`}
+              placeholder="e.g. 72"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Minimum 1 hour, maximum 720 hours (30 days). Current window:{' '}
+              {resolvedStoredHours
+                ? `${resolvedStoredHours}h ≈ ${(resolvedStoredHours / 24).toFixed(1)} day${
+                    Math.round(resolvedStoredHours / 24) === 1 ? '' : 's'
+                  }`
+                : 'not set'}
+            </p>
+            {storedSettingsError && (
+              <p className="mt-1 text-sm text-red-600">{storedSettingsError}</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-900 font-medium">What happens after cleanup?</p>
+        <p className="text-xs text-blue-800 mt-1">
+          Archived cards are removed from the receive kanban and logged in the new Stored Log view so
+          you always have a traceable history of what entered storage.
+        </p>
+      </div>
+
+      <div className="flex gap-3 pt-4 border-t border-gray-200">
+        <button
+          onClick={() => {
+            setStoredAutomationEnabled(kanban.storedAutoArchiveEnabled ?? false);
+            setStoredAutomationHours(kanban.storedAutoArchiveAfterHours ?? '');
+            setStoredSettingsError(null);
+            setActiveTab('overview');
+          }}
+          className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSaveStoredSettings}
+          disabled={isSavingStoredSettings}
+          className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+        >
+          {isSavingStoredSettings ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+  );
+
   // Public Form content
   const publicFormContent = (
     <div className="space-y-6">
@@ -740,6 +956,16 @@ export function KanbanSettingsModal({
       content: linkingContent,
       icon: <LinkIcon className="h-4 w-4" />,
     },
+    ...(kanban.type === 'receive'
+      ? [
+          {
+            id: 'stored' as const,
+            label: 'Stored Column',
+            content: storedSettingsContent,
+            icon: <ArchiveBoxArrowDownIcon className="h-4 w-4" />,
+          },
+        ]
+      : []),
     ...(kanban.type === 'order' ? [{
       id: 'publicForm' as const,
       label: 'Public Form',

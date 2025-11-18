@@ -11,6 +11,8 @@ export const movementLogs = pgTable(
     productId: uuid('product_id')
       .notNull()
       .references(() => products.id, { onDelete: 'cascade' }),
+    fromArea: text('from_area'),
+    toArea: text('to_area'),
     fromLocationId: uuid('from_location_id')
       .references(() => locations.id, { onDelete: 'set null' }),
     toLocationId: uuid('to_location_id')
@@ -20,7 +22,9 @@ export const movementLogs = pgTable(
     toPersonId: uuid('to_person_id')
       .references(() => persons.id, { onDelete: 'set null' }),
     fromStockLevel: integer('from_stock_level'),
-    toStockLevel: integer('to_stock_level').notNull(),
+    // Total stock for this product (by SKU/fallback grouping) at destination location after this movement
+    toStockLevel: integer('to_stock_level'),
+    quantityMoved: integer('quantity_moved').notNull(),
     notes: text('notes'),
     movedBy: text('moved_by'), // user identifier (email or username)
     createdAt: timestamp('created_at').notNull().defaultNow(),

@@ -10,6 +10,7 @@ import {
   UpdateLocationSchema
 } from '@invenflow/shared';
 import { authenticateToken } from '../middleware/auth';
+import { ensureGeneralLocationsForDefaultAreas } from '../utils/generalLocation';
 
 const router = Router();
 
@@ -194,6 +195,18 @@ router.post('/', async (req, res, next) => {
     invalidateCache('/api/locations');
 
     res.status(201).json(createdLocation);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Ensure general locations exist for all default areas
+router.post('/ensure-general-locations', async (_req, res, next) => {
+  try {
+    await ensureGeneralLocationsForDefaultAreas();
+    // Invalidate cache so new locations appear in subsequent fetches
+    invalidateCache('/api/locations');
+    res.json({ message: 'General locations ensured for all default areas' });
   } catch (error) {
     next(error);
   }

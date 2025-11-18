@@ -145,8 +145,8 @@ router.get('/movement-trends', async (req, res, next) => {
       .select({
         period: dateGrouping.as('period'),
         totalMovements: sql<number>`count(*)`.as('total_movements'),
-        totalStockMoved: sql<number>`sum(${movementLogs.toStockLevel} - coalesce(${movementLogs.fromStockLevel}, 0))`.as('total_stock_moved'),
-        avgStockPerMovement: sql<number>`avg(${movementLogs.toStockLevel})`.as('avg_stock_per_movement'),
+        totalStockMoved: sql<number>`sum(${movementLogs.quantityMoved})`.as('total_stock_moved'),
+        avgStockPerMovement: sql<number>`avg(${movementLogs.quantityMoved})`.as('avg_stock_per_movement'),
       })
       .from(movementLogs)
       .where(and(...whereConditions))
@@ -160,7 +160,7 @@ router.get('/movement-trends', async (req, res, next) => {
         locationName: locations.name,
         incomingMovements: sql<number>`count(case when ${movementLogs.toLocationId} = ${locations.id} then 1 end)`.as('incoming_movements'),
         outgoingMovements: sql<number>`count(case when ${movementLogs.fromLocationId} = ${locations.id} then 1 end)`.as('outgoing_movements'),
-        netStockChange: sql<number>`sum(case when ${movementLogs.toLocationId} = ${locations.id} then ${movementLogs.toStockLevel} else 0 end) - sum(case when ${movementLogs.fromLocationId} = ${locations.id} then ${movementLogs.fromStockLevel} else 0 end)`.as('net_stock_change'),
+        netStockChange: sql<number>`sum(case when ${movementLogs.toLocationId} = ${locations.id} then ${movementLogs.quantityMoved} else 0 end) - sum(case when ${movementLogs.fromLocationId} = ${locations.id} then ${movementLogs.quantityMoved} else 0 end)`.as('net_stock_change'),
       })
       .from(locations)
       .leftJoin(movementLogs, sql`${movementLogs.fromLocationId} = ${locations.id} OR ${movementLogs.toLocationId} = ${locations.id}`)

@@ -217,22 +217,19 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
                         </div>
                       </div>
 
-                      {/* Stock Level Change */}
-                      {(movement.fromStockLevel !== null || movement.toStockLevel !== null) && (
+                      {/* Quantity Moved */}
+                      {movement.quantityMoved !== null && (
                         <div className="mt-2 flex items-center space-x-2 text-xs">
-                          <span className="text-gray-500">Stock:</span>
-                          <span className="text-gray-700">{movement.fromStockLevel || 0}</span>
+                          <span className="text-gray-500">Quantity Moved:</span>
+                          <span className="font-medium text-blue-600">{movement.quantityMoved}</span>
+                          {movement.fromStockLevel !== null && (
+                            <>
+                              <span className="text-gray-400">•</span>
+                              <span className="text-gray-500">From Stock:</span>
+                              <span className="text-gray-700">{movement.fromStockLevel}</span>
                           <ArrowRightIcon className="h-3 w-3 text-gray-400" />
-                          <span className="font-medium text-gray-900">{movement.toStockLevel}</span>
-                          {movement.toStockLevel !== (movement.fromStockLevel || 0) && (
-                            <span className={`font-medium ${
-                              movement.toStockLevel > (movement.fromStockLevel || 0)
-                                ? 'text-green-600'
-                                : 'text-red-600'
-                            }`}>
-                              ({movement.toStockLevel > (movement.fromStockLevel || 0) ? '+' : ''}
-                              {movement.toStockLevel - (movement.fromStockLevel || 0)})
-                            </span>
+                              <span className="text-gray-700">{Math.max(0, movement.fromStockLevel - movement.quantityMoved)}</span>
+                            </>
                           )}
                         </div>
                       )}
@@ -240,12 +237,31 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
                       {/* Moved By and Notes */}
                       <div className="mt-3 space-y-2">
                         {movement.movedBy && (
-                          <div className="flex items-center text-xs bg-gradient-to-r from-gray-50 to-white px-3 py-2 rounded-md border border-gray-200">
-                            <svg className="w-4 h-4 mr-1.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                            <span className="text-gray-600">Moved by:</span>
-                            <span className="ml-1.5 font-semibold text-gray-900">{movement.movedBy}</span>
+                          <div className="flex items-center justify-between text-xs bg-gradient-to-r from-gray-50 to-white px-3 py-2 rounded-md border border-gray-200">
+                            <div className="flex items-center">
+                              {movement.movedBy.startsWith('system:') ? (
+                                <>
+                                  <svg className="w-4 h-4 mr-1.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  <span className="text-gray-600">Import by:</span>
+                                  <span className="ml-1.5 font-semibold text-emerald-700">Import System</span>
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-4 h-4 mr-1.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                  </svg>
+                                  <span className="text-gray-600">Moved by:</span>
+                                  <span className="ml-1.5 font-semibold text-gray-900">{movement.movedBy}</span>
+                                </>
+                              )}
+                            </div>
+                            {movement.movedBy.startsWith('system:') && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                {movement.movedBy.split(':')[1] === 'direct-import' ? '📦 Direct Import' : '📦 Bulk Import'}
+                              </span>
+                            )}
                           </div>
                         )}
                         

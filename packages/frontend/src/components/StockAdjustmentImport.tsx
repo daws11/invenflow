@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { inventoryApi } from '../utils/api';
 import { useToast } from '../store/toastStore';
-import { ArrowUpTrayIcon, DocumentArrowDownIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { ArrowUpTrayIcon, DocumentArrowDownIcon, CheckCircleIcon, ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 type PreviewRow = {
   sku?: string;
@@ -99,10 +99,6 @@ export function StockAdjustmentImport({ onSuccess }: StockAdjustmentImportProps)
     setTouched(true);
   };
 
-  const canImport = useMemo(() => {
-    return preview.length > 0 && !processing;
-  }, [preview, processing]);
-
   // Basic per-row validation
   const validations = useMemo(() => {
     return preview.map(row => {
@@ -122,32 +118,51 @@ export function StockAdjustmentImport({ onSuccess }: StockAdjustmentImportProps)
   }, [preview]);
   const invalidCount = validations.filter(v => !v.ok).length;
 
+  const validRows = useMemo(() => {
+    return preview.filter((_, i) => validations[i]?.ok);
+  }, [preview, validations]);
+
+  const canImport = useMemo(() => {
+    return validRows.length > 0 && !processing;
+  }, [validRows, processing]);
+
+  const removeRow = (index: number) => {
+    setPreview(prev => prev.filter((_, i) => i !== index));
+    setTouched(true);
+  };
+
   const onImport = async () => {
-    if (!canImport || invalidCount > 0) return;
+    if (!canImport) return;
     setProcessing(true);
     setError(null);
     setResult(null);
     try {
+      // Only import valid rows
+      const validItems = preview
+        .map((r, i) => ({ row: r, index: i }))
+        .filter(({ index }) => validations[index]?.ok)
+        .map(({ row }) => ({
+          sku: row.sku,
+          legacySku: row.legacySku,
+          legacyId: row.legacyId,
+          productName: row.productName,
+          supplier: row.supplier,
+          category: row.category,
+          dimensions: row.dimensions ?? undefined,
+          newStockLevel: row.newStockLevel,
+          unit: row.unit,
+          locationCode: row.locationCode,
+          area: row.area,
+          locationName: row.locationName,
+          unitPrice: row.unitPrice,
+          notes: row.notes,
+          originalPurchaseDate: row.originalPurchaseDate,
+        }));
+
       const payload = {
         importBatchLabel: `Direct Import ${new Date().toISOString().slice(0,19).replace('T',' ')}`,
         bypassKanban: true,
-        items: preview.map(r => ({
-          sku: r.sku,
-          legacySku: r.legacySku,
-          legacyId: r.legacyId,
-          productName: r.productName,
-          supplier: r.supplier,
-          category: r.category,
-          dimensions: r.dimensions ?? undefined,
-          newStockLevel: r.newStockLevel,
-          unit: r.unit,
-          locationCode: r.locationCode,
-          area: r.area,
-          locationName: r.locationName,
-          unitPrice: r.unitPrice,
-          notes: r.notes,
-          originalPurchaseDate: r.originalPurchaseDate,
-        })),
+        items: validItems,
       };
       const res = await inventoryApi.importStored(payload);
       setResult(res);
@@ -235,16 +250,15 @@ export function StockAdjustmentImport({ onSuccess }: StockAdjustmentImportProps)
                 {touched && (
                   <>
                     {' • '}
-                    {invalidCount > 0 ? (
-                      <span className="inline-flex items-center text-red-600">
-                        <ExclamationTriangleIcon className="w-4 h-4 mr-1" />
-                        {invalidCount} invalid
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center text-green-600">
-                        <CheckCircleIcon className="w-4 h-4 mr-1" />
-                        All rows valid
-                      </span>
+                    <span className="font-medium text-green-600">{validRows.length} valid</span>
+                    {invalidCount > 0 && (
+                      <>
+                        {' • '}
+                        <span className="inline-flex items-center text-red-600">
+                          <ExclamationTriangleIcon className="w-4 h-4 mr-1" />
+                          {invalidCount} invalid
+                        </span>
+                      </>
                     )}
                   </>
                 )}
@@ -258,6 +272,7 @@ export function StockAdjustmentImport({ onSuccess }: StockAdjustmentImportProps)
                       <th key={h} className="px-2 py-2 text-left text-gray-600 font-medium whitespace-nowrap">{h}</th>
                     ))}
                     <th className="px-2 py-2 text-left text-gray-600 font-medium">Validation</th>
+                    <th className="px-2 py-2 text-left text-gray-600 font-medium">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -284,7 +299,23 @@ export function StockAdjustmentImport({ onSuccess }: StockAdjustmentImportProps)
                           {v?.ok ? (
                             <span className="text-green-600">OK</span>
                           ) : (
-                            <div className="text-red-600">{v?.errors[0]}</div>
+                            <div className="text-red-600 text-xs">
+                              {v?.errors.map((err, idx) => (
+                                <div key={idx}>{err}</div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-2 py-1">
+                          {!v?.ok && (
+                            <button
+                              type="button"
+                              onClick={() => removeRow(i)}
+                              className="inline-flex items-center text-red-600 hover:text-red-800 hover:bg-red-100 rounded p-1"
+                              title="Remove this row"
+                            >
+                              <XMarkIcon className="w-4 h-4" />
+                            </button>
                           )}
                         </td>
                       </tr>
@@ -324,11 +355,11 @@ export function StockAdjustmentImport({ onSuccess }: StockAdjustmentImportProps)
             Download Template
           </button>
           <button
-            disabled={!canImport || invalidCount > 0}
+            disabled={!canImport}
             onClick={onImport}
-            className={`text-xs px-4 py-2 rounded-md ${(!canImport || invalidCount > 0) ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+            className={`text-xs px-4 py-2 rounded-md ${!canImport ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
           >
-            {processing ? 'Processing...' : 'Confirm Import'}
+            {processing ? 'Processing...' : `Import ${validRows.length} Valid Row${validRows.length !== 1 ? 's' : ''}`}
           </button>
         </div>
       </div>

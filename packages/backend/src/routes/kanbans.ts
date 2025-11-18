@@ -29,6 +29,8 @@ router.get('/', cacheMiddleware({ ttl: 10 * 60 * 1000 }), async (req, res, next)
         isPublicFormEnabled: kanbans.isPublicFormEnabled,
         formFieldSettings: kanbans.formFieldSettings,
         thresholdRules: kanbans.thresholdRules,
+        storedAutoArchiveEnabled: kanbans.storedAutoArchiveEnabled,
+        storedAutoArchiveAfterHours: kanbans.storedAutoArchiveAfterHours,
         createdAt: kanbans.createdAt,
         updatedAt: kanbans.updatedAt,
         productCount: sql<number>`cast(count(${products.id}) as integer)`.as('productCount'),
@@ -62,6 +64,8 @@ router.get('/:id', async (req, res, next) => {
         isPublicFormEnabled: kanbans.isPublicFormEnabled,
         formFieldSettings: kanbans.formFieldSettings,
         thresholdRules: kanbans.thresholdRules,
+        storedAutoArchiveEnabled: kanbans.storedAutoArchiveEnabled,
+        storedAutoArchiveAfterHours: kanbans.storedAutoArchiveAfterHours,
         createdAt: kanbans.createdAt,
         updatedAt: kanbans.updatedAt,
         productCount: sql<number>`cast(count(${products.id}) as integer)`.as('productCount'),
@@ -227,11 +231,24 @@ router.put('/:id', async (req, res, next) => {
       throw createError('Invalid kanban data: ' + validationResult.error.message, 400);
     }
 
-    const { name, linkedKanbanId, defaultLinkedKanbanId, description, thresholdRules, formFieldSettings, locationId } = validationResult.data;
+    const {
+      name,
+      linkedKanbanId,
+      defaultLinkedKanbanId,
+      description,
+      thresholdRules,
+      formFieldSettings,
+      locationId,
+      storedAutoArchiveEnabled,
+      storedAutoArchiveAfterHours,
+    } = validationResult.data;
 
     // Check if kanban exists and get its type for validation
     const [existingKanban] = await db
-      .select({ type: kanbans.type })
+      .select({
+        type: kanbans.type,
+        storedAutoArchiveAfterHours: kanbans.storedAutoArchiveAfterHours,
+      })
       .from(kanbans)
       .where(eq(kanbans.id, id))
       .limit(1);
@@ -243,6 +260,22 @@ router.put('/:id', async (req, res, next) => {
     // Validate formFieldSettings is only for order kanbans
     if (formFieldSettings !== undefined && existingKanban.type !== 'order') {
       throw createError('Form field settings are only available for Order kanbans', 400);
+    }
+
+    if (
+      (storedAutoArchiveEnabled !== undefined ||
+        storedAutoArchiveAfterHours !== undefined) &&
+      existingKanban.type !== 'receive'
+    ) {
+      throw createError('Stored column automation is only available for Receive kanbans', 400);
+    }
+
+    if (
+      storedAutoArchiveAfterHours !== undefined &&
+      storedAutoArchiveAfterHours !== null &&
+      (storedAutoArchiveAfterHours < 1 || storedAutoArchiveAfterHours > 720)
+    ) {
+      throw createError('storedAutoArchiveAfterHours must be between 1 and 720 hours', 400);
     }
 
     // Validate locationId if provided
@@ -310,6 +343,15 @@ router.put('/:id', async (req, res, next) => {
     }
     if (formFieldSettings !== undefined) {
       updateData.formFieldSettings = formFieldSettings;
+    }
+    if (storedAutoArchiveEnabled !== undefined) {
+      updateData.storedAutoArchiveEnabled = storedAutoArchiveEnabled;
+      if (!storedAutoArchiveEnabled && storedAutoArchiveAfterHours === undefined) {
+        updateData.storedAutoArchiveAfterHours = null;
+      }
+    }
+    if (storedAutoArchiveAfterHours !== undefined) {
+      updateData.storedAutoArchiveAfterHours = storedAutoArchiveAfterHours;
     }
     updateData.updatedAt = new Date().toISOString();
 

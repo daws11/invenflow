@@ -6,6 +6,7 @@ import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
 import { invalidateCache } from '../middleware/cache';
 import { CreateMovementSchema, CreateBatchDistributionSchema } from '@invenflow/shared';
+import { getOrCreateGeneralLocation } from '../utils/generalLocation';
 
 const router = Router();
 
@@ -172,7 +173,15 @@ router.get('/product/:productId', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const validatedData = CreateMovementSchema.parse(req.body);
-    const { productId, toLocationId, toPersonId, quantityToMove, notes } = validatedData;
+    const {
+      productId,
+      fromArea,
+      toArea,
+      toLocationId,
+      toPersonId,
+      quantityToMove,
+      notes,
+    } = validatedData;
 
     // Get user from auth token
     const movedBy = (req as any).user?.email || (req as any).user?.username || null;
@@ -194,19 +203,50 @@ router.post('/', async (req, res, next) => {
         throw createError('Only products with "Stored" status can be moved', 400);
       }
 
-      // 2. Verify target location or person exists
-      if (toLocationId) {
+      // 2. Resolve source area (fromArea) based on product location if not provided
+      let resolvedFromArea: string | null = fromArea ?? null;
+      if (!resolvedFromArea && product.locationId) {
+        const [sourceLocation] = await tx
+          .select()
+          .from(locations)
+          .where(eq(locations.id, product.locationId))
+          .limit(1);
+        resolvedFromArea = sourceLocation?.area ?? null;
+      }
+
+      // 3. Resolve destination location & area
+      let effectiveToLocationId: string | null = toLocationId ?? null;
+      let resolvedToArea: string | null = toArea ?? null;
+
+      if (effectiveToLocationId) {
         const [targetLocation] = await tx
           .select()
           .from(locations)
-          .where(eq(locations.id, toLocationId))
+          .where(eq(locations.id, effectiveToLocationId))
           .limit(1);
 
         if (!targetLocation) {
           throw createError('Target location not found', 404);
         }
+
+        if (!resolvedToArea) {
+          resolvedToArea = targetLocation.area;
+        }
+      } else if (toArea && !toPersonId) {
+        // No explicit destination location, but area provided:
+        // use (or create) the general location for this area
+        effectiveToLocationId = await getOrCreateGeneralLocation(tx, toArea);
+
+        const [targetLocation] = await tx
+          .select()
+          .from(locations)
+          .where(eq(locations.id, effectiveToLocationId))
+          .limit(1);
+
+        resolvedToArea = targetLocation?.area ?? toArea;
       }
 
+      // 4. Verify target person exists (if provided)
       if (toPersonId) {
         const [targetPerson] = await tx
           .select()
@@ -219,23 +259,25 @@ router.post('/', async (req, res, next) => {
         }
       }
 
-      // 3. Create movement log
+      // 5. Create movement log (with area metadata). We will update toStockLevel after stock changes.
       const [movementLog] = await tx
         .insert(movementLogs)
         .values({
           productId,
+          fromArea: resolvedFromArea,
+          toArea: resolvedToArea,
           fromLocationId: product.locationId,
-          toLocationId: toLocationId || null,
+          toLocationId: effectiveToLocationId,
           fromPersonId: product.assignedToPersonId,
           toPersonId: toPersonId || null,
           fromStockLevel: product.stockLevel,
-          toStockLevel: quantityToMove,
+          quantityMoved: quantityToMove,
           notes: notes || null,
           movedBy,
         })
         .returning();
 
-      // 4. Handle stock movement logic
+      // 6. Handle stock movement logic
       const currentStock = product.stockLevel || 0;
       
       // Validate that we're not moving more than available
@@ -251,19 +293,23 @@ router.post('/', async (req, res, next) => {
       const shouldMoveAllStock = remainingStock === 0;
 
       let updatedProduct;
+      let destinationProduct: ProductRecord | null = null;
 
       if (shouldMoveAllStock) {
         // Move entire product to new location
         [updatedProduct] = await tx
           .update(products)
           .set({
-            locationId: toLocationId || product.locationId,
+            // If we have a destination location, move there; otherwise keep current
+            locationId: effectiveToLocationId ?? product.locationId,
             assignedToPersonId: toPersonId || product.assignedToPersonId,
             stockLevel: quantityToMove,
             updatedAt: new Date(),
           })
           .where(eq(products.id, productId))
           .returning();
+
+        destinationProduct = updatedProduct;
       } else {
         // Partial movement: reduce stock at source and create new product at destination
         // Update source product stock
@@ -284,7 +330,7 @@ router.post('/', async (req, res, next) => {
             columnStatus: 'Stored',
             productDetails: product.productDetails,
             productLink: product.productLink,
-            locationId: toLocationId || null,
+            locationId: effectiveToLocationId || null,
             assignedToPersonId: toPersonId || null,
             priority: product.priority,
             stockLevel: quantityToMove,
@@ -304,6 +350,8 @@ router.post('/', async (req, res, next) => {
           })
           .returning();
 
+        destinationProduct = newProduct ?? null;
+
         // Update movement log to reference the new product for destination tracking
         await tx
           .update(movementLogs)
@@ -313,8 +361,56 @@ router.post('/', async (req, res, next) => {
           .where(eq(movementLogs.id, movementLog.id));
       }
 
+      // 7. Compute destination total stock (toStockLevel) if we have a destination location
+      // We group primarily by SKU; if SKU is null, we fall back to kanban + productDetails.
+      let toStockLevel: number | null = null;
+      if (effectiveToLocationId && destinationProduct) {
+        const sku = destinationProduct.sku;
+
+        if (sku) {
+          const [row] = await tx
+            .select({
+              total: sql<number>`coalesce(sum(${products.stockLevel}), 0)`,
+            })
+            .from(products)
+            .where(
+              and(
+                eq(products.locationId, effectiveToLocationId),
+                eq(products.sku, sku)
+              )
+            );
+
+          toStockLevel = Number(row?.total ?? 0);
+        } else {
+          const [row] = await tx
+            .select({
+              total: sql<number>`coalesce(sum(${products.stockLevel}), 0)`,
+            })
+            .from(products)
+            .where(
+              and(
+                eq(products.locationId, effectiveToLocationId),
+                eq(products.kanbanId, destinationProduct.kanbanId),
+                eq(products.productDetails, destinationProduct.productDetails)
+              )
+            );
+
+          toStockLevel = Number(row?.total ?? 0);
+        }
+
+        await tx
+          .update(movementLogs)
+          .set({
+            toStockLevel,
+          })
+          .where(eq(movementLogs.id, movementLog.id));
+      }
+
       return {
-        movementLog,
+        movementLog: {
+          ...movementLog,
+          toStockLevel,
+        },
         product: updatedProduct,
       };
     });
@@ -456,11 +552,55 @@ router.post('/batch-distribute', async (req, res, next) => {
             fromPersonId: sourceProduct.assignedToPersonId,
             toPersonId: distribution.toPersonId || null,
             fromStockLevel: availableStock,
-            toStockLevel: distribution.quantity,
+            quantityMoved: distribution.quantity,
             notes: distribution.notes || `Batch distribution from ${sourceProduct.productDetails}`,
             movedBy,
           })
           .returning();
+
+        // Compute destination stock for this distribution if it goes to a location
+        if (distribution.toLocationId) {
+          const sku = newProduct!.sku;
+          let toStockLevel: number | null = null;
+
+          if (sku) {
+            const [row] = await tx
+              .select({
+                total: sql<number>`coalesce(sum(${products.stockLevel}), 0)`,
+              })
+              .from(products)
+              .where(
+                and(
+                  eq(products.locationId, distribution.toLocationId),
+                  eq(products.sku, sku)
+                )
+              );
+
+            toStockLevel = Number(row?.total ?? 0);
+          } else {
+            const [row] = await tx
+              .select({
+                total: sql<number>`coalesce(sum(${products.stockLevel}), 0)`,
+              })
+              .from(products)
+              .where(
+                and(
+                  eq(products.locationId, distribution.toLocationId),
+                  eq(products.kanbanId, newProduct!.kanbanId),
+                  eq(products.productDetails, newProduct!.productDetails)
+                )
+              );
+
+            toStockLevel = Number(row?.total ?? 0);
+          }
+
+          await tx
+            .update(movementLogs)
+            .set({
+              toStockLevel,
+            })
+            .where(eq(movementLogs.id, movementLog.id));
+        }
 
         createdMovementLogs.push(movementLog);
       }

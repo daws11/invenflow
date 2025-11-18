@@ -5,10 +5,13 @@ export const MovementLogSchema = z.object({
   productId: z.string().uuid(),
   fromLocationId: z.string().uuid().nullable(),
   toLocationId: z.string().uuid().nullable(),
+  fromArea: z.string().nullable(),
+  toArea: z.string().nullable(),
   fromPersonId: z.string().uuid().nullable(),
   toPersonId: z.string().uuid().nullable(),
   fromStockLevel: z.number().int().min(0).nullable(),
-  toStockLevel: z.number().int().min(0),
+  toStockLevel: z.number().int().min(0).nullable(),
+  quantityMoved: z.number().int().min(0),
   notes: z.string().nullable(),
   movedBy: z.string().nullable(),
   createdAt: z.date(),
@@ -16,14 +19,16 @@ export const MovementLogSchema = z.object({
 
 export const CreateMovementSchema = z.object({
   productId: z.string().uuid(),
+  fromArea: z.string().min(1).max(255).nullable().optional(),
+  toArea: z.string().min(1).max(255).nullable().optional(),
   toLocationId: z.string().uuid().nullable().optional(),
   toPersonId: z.string().uuid().nullable().optional(),
   quantityToMove: z.number().int().positive(), // Changed from toStockLevel to quantityToMove for clarity
   notes: z.string().max(1000).nullable().optional(),
 }).refine(
-  (data) => data.toLocationId || data.toPersonId,
+  (data) => data.toArea || data.toLocationId || data.toPersonId,
   {
-    message: 'Either toLocationId or toPersonId must be provided',
+    message: 'Either toArea, toLocationId, or toPersonId must be provided',
   }
 );
 

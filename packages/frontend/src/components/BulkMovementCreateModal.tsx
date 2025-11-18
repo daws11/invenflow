@@ -20,13 +20,14 @@ interface SelectedItem extends CreateBulkMovementItem {
 export function BulkMovementCreateModal({ isOpen, onClose }: BulkMovementCreateModalProps) {
   const [step, setStep] = useState(1);
   const [fromLocationId, setFromLocationId] = useState('');
+  const [toArea, setToArea] = useState('');
   const [toLocationId, setToLocationId] = useState('');
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [notes, setNotes] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [createdBulkMovement, setCreatedBulkMovement] = useState<(BulkMovementWithDetails & { publicUrl: string }) | null>(null);
 
-  const { locations, fetchLocations } = useLocationStore();
+  const { locations, areas, fetchLocations } = useLocationStore();
   const { items: inventoryItems, fetchInventory } = useInventoryStore();
   const { createBulkMovement, loading } = useBulkMovementStore();
 
@@ -80,15 +81,23 @@ export function BulkMovementCreateModal({ isOpen, onClose }: BulkMovementCreateM
       return;
     }
 
-    if (!fromLocationId || !toLocationId) {
-      alert('Please select source and destination locations');
+    if (!fromLocationId) {
+      alert('Please select source location');
+      return;
+    }
+
+    if (!toArea) {
+      alert('Please select destination area');
       return;
     }
 
     try {
       const result = await createBulkMovement({
         fromLocationId,
-        toLocationId,
+        fromArea:
+          locations.find((loc) => loc.id === fromLocationId)?.area ?? null,
+        toArea,
+        toLocationId: toLocationId || null,
         items: selectedItems.map(({ productId, quantitySent }) => ({ productId, quantitySent })),
         notes: notes || null,
       });
@@ -103,6 +112,7 @@ export function BulkMovementCreateModal({ isOpen, onClose }: BulkMovementCreateM
   const handleClose = () => {
     setStep(1);
     setFromLocationId('');
+    setToArea('');
     setToLocationId('');
     setSelectedItems([]);
     setNotes('');
@@ -248,20 +258,64 @@ export function BulkMovementCreateModal({ isOpen, onClose }: BulkMovementCreateM
               <div className="space-y-4">
                 <h4 className="text-lg font-semibold">Step 3: Destination & Review</h4>
                 
+                <div className="space-y-3">
+                  {/* Destination Area (required) */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Destination Area
+                    </label>
+                    <select
+                      value={toArea}
+                      onChange={(e) => {
+                        setToArea(e.target.value);
+                        setToLocationId('');
+                      }}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select destination area...</option>
+                      {areas.map((areaValue) => (
+                        <option key={areaValue} value={areaValue}>
+                          {areaValue}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Destination Location (optional within area) */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Destination Location</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Destination Location (optional)
+                    </label>
                   <select
                     value={toLocationId}
                     onChange={(e) => setToLocationId(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={!toArea}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                   >
-                    <option value="">Select destination...</option>
-                    {locations.filter(loc => loc.isActive && loc.id !== fromLocationId).map((location) => (
+                      <option value="">
+                        Use general location for this area
+                      </option>
+                      {locations
+                        .filter(
+                          (loc) =>
+                            loc.isActive &&
+                            loc.id !== fromLocationId &&
+                            loc.area === toArea
+                        )
+                        .map((location) => (
                       <option key={location.id} value={location.id}>
                         {location.name} • {location.area}
                       </option>
                     ))}
                   </select>
+                    {!toLocationId && toArea && (
+                      <p className="mt-2 text-xs text-gray-600">
+                        If you do not choose a specific location, the general
+                        location for <span className="font-semibold">{toArea}</span>{' '}
+                        will be used.
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div>
