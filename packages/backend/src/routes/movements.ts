@@ -173,10 +173,135 @@ router.get('/product/:productId', async (req, res, next) => {
   }
 });
 
+// Get movement statistics (placed before '/:id' to avoid route conflicts)
+router.get('/stats', async (req, res, next) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    const whereConditions: SQL<unknown>[] = [];
+
+    if (startDate) {
+      whereConditions.push(gte(movementLogs.createdAt, new Date(startDate as string)));
+    }
+
+    if (endDate) {
+      whereConditions.push(lte(movementLogs.createdAt, new Date(endDate as string)));
+    }
+
+    const whereClause = combineConditions(whereConditions);
+
+    // Total movements count
+    const [stats] = await db
+      .select({
+        totalMovements: sql<number>`count(*)`,
+      })
+      .from(movementLogs)
+      .where(whereClause);
+
+    // Active products count (products that have been moved)
+    const [activeProductsResult] = await db
+      .select({
+        activeProducts: sql<number>`count(distinct ${movementLogs.productId})`,
+      })
+      .from(movementLogs)
+      .where(whereClause);
+
+    // Most active recipients (locations and persons combined, top 5)
+    // Build WHERE clause conditions as SQL fragments
+    const dateConditions: SQL<unknown>[] = [];
+    if (startDate) {
+      dateConditions.push(sql`created_at >= ${new Date(startDate as string)}`);
+    }
+    if (endDate) {
+      dateConditions.push(sql`created_at <= ${new Date(endDate as string)}`);
+    }
+    const dateWhereClause = dateConditions.length > 0 
+      ? sql`WHERE ${sql.join(dateConditions, sql` AND `)} AND`
+      : sql`WHERE`;
+
+    const mostActiveRecipientsResult = await db.execute(
+      sql<{ recipientId: string; recipientName: string; recipientCode: string; recipientType: string; movementCount: number }>`
+        WITH movement_recipients AS (
+          -- Movements to locations
+          SELECT 
+            to_location_id as recipient_id,
+            'location' as recipient_type
+          FROM movement_logs
+          ${dateWhereClause} to_location_id IS NOT NULL
+          UNION ALL
+          -- Movements from locations
+          SELECT 
+            from_location_id as recipient_id,
+            'location' as recipient_type
+          FROM movement_logs
+          ${dateWhereClause} from_location_id IS NOT NULL
+          UNION ALL
+          -- Movements to persons
+          SELECT 
+            to_person_id as recipient_id,
+            'person' as recipient_type
+          FROM movement_logs
+          ${dateWhereClause} to_person_id IS NOT NULL
+          UNION ALL
+          -- Movements from persons
+          SELECT 
+            from_person_id as recipient_id,
+            'person' as recipient_type
+          FROM movement_logs
+          ${dateWhereClause} from_person_id IS NOT NULL
+        )
+        SELECT 
+          mr.recipient_id as "recipientId",
+          COALESCE(loc.name, per.name) as "recipientName",
+          COALESCE(loc.code, dep.name) as "recipientCode",
+          mr.recipient_type as "recipientType",
+          count(*)::int as "movementCount"
+        FROM movement_recipients mr
+        LEFT JOIN locations loc ON mr.recipient_id = loc.id AND mr.recipient_type = 'location'
+        LEFT JOIN persons per ON mr.recipient_id = per.id AND mr.recipient_type = 'person'
+        LEFT JOIN departments dep ON per.department_id = dep.id
+        WHERE mr.recipient_id IS NOT NULL
+        GROUP BY mr.recipient_id, mr.recipient_type, loc.name, loc.code, per.name, dep.name
+        ORDER BY "movementCount" DESC
+        LIMIT 5
+      `
+    );
+
+    // Recent movements (last 10)
+    const recentLogs = await db
+      .select()
+      .from(movementLogs)
+      .where(whereClause)
+      .orderBy(desc(movementLogs.createdAt))
+      .limit(10);
+
+    const enrichedRecentLogs = await enrichMovementLogs(recentLogs);
+
+    res.json({
+      totalMovements: Number(stats?.totalMovements ?? 0),
+      activeProducts: Number(activeProductsResult?.activeProducts ?? 0),
+      mostActiveRecipients: Array.from(mostActiveRecipientsResult) as Array<{
+        recipientId: string;
+        recipientName: string;
+        recipientCode: string;
+        recipientType: 'location' | 'person';
+        movementCount: number;
+      }>,
+      recentMovements: enrichedRecentLogs,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get single movement log by ID (enriched)
 router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
+    // Basic UUID v4 shape guard to avoid invalid UUID DB errors
+    if (!/^[0-9a-fA-F-]{36}$/.test(id)) {
+      throw createError('Invalid movement id', 400);
+    }
     const logs = await db.select().from(movementLogs).where(eq(movementLogs.id, id)).limit(1);
     if (logs.length === 0) {
       throw createError('Movement not found', 404);

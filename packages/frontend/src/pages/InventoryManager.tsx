@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import type { InventoryItem } from '@invenflow/shared';
 import { useInventoryStore } from '../store/inventoryStore';
 import { InventoryGrid } from '../components/InventoryGrid';
-import { InventoryList } from '../components/InventoryList';
 import { InventoryGroupedView } from '../components/InventoryGroupedView';
 import { InventoryGroupedList } from '../components/InventoryGroupedList';
 import { InventoryFilters } from '../components/InventoryFilters';
@@ -12,6 +11,7 @@ import { ProductDetailModal } from '../components/ProductDetailModal';
 import { ViewModeDropdown } from '../components/ViewModeDropdown';
 import { StockAdjustmentImportModal } from '../components/StockAdjustmentImportModal';
 import { inventoryApi } from '../utils/api';
+import { debounce } from '../utils/debounce';
 import {
   MagnifyingGlassIcon,
   AdjustmentsHorizontalIcon,
@@ -75,6 +75,17 @@ export default function InventoryManager() {
   useEffect(() => {
     setFilters({ search: searchQuery || undefined });
   }, [searchQuery, setFilters]);
+
+  // Apply search to grouped view efficiently
+  useEffect(() => {
+    if (displayMode === 'grouped') {
+      const debouncedSearch = debounce(() => {
+        fetchGroupedInventory({ search: searchQuery || undefined });
+      }, 300);
+
+      debouncedSearch();
+    }
+  }, [searchQuery, displayMode, fetchGroupedInventory]);
 
   const handleProductClick = (item: InventoryItem) => {
     setSelectedItem(item);
@@ -419,16 +430,6 @@ export default function InventoryManager() {
             />
             )}
           </div>
-        ) : viewMode === 'list' ? (
-          <InventoryList
-            loading={loading}
-            onProductClick={handleProductClick}
-            onCreateNew={handleCreateNew}
-            onShowFilters={handleShowAdvancedFilters}
-            onShowColumnManager={handleShowColumnManager}
-            onExport={handleExport}
-            onMovementSuccess={refreshInventory}
-          />
         ) : (
           <InventoryGrid
             loading={loading}

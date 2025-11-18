@@ -20,14 +20,12 @@ import {
   ArrowUpIcon,
   ArrowDownIcon,
   ArrowsUpDownIcon,
-  ArrowsRightLeftIcon,
   TrashIcon,
   DocumentDuplicateIcon,
   ArchiveBoxIcon,
   EllipsisVerticalIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
-import { MovementModal } from './MovementModal';
 import { InventoryTableActions } from './InventoryTableActions';
 import { BasicInlineEdit } from './BasicInlineEdit';
 
@@ -71,8 +69,6 @@ export function InventoryList({
   
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<SortConfig>({ field: 'updatedAt', direction: 'desc' });
-  const [selectedProductForMove, setSelectedProductForMove] = useState<InventoryItem | null>(null);
-  const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showRowActions, setShowRowActions] = useState<string | null>(null);
 
@@ -93,16 +89,6 @@ export function InventoryList({
     }
   }, [showRowActions]);
 
-  const handleMoveClick = (e: React.MouseEvent, item: InventoryItem) => {
-    e.stopPropagation();
-    setSelectedProductForMove(item);
-    setIsMovementModalOpen(true);
-  };
-
-  const handleMovementSuccess = () => {
-    setSelectedProductForMove(null);
-    onMovementSuccess?.(); // Trigger refresh after successful movement
-  };
 
   // Bulk operations handlers
   const handleSelectAll = () => {
@@ -651,18 +637,6 @@ export function InventoryList({
                         <PencilIcon className="h-4 w-4" />
                       </button>
 
-                      {item.columnStatus === 'Stored' && (
-                        <button
-                          onClick={(e) => handleMoveClick(e, item)}
-                          disabled={isMovementModalOpen}
-                          className={`text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50 ${
-                            isMovementModalOpen ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                          title={isMovementModalOpen ? "Movement modal is already open" : "Move product"}
-                        >
-                          <ArrowsRightLeftIcon className="h-4 w-4" />
-                        </button>
-                      )}
 
                       {/* More Actions Dropdown */}
                       <div className="relative">
@@ -820,16 +794,6 @@ export function InventoryList({
       </table>
       </div>
 
-      {/* Movement Modal */}
-      <MovementModal
-        isOpen={isMovementModalOpen}
-        onClose={() => {
-          setIsMovementModalOpen(false);
-          setSelectedProductForMove(null);
-        }}
-        preselectedProduct={selectedProductForMove || undefined}
-        onSuccess={handleMovementSuccess}
-      />
     </div>
   );
 }
