@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, sql, isNull } from 'drizzle-orm';
 import { movementLogs, products } from '../db/schema';
 import { createError } from '../middleware/errorHandler';
 import { db } from '../db';
@@ -121,6 +121,10 @@ export const executeSingleMovement = async ({
 
       toStockLevel = Number(row?.total ?? 0);
     } else {
+      const kanbanIdCondition = destinationProduct.kanbanId
+        ? eq(products.kanbanId, destinationProduct.kanbanId)
+        : isNull(products.kanbanId);
+      
       const [row] = await tx
         .select({
           total: sql<number>`coalesce(sum(${products.stockLevel}), 0)`,
@@ -129,7 +133,7 @@ export const executeSingleMovement = async ({
         .where(
           and(
             eq(products.locationId, toLocationId),
-            eq(products.kanbanId, destinationProduct.kanbanId),
+            kanbanIdCondition,
             eq(products.productDetails, destinationProduct.productDetails)
           )
         );

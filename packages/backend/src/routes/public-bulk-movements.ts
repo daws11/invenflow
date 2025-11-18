@@ -12,7 +12,7 @@ import {
   ConfirmBulkMovementSchema,
   type PublicBulkMovementResponse 
 } from '@invenflow/shared';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, isNull } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { Request, Response, NextFunction } from 'express';
 import { invalidateCache } from '../middleware/cache';
@@ -264,6 +264,10 @@ router.post('/:token/confirm', async (req: Request, res: Response, next: NextFun
 
               toStockLevel = Number(row?.total ?? 0);
             } else {
+              const kanbanIdCondition = newProduct.kanbanId
+                ? eq(products.kanbanId, newProduct.kanbanId)
+                : isNull(products.kanbanId);
+              
               const [row] = await tx
                 .select({
                   total: sql<number>`coalesce(sum(${products.stockLevel}), 0)`,
@@ -272,7 +276,7 @@ router.post('/:token/confirm', async (req: Request, res: Response, next: NextFun
                 .where(
                   and(
                     eq(products.locationId, bulkMovement.toLocationId),
-                    eq(products.kanbanId, newProduct.kanbanId),
+                    kanbanIdCondition,
                     eq(products.productDetails, newProduct.productDetails),
                   ),
                 );

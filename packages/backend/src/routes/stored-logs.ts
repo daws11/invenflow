@@ -46,12 +46,12 @@ storedLogsRouter.get('/', async (req, res, next) => {
 
     const parsedStart = typeof startDate === 'string' ? parseDate(startDate) : null;
     if (parsedStart) {
-      conditions.push(gte(storedLogs.removedAt, parsedStart));
+      conditions.push(gte(storedLogs.removedAt, parsedStart.toISOString()));
     }
 
     const parsedEnd = typeof endDate === 'string' ? parseDate(endDate) : null;
     if (parsedEnd) {
-      conditions.push(lte(storedLogs.removedAt, parsedEnd));
+      conditions.push(lte(storedLogs.removedAt, parsedEnd.toISOString()));
     }
 
     if (search && typeof search === 'string' && search.trim()) {
@@ -67,7 +67,7 @@ storedLogsRouter.get('/', async (req, res, next) => {
 
     const whereClause = conditions.length ? and(...conditions) : undefined;
 
-    let listQuery = db
+    const baseListQuery = db
       .select({
         id: storedLogs.id,
         kanbanId: storedLogs.kanbanId,
@@ -89,22 +89,17 @@ storedLogsRouter.get('/', async (req, res, next) => {
         kanbanLocationId: kanbans.locationId,
       })
       .from(storedLogs)
-      .leftJoin(kanbans, eq(storedLogs.kanbanId, kanbans.id))
-      .orderBy(desc(storedLogs.removedAt));
+      .leftJoin(kanbans, eq(storedLogs.kanbanId, kanbans.id));
 
-    if (whereClause) {
-      listQuery = listQuery.where(whereClause);
-    }
+    const pagedQuery = whereClause
+      ? baseListQuery.where(whereClause).orderBy(desc(storedLogs.removedAt)).limit(parsedPageSize).offset(offset)
+      : baseListQuery.orderBy(desc(storedLogs.removedAt)).limit(parsedPageSize).offset(offset);
 
-    const pagedQuery = listQuery.limit(parsedPageSize).offset(offset);
-
-    let countQuery = db
+    const baseCountQuery = db
       .select({ count: sql<number>`cast(count(${storedLogs.id}) as integer)` })
       .from(storedLogs);
 
-    if (whereClause) {
-      countQuery = countQuery.where(whereClause);
-    }
+    const countQuery = whereClause ? baseCountQuery.where(whereClause) : baseCountQuery;
 
     const [items, totalResult] = await Promise.all([pagedQuery, countQuery]);
 

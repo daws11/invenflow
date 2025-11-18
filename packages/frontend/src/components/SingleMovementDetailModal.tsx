@@ -1,4 +1,4 @@
-import { XMarkIcon, MapPinIcon, LinkIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, LinkIcon } from '@heroicons/react/24/outline';
 import type { EnrichedMovementLog } from '../store/movementStore';
 
 interface Props {

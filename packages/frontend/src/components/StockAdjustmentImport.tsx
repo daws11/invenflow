@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { inventoryApi } from '../utils/api';
 import { useToast } from '../store/toastStore';
-import { ArrowUpTrayIcon, DocumentArrowDownIcon, CheckCircleIcon, ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowUpTrayIcon, DocumentArrowDownIcon, ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 type PreviewRow = {
   sku?: string;

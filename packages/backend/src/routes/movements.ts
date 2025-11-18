@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { nanoid } from 'nanoid';
 import { db } from '../db';
 import { movementLogs, products, locations, persons } from '../db/schema';
-import { eq, desc, and, gte, lte, sql, inArray, type SQL } from 'drizzle-orm';
+import { eq, desc, and, gte, lte, sql, inArray, isNull, type SQL } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
 import { invalidateCache } from '../middleware/cache';
@@ -745,6 +745,10 @@ router.post('/batch-distribute', async (req, res, next) => {
 
             toStockLevel = Number(row?.total ?? 0);
           } else {
+            const kanbanIdCondition = newProduct!.kanbanId
+              ? eq(products.kanbanId, newProduct!.kanbanId)
+              : isNull(products.kanbanId);
+            
             const [row] = await tx
               .select({
                 total: sql<number>`coalesce(sum(${products.stockLevel}), 0)`,
@@ -753,7 +757,7 @@ router.post('/batch-distribute', async (req, res, next) => {
               .where(
                 and(
                   eq(products.locationId, distribution.toLocationId),
-                  eq(products.kanbanId, newProduct!.kanbanId),
+                  kanbanIdCondition,
                   eq(products.productDetails, newProduct!.productDetails)
                 )
               );

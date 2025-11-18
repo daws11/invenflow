@@ -96,24 +96,6 @@ export default function InventoryManager() {
     setPage(newPage);
   };
 
-  const handleCreateNew = () => {
-    // TODO: Implement create new product functionality
-    console.log('Create new product');
-  };
-
-  const handleShowColumnManager = () => {
-    setShowColumnManager(true);
-  };
-
-  const handleShowAdvancedFilters = () => {
-    setShowAdvancedFilters(true);
-  };
-
-  const handleExport = (items?: InventoryItem[]) => {
-    const itemsToExport = items || (displayMode === 'individual' ? items : []);
-    console.log('Export items:', itemsToExport?.length || 'all');
-    // TODO: Implement export functionality
-  };
 
   
   if (error) {
@@ -433,7 +415,7 @@ export default function InventoryManager() {
         ) : (
           <InventoryGrid
             loading={loading}
-            viewMode={viewMode}
+            viewMode={viewMode === 'list' ? 'unified' : viewMode}
             onProductClick={handleProductClick}
             onMovementSuccess={refreshInventory}
           />

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { XMarkIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 import type { EnrichedMovementLog } from '../store/movementStore';
 import type { Location, Person } from '@invenflow/shared';

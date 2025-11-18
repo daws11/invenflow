@@ -33,7 +33,6 @@ import {
   StoredLogWithRelations,
   StoredLogListResponse,
   StoredLogFilters,
-  StoredLog,
 } from "@invenflow/shared";
 import { useAuthStore } from "../store/authStore";
 

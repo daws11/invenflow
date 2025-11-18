@@ -56,7 +56,6 @@ export function InventoryList({
   onShowFilters,
   onShowColumnManager,
   onExport,
-  onMovementSuccess,
 }: InventoryListProps) {
   const { locations, fetchLocations } = useLocationStore();
   const { persons, fetchPersons } = usePersonStore();
