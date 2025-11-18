@@ -26,6 +26,7 @@ import { authRouter } from "./routes/auth";
 import { usersRouter } from "./routes/users";
 import { bulkMovementsRouter } from "./routes/bulk-movements";
 import { publicBulkMovementsRouter } from "./routes/public-bulk-movements";
+import { publicMovementsRouter } from "./routes/public-movements";
 import productGroupsRouter from "./routes/product-groups";
 import { storedLogsRouter } from "./routes/stored-logs";
 import { startStoredCleanup } from "./services/storedCleanup";
@@ -148,6 +149,7 @@ app.use("/api/validations", validationsRouter);
 // Public routes (no authentication required)
 app.use("/api/public", publicRouter);
 app.use("/api/public/bulk-movements", publicBulkMovementsRouter);
+app.use("/api/public/movements", publicMovementsRouter);
 
 // Health check endpoint
 app.get("/", (req, res) => {
@@ -164,8 +166,6 @@ app.get("/", (req, res) => {
   } else {
     res.json({ message: "InvenFlow API is running" });
   }
-
-  startStoredCleanup();
 });
 
 // Production: SPA fallback - serve React app for all non-API routes
@@ -199,6 +199,9 @@ app.use(errorHandler);
 
 // Start performance logging
 startPerformanceLogging(60000); // Log every minute
+
+// Start stored cleanup service
+startStoredCleanup();
 
 // Start server
 app.listen(env.PORT, "0.0.0.0", () => {

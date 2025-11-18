@@ -26,6 +26,16 @@ interface BulkMovementResult {
   toLocationName: string;
 }
 
+interface SingleMovementResult {
+  id: string;
+  publicToken: string;
+  publicUrl: string;
+  productLabel: string;
+  destinationLabel: string;
+  quantity: number;
+  expiresAt?: string | Date | null;
+}
+
 interface SelectedProduct {
   id: string;
   productId: string;
@@ -53,7 +63,9 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
   const [notes, setNotes] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [bulkMovementResult, setBulkMovementResult] = useState<BulkMovementResult | null>(null);
+  const [singleMovementResult, setSingleMovementResult] = useState<SingleMovementResult | null>(null);
   const [linkCopied, setLinkCopied] = useState<boolean>(false);
+  const [requiresConfirmation, setRequiresConfirmation] = useState<boolean>(false);
   const [availableAtLocation, setAvailableAtLocation] = useState<InventoryItem[]>([]);
   const [loadingAvailable, setLoadingAvailable] = useState<boolean>(false);
   const [availablePage, setAvailablePage] = useState<number>(1);
@@ -97,32 +109,26 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
     void loadAvailable();
   }, [isOpen, fromArea, availablePage]);
 
-  // Initialize from preselected product
+  // Initialize from preselected product (only when modal opens and no products selected)
   useEffect(() => {
-    if (preselectedProduct && preselectedProduct.locationId && isOpen) {
+    if (preselectedProduct && preselectedProduct.locationId && isOpen && selectedProducts.length === 0) {
       const sourceLocation = locations.find(l => l.id === preselectedProduct.locationId);
       if (sourceLocation) {
         setFromArea(sourceLocation.area);
-      setFromLocationId(preselectedProduct.locationId);
+        setFromLocationId(preselectedProduct.locationId);
       }
-      
-      // Use functional update to avoid stale closure bug
-      setSelectedProducts(prev => {
-        // Check with actual prev state
-        if (!prev.some(p => p.productId === preselectedProduct.id)) {
-          return [{
-            id: nanoid(),
-            productId: preselectedProduct.id,
-            productDetails: preselectedProduct.productDetails,
-            sku: preselectedProduct.sku,
-            quantity: 1,
-            availableStock: preselectedProduct.stockLevel || 0,
-          }];
-        }
-        return prev; // Return existing if already added
-      });
+
+      // Initialize products only if none are selected yet (prevents reinitialization)
+      setSelectedProducts([{
+        id: nanoid(),
+        productId: preselectedProduct.id,
+        productDetails: preselectedProduct.productDetails,
+        sku: preselectedProduct.sku,
+        quantity: 1,
+        availableStock: preselectedProduct.stockLevel || 0,
+      }]);
     }
-  }, [preselectedProduct, isOpen]);
+  }, [preselectedProduct, isOpen, locations, selectedProducts.length]);
 
   // Cleanup state when modal closes
   useEffect(() => {
@@ -137,7 +143,9 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
       setNotes('');
       setSearchQuery('');
       setBulkMovementResult(null);
+      setSingleMovementResult(null);
       setLinkCopied(false);
+      setRequiresConfirmation(false);
     }
   }, [isOpen]);
 
@@ -153,6 +161,12 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
   const totalItems = selectedProducts.length;
   const totalQuantity = selectedProducts.reduce((sum, item) => sum + item.quantity, 0);
   const isBulkMovement = selectedProducts.length > 1;
+
+  useEffect(() => {
+    if ((isBulkMovement || selectedProducts.length !== 1) && requiresConfirmation) {
+      setRequiresConfirmation(false);
+    }
+  }, [isBulkMovement, selectedProducts.length, requiresConfirmation]);
 
   // Handler for destination type change
   const handleDestinationTypeChange = (type: 'location' | 'person') => {
@@ -260,8 +274,11 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
         const fromLocation = fromLocationId
           ? locations.find(l => l.id === fromLocationId)
           : undefined;
+        const selectedPerson = toPersonId
+          ? persons.find(person => person.id === toPersonId)
+          : null;
 
-        await createMovement({
+        const response = await createMovement({
           productId: product.productId,
           fromArea: fromArea || fromLocation?.area || null,
           toArea: destinationType === 'location' ? (toArea || null) : null,
@@ -269,8 +286,48 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
           toPersonId: destinationType === 'person' ? toPersonId : null,
           quantityToMove: product.quantity,
           notes: notes || null,
+          requiresConfirmation: !isBulkMovement && requiresConfirmation,
         });
 
+        if (requiresConfirmation && 'publicToken' in response && response.publicToken) {
+          const pendingResponse = response;
+          const toLocation = toLocationId
+            ? locations.find(l => l.id === toLocationId)
+            : undefined;
+          const publicUrl =
+            pendingResponse.publicUrl ||
+            `${window.location.origin}/movement/confirm/${pendingResponse.publicToken}`;
+          const destinationLabel =
+            destinationType === 'location'
+              ? (toLocation
+                  ? `${toLocation.name}${toLocation.area ? ` - ${toLocation.area}` : ''}`
+                  : toArea
+                  ? `${toArea} (General)`
+                  : 'Destination')
+              : selectedPerson
+              ? selectedPerson.name
+              : 'Assignee';
+
+          setSingleMovementResult({
+            id: pendingResponse.movementLog.id,
+            publicToken: pendingResponse.publicToken,
+            publicUrl,
+            productLabel: product.productDetails,
+            destinationLabel,
+            quantity: product.quantity,
+            expiresAt: pendingResponse.tokenExpiresAt ?? null,
+          });
+
+          navigator.clipboard
+            .writeText(publicUrl)
+            .then(() => {
+              setLinkCopied(true);
+              setTimeout(() => setLinkCopied(false), 3000);
+            })
+            .catch(() => console.log('Could not copy'));
+
+          setRequiresConfirmation(false);
+        } else {
         // Reset and close for single movement
         setFromLocationId(null);
         setDestinationType('location');
@@ -280,8 +337,10 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
         setSelectedProducts([]);
         setNotes('');
         setSearchQuery('');
+          setRequiresConfirmation(false);
         onSuccess?.();
         onClose();
+        }
       }
     } catch (error: any) {
       console.error('Movement failed:', error);
@@ -293,27 +352,32 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
     }
   };
 
-  const handleCopyLink = () => {
-    if (bulkMovementResult) {
-      navigator.clipboard.writeText(bulkMovementResult.publicUrl).then(() => {
+  const handleCopyLink = (url: string) => {
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
         setLinkCopied(true);
         setTimeout(() => setLinkCopied(false), 3000);
-      }).catch(() => console.log('Could not copy'));
-    }
+      })
+      .catch(() => console.log('Could not copy'));
   };
 
-  const handleShareWhatsApp = () => {
-    if (bulkMovementResult) {
-      const message = `Bulk Movement Confirmation Link:\n\n${bulkMovementResult.publicUrl}\n\nPlease confirm receipt using this link.`;
+  const handleShareWhatsApp = (url: string) => {
+    const message = `Movement Confirmation Link:\n\n${url}\n\nPlease confirm receipt using this link.`;
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
       window.open(whatsappUrl, '_blank');
-    }
+  };
+
+  const handleShareEmail = (subject: string, url: string) => {
+    const body = encodeURIComponent(`Please confirm receipt using this link:\n\n${url}`);
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${body}`;
   };
 
   const handleCloseSuccessModal = () => {
     setBulkMovementResult(null);
+    setSingleMovementResult(null);
     setLinkCopied(false);
-    // Reset form
+    setRequiresConfirmation(false);
     setFromLocationId(null);
     setDestinationType('location');
     setToLocationId(null);
@@ -334,13 +398,14 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
     setNotes('');
     setSearchQuery('');
     setBulkMovementResult(null);
+    setSingleMovementResult(null);
     setLinkCopied(false);
+    setRequiresConfirmation(false);
     onClose();
   };
 
   if (!isOpen) return null;
 
-  const fromLocation = locations.find(l => l.id === fromLocationId);
   const toLocation = locations.find(l => l.id === toLocationId);
 
   return (
@@ -615,6 +680,46 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                   )}
                 </div>
 
+                {/* 3. CONFIRMATION TOGGLE */}
+                {!isBulkMovement && selectedProducts.length === 1 && (
+                  <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm flex items-start justify-between space-x-4">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 flex items-center">
+                        <CheckIcon className="w-4 h-4 text-blue-600 mr-2" />
+                        Require Receiver Confirmation
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1 max-w-md">
+                        Enable this to generate a confirmation link for the recipient. Stock changes will be applied only after they confirm the transfer.
+                      </p>
+                      {requiresConfirmation ? (
+                        <p className="mt-2 text-xs text-blue-700">
+                          Link expires in 7 days. Share it with the destination{' '}
+                          {destinationType === 'location' ? 'location contact' : 'person'}.
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-xs text-gray-500">
+                          Toggle on if the receiver must acknowledge this movement.
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={requiresConfirmation}
+                      onClick={() => setRequiresConfirmation(!requiresConfirmation)}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 ${
+                        requiresConfirmation ? 'bg-blue-600 border-blue-600' : 'bg-gray-300 border-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${
+                          requiresConfirmation ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                )}
+
                 {/* 4. SELECT PRODUCTS */}
                 {fromArea && (
                   <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm">
@@ -854,7 +959,7 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                     className="flex-1 px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
                   />
                   <button
-                    onClick={handleCopyLink}
+                    onClick={() => handleCopyLink(bulkMovementResult.publicUrl)}
                     className={`px-4 py-2.5 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${
                       linkCopied
                         ? 'bg-emerald-500 text-white'
@@ -887,18 +992,14 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                 <h4 className="text-sm font-medium text-slate-700 mb-3">Quick Share</h4>
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={handleShareWhatsApp}
+                    onClick={() => handleShareWhatsApp(bulkMovementResult.publicUrl)}
                     className="flex items-center space-x-2 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 border border-slate-300 transition-colors"
                   >
                     <ShareIcon className="w-4 h-4" />
                     <span className="text-sm font-medium">WhatsApp</span>
                   </button>
                   <button
-                    onClick={() => {
-                      const subject = encodeURIComponent('Bulk Movement Confirmation Link');
-                      const body = encodeURIComponent(`Please confirm receipt using this link:\n\n${bulkMovementResult.publicUrl}`);
-                      window.location.href = `mailto:?subject=${subject}&body=${body}`;
-                    }}
+                    onClick={() => handleShareEmail('Bulk Movement Confirmation Link', bulkMovementResult.publicUrl)}
                     className="flex items-center space-x-2 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 border border-slate-300 transition-colors"
                   >
                     <ShareIcon className="w-4 h-4" />
@@ -920,6 +1021,130 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
             </div>
 
             {/* Footer */}
+            <div className="sticky bottom-0 px-6 py-4 bg-slate-50 border-t border-slate-200 rounded-b-xl">
+              <button
+                onClick={handleCloseSuccessModal}
+                className="w-full px-6 py-3 bg-slate-700 text-white font-medium rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {singleMovementResult && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-gray-900 bg-opacity-75" onClick={handleCloseSuccessModal} />
+          <div className="relative bg-white rounded-xl shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-blue-700 to-indigo-700 px-6 py-5 rounded-t-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <CheckIcon className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold text-white">Confirmation Link Ready</h3>
+                    <p className="text-sm text-blue-100 mt-0.5">Share this link with the receiver</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleCloseSuccessModal}
+                  className="p-2 text-blue-100 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div className="bg-slate-50 rounded-lg p-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">Movement ID</span>
+                  <span className="text-sm font-mono font-medium text-slate-900">{singleMovementResult.id}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">Product</span>
+                  <span className="text-sm font-medium text-slate-900">{singleMovementResult.productLabel}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">Destination</span>
+                  <span className="text-sm font-medium text-slate-900">{singleMovementResult.destinationLabel}</span>
+                </div>
+                <div className="flex items-center justify-between pt-2.5 border-t border-slate-200">
+                  <span className="text-sm font-medium text-slate-600">Quantity</span>
+                  <span className="text-sm font-semibold text-slate-900">{singleMovementResult.quantity} unit(s)</span>
+                </div>
+              </div>
+
+              <div className="border-2 border-slate-200 rounded-lg p-4 bg-white">
+                <label className="block text-sm font-medium text-slate-700 mb-3">
+                  Public Confirmation Link
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={singleMovementResult.publicUrl}
+                    className="flex-1 px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                  />
+                  <button
+                    onClick={() => handleCopyLink(singleMovementResult.publicUrl)}
+                    className={`px-4 py-2.5 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${
+                      linkCopied ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    {linkCopied ? (
+                      <span className="flex items-center space-x-1.5">
+                        <CheckIcon className="w-4 h-4" />
+                        <span>Copied</span>
+                      </span>
+                    ) : (
+                      <span className="flex items-center space-x-1.5">
+                        <ClipboardDocumentIcon className="w-4 h-4" />
+                        <span>Copy</span>
+                      </span>
+                    )}
+                  </button>
+                </div>
+                {linkCopied && (
+                  <p className="mt-2 text-xs text-emerald-600 font-medium flex items-center">
+                    <CheckIcon className="w-3.5 h-3.5 mr-1" />
+                    Link copied to clipboard
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <h4 className="text-sm font-medium text-slate-700 mb-3">Quick Share</h4>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleShareWhatsApp(singleMovementResult.publicUrl)}
+                    className="flex items-center space-x-2 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 border border-slate-300 transition-colors"
+                  >
+                    <ShareIcon className="w-4 h-4" />
+                    <span className="text-sm font-medium">WhatsApp</span>
+                  </button>
+                  <button
+                    onClick={() => handleShareEmail('Movement Confirmation Link', singleMovementResult.publicUrl)}
+                    className="flex items-center space-x-2 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 border border-slate-300 transition-colors"
+                  >
+                    <ShareIcon className="w-4 h-4" />
+                    <span className="text-sm font-medium">Email</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-blue-900 mb-2">Important Notes</h4>
+                <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                  <li>Share this link with the receiver to confirm the movement</li>
+                  <li>Link expires in 7 days</li>
+                  <li>Once confirmed, stock updates automatically</li>
+                </ul>
+              </div>
+            </div>
+
             <div className="sticky bottom-0 px-6 py-4 bg-slate-50 border-t border-slate-200 rounded-b-xl">
               <button
                 onClick={handleCloseSuccessModal}

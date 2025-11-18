@@ -232,6 +232,27 @@
       "when": 1763445859172,
       "tag": "0032_brave_killer_shrike",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1763447708310,
+      "tag": "0033_unknown_stranger",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1763454533856,
+      "tag": "0034_tough_tombstone",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1763456184953,
+      "tag": "0035_minor_shadow_king",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,7 @@ const KanbanPurchasingPage = lazy(() => import('./pages/KanbanPurchasingPage'));
 const KanbanReceivingPage = lazy(() => import('./pages/KanbanReceivingPage'));
 const KanbanBoard = lazy(() => import('./pages/KanbanBoard'));
 const StoredLogPage = lazy(() => import('./pages/StoredLogPage'));
+const RejectionLogPage = lazy(() => import('./pages/RejectionLogPage'));
 const InventoryManager = lazy(() => import('./pages/InventoryManager'));
 const LocationsPage = lazy(() => import('./pages/LocationsPage'));
 const PersonsPage = lazy(() => import('./pages/PersonsPage'));
@@ -19,6 +20,7 @@ const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage'));
 const MovementManager = lazy(() => import('./pages/MovementManager'));
 const BulkMovementPage = lazy(() => import('./pages/BulkMovementPage'));
 const PublicBulkMovementConfirmation = lazy(() => import('./pages/PublicBulkMovementConfirmation'));
+const PublicMovementConfirmation = lazy(() => import('./pages/PublicMovementConfirmation'));
 const PublicForm = lazy(() => import('./pages/PublicForm'));
 const LoginForm = lazy(() => import('./components/LoginForm'));
 const UserManagement = lazy(() => import('./components/UserManagement'));
@@ -73,6 +75,13 @@ function App() {
                 </Suspense>
               </div>
             } />
+            <Route path="/movement/confirm/:token" element={
+              <div className="min-h-screen bg-gray-50">
+                <Suspense fallback={<PageLoader />}>
+                  <PublicMovementConfirmation />
+                </Suspense>
+              </div>
+            } />
             
             {/* Login route - redirect to home if already authenticated */}
             <Route path="/login" element={
@@ -114,6 +123,15 @@ function App() {
                 <ProtectedRoute>
                   <Suspense fallback={<PageLoader />}>
                     <StoredLogPage />
+                  </Suspense>
+                </ProtectedRoute>
+              </Layout>
+            } />
+            <Route path="/rejection-log" element={
+              <Layout>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <RejectionLogPage />
                   </Suspense>
                 </ProtectedRoute>
               </Layout>

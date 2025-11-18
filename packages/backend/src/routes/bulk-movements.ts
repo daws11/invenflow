@@ -53,21 +53,50 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
     // Use transaction to ensure data consistency
     const result = await db.transaction(async (tx) => {
-      // 1. Verify source location exists
-      const [fromLocation] = await tx
-        .select()
-        .from(locations)
-        .where(eq(locations.id, fromLocationId))
-        .limit(1);
+      // 1. Resolve source location & area (support area-to-area using general locations)
+      let effectiveFromLocationId: string;
+      let fromLocationRow: typeof locations.$inferSelect | null = null;
+      let resolvedFromArea: string | null = fromArea ?? null;
 
-      if (!fromLocation) {
-        throw new Error('Source location not found');
+      if (fromLocationId) {
+        const [fromLocation] = await tx
+          .select()
+          .from(locations)
+          .where(eq(locations.id, fromLocationId))
+          .limit(1);
+
+        if (!fromLocation) {
+          throw new Error('Source location not found');
+        }
+
+        fromLocationRow = fromLocation;
+        effectiveFromLocationId = fromLocation.id;
+        if (!resolvedFromArea) {
+          resolvedFromArea = fromLocation.area;
+        }
+      } else if (fromArea) {
+        // No explicit source location, but area provided:
+        // use (or create) the general location for this area
+        effectiveFromLocationId = await getOrCreateGeneralLocation(tx, fromArea);
+
+        const [fromLocation] = await tx
+          .select()
+          .from(locations)
+          .where(eq(locations.id, effectiveFromLocationId))
+          .limit(1);
+
+        if (!fromLocation) {
+          throw new Error('Source location not found');
+        }
+
+        fromLocationRow = fromLocation;
+        resolvedFromArea = fromLocation.area;
+      } else {
+        // Should be prevented by Zod refine, but keep a runtime guard
+        throw new Error('Either fromArea or fromLocationId must be provided');
       }
 
-      // Resolve source area if not provided
-      const resolvedFromArea = fromArea ?? fromLocation.area;
-
-      // Resolve destination location & area
+      // 2. Resolve destination location & area
       let effectiveToLocationId: string | null = toLocationId ?? null;
       let resolvedToArea: string | null = toArea ?? null;
 
@@ -109,19 +138,30 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         throw new Error('Either toArea or toLocationId must be provided');
       }
 
-      // 2. Fetch all products and verify they exist, are stored, and have sufficient stock
+      // 3. Fetch all products and verify they exist, are stored, and (for location-based flows) at the expected source location
       const productIds = items.map(item => item.productId);
-      const productsData = await tx
+      const baseProductsQuery = tx
         .select()
         .from(products)
-        .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
-        .where(
-          and(
-          inArray(products.id, productIds),
-          eq(products.locationId, fromLocationId),
-          eq(products.columnStatus, 'Stored')
+        .leftJoin(kanbans, eq(products.kanbanId, kanbans.id));
+
+      const productsData = fromLocationId
+        // If caller specified a concrete source location, enforce it strictly
+        ? await baseProductsQuery.where(
+            and(
+              inArray(products.id, productIds),
+              eq(products.locationId, effectiveFromLocationId),
+              eq(products.columnStatus, 'Stored'),
+            ),
           )
-        );
+        // If source is area-only (resolved via general location), allow products
+        // from any underlying location as long as they are stored and IDs match.
+        : await baseProductsQuery.where(
+            and(
+              inArray(products.id, productIds),
+              eq(products.columnStatus, 'Stored'),
+            ),
+          );
 
       if (productsData.length !== items.length) {
         throw new Error('Some products not found, not stored, or not at source location');
@@ -142,15 +182,15 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         }
       }
 
-      // 3. Generate unique public token
+      // 4. Generate unique public token
       const publicToken = nanoid(32);
       const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
 
-      // 4. Create bulk movement record
+      // 5. Create bulk movement record
       const [bulkMovement] = await tx
         .insert(bulkMovements)
         .values({
-          fromLocationId,
+          fromLocationId: effectiveFromLocationId,
           toLocationId: effectiveToLocationId!,
           status: 'in_transit',
           publicToken,
@@ -160,7 +200,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         })
         .returning();
 
-      // 5. Create bulk movement items with denormalized data
+      // 6. Create bulk movement items with denormalized data
       const bulkMovementItemsData = items.map(item => {
         const product = productsMap.get(item.productId)!;
         return {
@@ -178,7 +218,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         .values(bulkMovementItemsData)
         .returning();
 
-      // 6. Update product stock and status (only change status if ALL stock is moved)
+      // 7. Update product stock and status (only change status if ALL stock is moved)
       for (const item of items) {
         const product = productsMap.get(item.productId)!;
         const newStockLevel = (product.stockLevel || 0) - item.quantitySent;
@@ -201,7 +241,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       return {
         bulkMovement,
         items: createdItems,
-        fromLocation,
+        fromLocation: fromLocationRow!,
         toLocation: toLocationRow!,
       };
     });

@@ -24,6 +24,24 @@ interface MovementFilters {
   offset?: number;
 }
 
+type ImmediateMovementResponse = {
+  kind: 'immediate';
+  movementLog: MovementLog;
+  product: InventoryItem;
+  status?: 'received';
+};
+
+type PendingMovementResponse = {
+  kind?: 'pending';
+  movementLog: MovementLog;
+  status: 'pending';
+  publicToken: string;
+  publicUrl?: string;
+  tokenExpiresAt?: string;
+};
+
+type MovementCreateResponse = ImmediateMovementResponse | PendingMovementResponse;
+
 interface MovementState {
   movements: EnrichedMovementLog[];
   stats: MovementStats | null;
@@ -34,7 +52,7 @@ interface MovementState {
   // Actions
   fetchMovements: () => Promise<void>;
   fetchMovementHistory: (productId: string) => Promise<EnrichedMovementLog[]>;
-  createMovement: (movement: CreateMovement) => Promise<{ movementLog: MovementLog; product: any }>;
+  createMovement: (movement: CreateMovement) => Promise<MovementCreateResponse>;
   fetchStats: () => Promise<void>;
   setFilters: (filters: Partial<MovementFilters>) => void;
   clearFilters: () => void;
@@ -88,14 +106,19 @@ export const useMovementStore = create<MovementState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await api.post('/api/movements', movement);
+      const data = response.data as MovementCreateResponse;
       
       // Refresh movements list
       await get().fetchMovements();
       
-      useToastStore.getState().addSuccessToast('Product moved successfully');
+      const successMessage =
+        (data as any)?.status === 'pending'
+          ? 'Movement confirmation link created'
+          : 'Product moved successfully';
+      useToastStore.getState().addSuccessToast(successMessage);
       set({ loading: false });
       
-      return response.data;
+      return data;
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Failed to move product';
       set({ error: errorMessage, loading: false });

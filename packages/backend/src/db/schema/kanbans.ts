@@ -19,7 +19,7 @@ export const kanbans = pgTable(
     formFieldSettings: jsonb('form_field_settings').default('{}'),
     thresholdRules: jsonb('threshold_rules').default('[]'),
     storedAutoArchiveEnabled: boolean('stored_auto_archive_enabled').notNull().default(false),
-    storedAutoArchiveAfterHours: integer('stored_auto_archive_after_hours'),
+    storedAutoArchiveAfterMinutes: integer('stored_auto_archive_after_minutes'),
     createdAt: timestamp('created_at', { mode: 'string' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { mode: 'string' }).notNull().defaultNow(),
   },

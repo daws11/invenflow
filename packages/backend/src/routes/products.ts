@@ -42,6 +42,32 @@ const coerceInteger = (value: unknown): number | null => {
   return Math.trunc(parsed);
 };
 
+// Get rejected products (used by Rejection Log)
+router.get('/rejected', async (req, res, next) => {
+  try {
+    const { kanbanId } = req.query as { kanbanId?: string };
+
+    const rejectedProducts = await db
+      .select()
+      .from(products)
+      .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
+      .where(
+        and(
+          eq(products.isRejected, true),
+          // Only include products from order kanbans
+          eq(kanbans.type, 'order'),
+          // Optional filter by specific kanbanId if provided
+          kanbanId ? eq(products.kanbanId, kanbanId) : sql`true`,
+        ),
+      )
+      .orderBy(desc(products.rejectedAt));
+
+    res.json(rejectedProducts.map((p) => p.products));
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get product by ID
 router.get('/:id', async (req, res, next) => {
   try {
@@ -883,22 +909,6 @@ router.post('/:id/unreject', async (req, res, next) => {
     invalidateCache('/api/kanbans');
 
     res.json(updated);
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Get rejected products (for future use)
-router.get('/rejected', async (req, res, next) => {
-  try {
-    const rejectedProducts = await db
-      .select()
-      .from(products)
-      .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
-      .where(eq(products.isRejected, true))
-      .orderBy(desc(products.rejectedAt));
-
-    res.json(rejectedProducts.map(p => p.products));
   } catch (error) {
     next(error);
   }

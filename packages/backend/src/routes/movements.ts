@@ -1,14 +1,18 @@
 import { Router } from 'express';
+import { nanoid } from 'nanoid';
 import { db } from '../db';
 import { movementLogs, products, locations, persons } from '../db/schema';
 import { eq, desc, and, gte, lte, sql, inArray, type SQL } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
 import { invalidateCache } from '../middleware/cache';
-import { CreateMovementSchema, CreateBatchDistributionSchema } from '@invenflow/shared';
+import { CreateMovementSchema, CreateBatchDistributionSchema, UpdateMovementSchema } from '@invenflow/shared';
 import { getOrCreateGeneralLocation } from '../utils/generalLocation';
+import { executeSingleMovement } from '../services/singleMovementExecutor';
 
 const router = Router();
+const MOVEMENT_CONFIRMATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
@@ -169,6 +173,21 @@ router.get('/product/:productId', async (req, res, next) => {
   }
 });
 
+// Get single movement log by ID (enriched)
+router.get('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const logs = await db.select().from(movementLogs).where(eq(movementLogs.id, id)).limit(1);
+    if (logs.length === 0) {
+      throw createError('Movement not found', 404);
+    }
+    const [enriched] = await enrichMovementLogs(logs);
+    res.json(enriched);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Create movement log
 router.post('/', async (req, res, next) => {
   try {
@@ -181,6 +200,7 @@ router.post('/', async (req, res, next) => {
       toPersonId,
       quantityToMove,
       notes,
+      requiresConfirmation = false,
     } = validatedData;
 
     // Get user from auth token
@@ -259,6 +279,13 @@ router.post('/', async (req, res, next) => {
         }
       }
 
+      const shouldRequireConfirmation = Boolean(requiresConfirmation);
+      const publicToken = shouldRequireConfirmation ? nanoid(32) : null;
+      const tokenExpiresAt = shouldRequireConfirmation
+        ? new Date(Date.now() + MOVEMENT_CONFIRMATION_TTL_MS)
+        : null;
+      const status = shouldRequireConfirmation ? 'pending' : 'received';
+
       // 5. Create movement log (with area metadata). We will update toStockLevel after stock changes.
       const [movementLog] = await tx
         .insert(movementLogs)
@@ -274,139 +301,36 @@ router.post('/', async (req, res, next) => {
           quantityMoved: quantityToMove,
           notes: notes || null,
           movedBy,
+          requiresConfirmation: shouldRequireConfirmation,
+          status,
+          publicToken,
+          tokenExpiresAt,
+          confirmedBy: shouldRequireConfirmation ? null : movedBy,
+          confirmedAt: shouldRequireConfirmation ? null : new Date(),
         })
         .returning();
 
-      // 6. Handle stock movement logic
-      const currentStock = product.stockLevel || 0;
-      
-      // Validate that we're not moving more than available
-      if (quantityToMove > currentStock) {
-        throw createError(
-          `Cannot move ${quantityToMove} units. Only ${currentStock} units available.`,
-          400
-        );
+      if (shouldRequireConfirmation) {
+        return {
+          kind: 'pending' as const,
+          movementLog,
+          publicToken: publicToken!,
+          tokenExpiresAt: tokenExpiresAt!,
+        };
       }
 
-      // Calculate remaining stock at source location
-      const remainingStock = currentStock - quantityToMove;
-      const shouldMoveAllStock = remainingStock === 0;
-
-      let updatedProduct;
-      let destinationProduct: ProductRecord | null = null;
-
-      if (shouldMoveAllStock) {
-        // Move entire product to new location
-        [updatedProduct] = await tx
-          .update(products)
-          .set({
-            // If we have a destination location, move there; otherwise keep current
-            locationId: effectiveToLocationId ?? product.locationId,
-            assignedToPersonId: toPersonId || product.assignedToPersonId,
-            stockLevel: quantityToMove,
-            updatedAt: new Date(),
-          })
-          .where(eq(products.id, productId))
-          .returning();
-
-        destinationProduct = updatedProduct;
-      } else {
-        // Partial movement: reduce stock at source and create new product at destination
-        // Update source product stock
-        [updatedProduct] = await tx
-          .update(products)
-          .set({
-            stockLevel: remainingStock,
-            updatedAt: new Date(),
-          })
-          .where(eq(products.id, productId))
-          .returning();
-
-        // Create new product at destination location
-        const [newProduct] = await tx
-          .insert(products)
-          .values({
-            kanbanId: product.kanbanId,
-            columnStatus: 'Stored',
-            productDetails: product.productDetails,
-            productLink: product.productLink,
-            locationId: effectiveToLocationId || null,
-            assignedToPersonId: toPersonId || null,
-            priority: product.priority,
-            stockLevel: quantityToMove,
-            sourceProductId: productId, // Track parent product
-            productImage: product.productImage,
-            category: product.category,
-            tags: product.tags,
-            supplier: product.supplier,
-            sku: product.sku,
-            dimensions: product.dimensions,
-            weight: product.weight,
-            unitPrice: product.unitPrice,
-            notes: product.notes,
-            columnEnteredAt: new Date(),
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .returning();
-
-        destinationProduct = newProduct ?? null;
-
-        // Update movement log to reference the new product for destination tracking
-        await tx
-          .update(movementLogs)
-          .set({
-            notes: `${notes || 'Product movement'} - New product created at destination: ${newProduct.id}`,
-          })
-          .where(eq(movementLogs.id, movementLog.id));
-      }
-
-      // 7. Compute destination total stock (toStockLevel) if we have a destination location
-      // We group primarily by SKU; if SKU is null, we fall back to kanban + productDetails.
-      let toStockLevel: number | null = null;
-      if (effectiveToLocationId && destinationProduct) {
-        const sku = destinationProduct.sku;
-
-        if (sku) {
-          const [row] = await tx
-            .select({
-              total: sql<number>`coalesce(sum(${products.stockLevel}), 0)`,
-            })
-            .from(products)
-            .where(
-              and(
-                eq(products.locationId, effectiveToLocationId),
-                eq(products.sku, sku)
-              )
-            );
-
-          toStockLevel = Number(row?.total ?? 0);
-        } else {
-          const [row] = await tx
-            .select({
-              total: sql<number>`coalesce(sum(${products.stockLevel}), 0)`,
-            })
-            .from(products)
-            .where(
-              and(
-                eq(products.locationId, effectiveToLocationId),
-                eq(products.kanbanId, destinationProduct.kanbanId),
-                eq(products.productDetails, destinationProduct.productDetails)
-              )
-            );
-
-          toStockLevel = Number(row?.total ?? 0);
-        }
-
-        await tx
-          .update(movementLogs)
-          .set({
-            toStockLevel,
-          })
-          .where(eq(movementLogs.id, movementLog.id));
-      }
+      const { updatedProduct, toStockLevel } = await executeSingleMovement({
+        tx,
+        product,
+        movementLog,
+        quantityToMove,
+        toPersonId: toPersonId || null,
+        toLocationId: effectiveToLocationId,
+        notes: notes || null,
+      });
 
       return {
+        kind: 'immediate' as const,
         movementLog: {
           ...movementLog,
           toStockLevel,
@@ -415,12 +339,130 @@ router.post('/', async (req, res, next) => {
       };
     });
 
+    if (result.kind === 'pending') {
+      res.status(201).json({
+        movementLog: result.movementLog,
+        status: 'pending',
+        publicToken: result.publicToken,
+        publicUrl: `${FRONTEND_URL}/movement/confirm/${result.publicToken}`,
+        tokenExpiresAt: result.tokenExpiresAt,
+      });
+      return;
+    }
+
     // Invalidate inventory-related caches so movements are reflected immediately
     invalidateCache('/api/inventory');
     invalidateCache('/api/inventory/stats');
     invalidateCache('/api/locations');
 
     res.status(201).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update pending single movement (destination, quantity, notes)
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const validated = UpdateMovementSchema.parse(req.body);
+
+    const result = await db.transaction(async (tx) => {
+      const [movement] = await tx.select().from(movementLogs).where(eq(movementLogs.id, id)).limit(1);
+      if (!movement) {
+        throw createError('Movement not found', 404);
+      }
+      if (!movement.requiresConfirmation || movement.status !== 'pending') {
+        throw createError('Only pending movements can be edited', 400);
+      }
+
+      const [product] = await tx.select().from(products).where(eq(products.id, movement.productId)).limit(1);
+      if (!product) {
+        throw createError('Product not found', 404);
+      }
+      if (product.columnStatus !== 'Stored') {
+        throw createError('Only products with "Stored" status can be moved', 400);
+      }
+
+      // Validate quantity (if provided)
+      if (validated.quantity !== undefined) {
+        const currentStock = product.stockLevel || 0;
+        if (validated.quantity > currentStock) {
+          throw createError(`Cannot move ${validated.quantity} units. Only ${currentStock} units available.`, 400);
+        }
+      }
+
+      const toLocation = validated.toLocationId ?? movement.toLocationId;
+      const toPerson = validated.toPersonId ?? movement.toPersonId;
+      const toArea = validated.toArea ?? movement.toArea;
+      const nextNotes = validated.notes ?? movement.notes;
+      const nextQuantity = validated.quantity ?? movement.quantityMoved;
+
+      // If destination is location, ensure exists
+      if (toLocation) {
+        const [loc] = await tx.select().from(locations).where(eq(locations.id, toLocation)).limit(1);
+        if (!loc) {
+          throw createError('Target location not found', 404);
+        }
+      }
+      // If destination is person, ensure exists
+      if (toPerson) {
+        const [per] = await tx.select().from(persons).where(eq(persons.id, toPerson)).limit(1);
+        if (!per) {
+          throw createError('Target person not found', 404);
+        }
+      }
+
+      const [updated] = await tx
+        .update(movementLogs)
+        .set({
+          toArea,
+          toLocationId: toLocation,
+          toPersonId: toPerson,
+          quantityMoved: nextQuantity,
+          notes: nextNotes,
+        })
+        .where(eq(movementLogs.id, id))
+        .returning();
+
+      const [enriched] = await enrichMovementLogs([updated]);
+      return enriched;
+    });
+
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Cancel pending single movement
+router.post('/:id/cancel', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const [movement] = await db.select().from(movementLogs).where(eq(movementLogs.id, id)).limit(1);
+    if (!movement) {
+      throw createError('Movement not found', 404);
+    }
+    if (!movement.requiresConfirmation || movement.status !== 'pending') {
+      throw createError('Only pending movements can be cancelled', 400);
+    }
+
+    const [updated] = await db
+      .update(movementLogs)
+      .set({
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        requiresConfirmation: false,
+        tokenExpiresAt: new Date(),
+      })
+      .where(eq(movementLogs.id, id))
+      .returning();
+
+    res.json({
+      message: 'Movement cancelled',
+      id: updated.id,
+      status: updated.status,
+    });
   } catch (error) {
     next(error);
   }

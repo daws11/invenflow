@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, timestamp, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, timestamp, index, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { products } from './products';
 import { locations } from './locations';
@@ -13,6 +13,13 @@ export const movementLogs = pgTable(
       .references(() => products.id, { onDelete: 'cascade' }),
     fromArea: text('from_area'),
     toArea: text('to_area'),
+    requiresConfirmation: boolean('requires_confirmation').notNull().default(false),
+    status: text('status').notNull().default('received'),
+    publicToken: text('public_token'),
+    tokenExpiresAt: timestamp('token_expires_at'),
+    confirmedBy: text('confirmed_by'),
+    confirmedAt: timestamp('confirmed_at'),
+    cancelledAt: timestamp('cancelled_at'),
     fromLocationId: uuid('from_location_id')
       .references(() => locations.id, { onDelete: 'set null' }),
     toLocationId: uuid('to_location_id')
@@ -36,6 +43,8 @@ export const movementLogs = pgTable(
     fromPersonIdIdx: index('movement_logs_from_person_id_idx').on(table.fromPersonId),
     toPersonIdIdx: index('movement_logs_to_person_id_idx').on(table.toPersonId),
     createdAtIdx: index('movement_logs_created_at_idx').on(table.createdAt),
+    publicTokenIdx: index('movement_logs_public_token_idx').on(table.publicToken),
+    statusIdx: index('movement_logs_status_idx').on(table.status),
   })
 );
 

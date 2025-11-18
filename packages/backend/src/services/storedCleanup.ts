@@ -1,9 +1,9 @@
-import { and, asc, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { db } from '../db';
 import { kanbans, products, storedLogs } from '../db/schema';
 import { env } from '../config/env';
 
-const HOURS_TO_MS = 60 * 60 * 1000;
+const MINUTE_TO_MS = 60 * 1000;
 
 let sweepTimer: NodeJS.Timeout | null = null;
 let isRunning = false;
@@ -27,7 +27,7 @@ interface ProductWithKanban {
   kanban: {
     id: string;
     name: string;
-    storedAutoArchiveAfterHours: number | null;
+    storedAutoArchiveAfterMinutes: number | null;
   };
 }
 
@@ -52,17 +52,19 @@ const fetchCandidates = async (limit: number): Promise<ProductWithKanban[]> => {
       kanban: {
         id: kanbans.id,
         name: kanbans.name,
-        storedAutoArchiveAfterHours: kanbans.storedAutoArchiveAfterHours,
+        storedAutoArchiveAfterMinutes: kanbans.storedAutoArchiveAfterMinutes,
       },
     })
     .from(products)
     .innerJoin(kanbans, eq(products.kanbanId, kanbans.id))
+    .leftJoin(storedLogs, eq(products.id, storedLogs.productId))
     .where(
       and(
         eq(kanbans.type, 'receive'),
         eq(kanbans.storedAutoArchiveEnabled, true),
-        isNotNull(kanbans.storedAutoArchiveAfterHours),
+        isNotNull(kanbans.storedAutoArchiveAfterMinutes),
         eq(products.columnStatus, 'Stored'),
+        isNull(storedLogs.id), // Exclude products that have already been archived
       ),
     )
     .orderBy(asc(products.columnEnteredAt))
@@ -72,8 +74,8 @@ const fetchCandidates = async (limit: number): Promise<ProductWithKanban[]> => {
 
   return rows
     .filter(({ product, kanban }) => {
-      if (!product.columnEnteredAt || !kanban.storedAutoArchiveAfterHours) return false;
-      const thresholdMs = kanban.storedAutoArchiveAfterHours * HOURS_TO_MS;
+      if (!product.columnEnteredAt || !kanban.storedAutoArchiveAfterMinutes) return false;
+      const thresholdMs = kanban.storedAutoArchiveAfterMinutes * MINUTE_TO_MS;
       return now - new Date(product.columnEnteredAt).getTime() >= thresholdMs;
     })
     .slice(0, limit);
@@ -125,13 +127,13 @@ export const runStoredCleanupOnce = async () => {
           stockLevel: product.stockLevel,
           category: product.category,
           supplier: product.supplier,
-          storedAt: product.columnEnteredAt,
+          storedAt: product.columnEnteredAt.toISOString(),
           removalType: 'auto',
-          removalReason: `Auto-archived after ${kanban.storedAutoArchiveAfterHours}h`,
+          removalReason: `Auto-archived after ${kanban.storedAutoArchiveAfterMinutes} minutes`,
           productSnapshot: buildSnapshot(product),
           metadata: {
             kanbanName: kanban.name,
-            autoArchiveHours: kanban.storedAutoArchiveAfterHours,
+            autoArchiveMinutes: kanban.storedAutoArchiveAfterMinutes,
             tags: product.tags,
             notes: product.notes,
             productImage: product.productImage,
@@ -140,7 +142,8 @@ export const runStoredCleanupOnce = async () => {
         })),
       );
 
-      await tx.delete(products).where(inArray(products.id, productIds));
+      // Products remain in the inventory with 'Stored' status
+      // No deletion - products stay visible in inventory manager
     });
 
     console.log(

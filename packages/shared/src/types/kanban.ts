@@ -58,7 +58,7 @@ export const KanbanSchema = z.object({
   formFieldSettings: FormFieldSettingsSchema.nullable(),
   thresholdRules: z.array(ThresholdRuleSchema).nullable(),
   storedAutoArchiveEnabled: z.boolean().default(false),
-  storedAutoArchiveAfterHours: z.number().int().min(1).max(720).nullable(),
+  storedAutoArchiveAfterMinutes: z.number().int().min(1).max(43200).nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
   productCount: z.number().optional(),
@@ -98,7 +98,7 @@ export const UpdateKanbanSchema = z.object({
   formFieldSettings: FormFieldSettingsSchema.nullable().optional(),
   thresholdRules: z.array(ThresholdRuleSchema).nullable().optional(),
   storedAutoArchiveEnabled: z.boolean().optional(),
-  storedAutoArchiveAfterHours: z.number().int().min(1).max(720).nullable().optional(),
+  storedAutoArchiveAfterMinutes: z.number().int().min(1).max(43200).nullable().optional(),
 });
 
 export type Kanban = z.infer<typeof KanbanSchema>;

@@ -9,7 +9,7 @@ export const env = {
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "24h",
   STORED_SWEEP_ENABLED: process.env.STORED_SWEEP_ENABLED !== "false",
   STORED_SWEEP_INTERVAL_MINUTES: Math.max(
-    5,
+    1,
     parseInt(process.env.STORED_SWEEP_INTERVAL_MINUTES || "30", 10),
   ),
   STORED_SWEEP_BATCH_LIMIT: Math.max(

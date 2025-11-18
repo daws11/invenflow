@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { X, Menu, Layout, MapPin, Users, UserCircle, LogOut, Package, ArrowRightLeft, Settings, ChevronDown, Building2, Archive } from 'lucide-react';
+import { X, Menu, Layout, MapPin, Users, UserCircle, LogOut, Package, ArrowRightLeft, Settings, ChevronDown, Building2, Archive, XCircle } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -74,7 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
 
   // Auto-open kanban dropdown if current route is in kanban section
   useEffect(() => {
-    const kanbanPaths = ['/', '/kanbans/receiving', '/kanbans/purchasing', '/stored-log'];
+    const kanbanPaths = ['/', '/kanbans/receiving', '/kanbans/purchasing', '/stored-log', '/rejection-log'];
     if (kanbanPaths.includes(location.pathname)) {
       setIsKanbanOpen(true);
     }
@@ -116,6 +116,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
       name: 'Stored Log',
       path: '/stored-log',
       icon: Archive,
+    },
+    {
+      name: 'Rejection Log',
+      path: '/rejection-log',
+      icon: XCircle,
     },
   ];
 

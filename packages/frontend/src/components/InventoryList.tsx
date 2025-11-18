@@ -654,8 +654,11 @@ export function InventoryList({
                       {item.columnStatus === 'Stored' && (
                         <button
                           onClick={(e) => handleMoveClick(e, item)}
-                          className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50"
-                          title="Move product"
+                          disabled={isMovementModalOpen}
+                          className={`text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50 ${
+                            isMovementModalOpen ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                          title={isMovementModalOpen ? "Movement modal is already open" : "Move product"}
                         >
                           <ArrowsRightLeftIcon className="h-4 w-4" />
                         </button>

@@ -70,9 +70,9 @@ export function KanbanSettingsModal({
   const [thresholdRules, setThresholdRules] = useState<ThresholdRule[]>(kanban?.thresholdRules || []);
   const [isSavingThreshold, setIsSavingThreshold] = useState(false);
   const [storedAutomationEnabled, setStoredAutomationEnabled] = useState(kanban?.storedAutoArchiveEnabled ?? false);
-  const [storedAutomationHours, setStoredAutomationHours] = useState<number | ''>(
-    kanban?.storedAutoArchiveAfterHours ?? '',
-  );
+  const initialStoredMinutes = kanban?.storedAutoArchiveAfterMinutes ?? 0;
+  const [storedHoursInput, setStoredHoursInput] = useState<number>(Math.floor(initialStoredMinutes / 60));
+  const [storedMinutesInput, setStoredMinutesInput] = useState<number>(initialStoredMinutes % 60);
   const [storedSettingsError, setStoredSettingsError] = useState<string | null>(null);
   const [isSavingStoredSettings, setIsSavingStoredSettings] = useState(false);
   // Receive kanban default location
@@ -115,7 +115,9 @@ export function KanbanSettingsModal({
       setFormFieldSettings(kanban.formFieldSettings || DEFAULT_FORM_FIELD_SETTINGS);
       setEditLocationId(kanban.locationId ?? null);
       setStoredAutomationEnabled(kanban.storedAutoArchiveEnabled ?? false);
-      setStoredAutomationHours(kanban.storedAutoArchiveAfterHours ?? '');
+      const minutes = kanban.storedAutoArchiveAfterMinutes ?? 0;
+      setStoredHoursInput(Math.floor(minutes / 60));
+      setStoredMinutesInput(minutes % 60);
       setStoredSettingsError(null);
     }
   }, [kanban]);
@@ -262,19 +264,33 @@ export function KanbanSettingsModal({
     }
   };
 
+  const getTotalMinutes = () => storedHoursInput * 60 + storedMinutesInput;
+  const formatDuration = (minutes?: number | null) => {
+    if (!minutes || minutes <= 0) return 'not set';
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    const parts = [];
+    if (hours) {
+      parts.push(`${hours}h`);
+    }
+    if (mins) {
+      parts.push(`${mins}m`);
+    }
+    if (parts.length === 0) {
+      return '0m';
+    }
+    return parts.join(' ');
+  };
+
   const validateStoredSettings = () => {
     if (!storedAutomationEnabled) {
       setStoredSettingsError(null);
       return true;
     }
 
-    if (storedAutomationHours === '' || typeof storedAutomationHours !== 'number') {
-      setStoredSettingsError('Please provide the number of hours before auto-archive runs.');
-      return false;
-    }
-
-    if (storedAutomationHours < 1 || storedAutomationHours > 720) {
-      setStoredSettingsError('Hours must be between 1 and 720.');
+    const totalMinutes = getTotalMinutes();
+    if (totalMinutes < 1 || totalMinutes > 43200) {
+      setStoredSettingsError('Duration must be between 1 minute and 30 days.');
       return false;
     }
 
@@ -288,12 +304,11 @@ export function KanbanSettingsModal({
 
     setIsSavingStoredSettings(true);
     try {
+      const totalMinutes = getTotalMinutes();
       await updateKanban(kanban.id, {
         storedAutoArchiveEnabled: storedAutomationEnabled,
-        storedAutoArchiveAfterHours:
-          storedAutomationEnabled && typeof storedAutomationHours === 'number'
-            ? storedAutomationHours
-            : null,
+        storedAutoArchiveAfterMinutes:
+          storedAutomationEnabled && totalMinutes > 0 ? totalMinutes : null,
       });
       toast.success('Stored column settings saved successfully!');
       setActiveTab('overview');
@@ -305,15 +320,12 @@ export function KanbanSettingsModal({
     }
   };
 
-  const handleStoredHoursInput = (value: string) => {
-    if (value === '') {
-      setStoredAutomationHours('');
-      return;
-    }
-
-    const parsed = parseInt(value, 10);
-    if (!Number.isNaN(parsed)) {
-      setStoredAutomationHours(parsed);
+  const handleDurationPartChange = (part: 'hours' | 'minutes', value: string) => {
+    const parsed = value === '' ? 0 : Math.max(0, parseInt(value, 10) || 0);
+    if (part === 'hours') {
+      setStoredHoursInput(Math.min(parsed, 720));
+    } else {
+      setStoredMinutesInput(Math.min(parsed, 59));
     }
   };
 
@@ -409,9 +421,9 @@ export function KanbanSettingsModal({
           </div>
           <p className="text-sm text-amber-800">
             {kanban.storedAutoArchiveEnabled
-              ? `Enabled • Cards older than ${kanban.storedAutoArchiveAfterHours ?? '?'} hour${
-                  kanban.storedAutoArchiveAfterHours === 1 ? '' : 's'
-                } will move to Stored Log automatically.`
+              ? `Enabled • Cards older than ${formatDuration(
+                  kanban.storedAutoArchiveAfterMinutes ?? null,
+                )} will move to Stored Log automatically.`
               : 'Disabled • Stored cards stay visible until removed manually.'}
           </p>
         </div>
@@ -465,9 +477,7 @@ export function KanbanSettingsModal({
               <p className="text-sm font-medium text-gray-900">Stored column automation</p>
               <p className="text-xs text-gray-500">
                 {kanban.storedAutoArchiveEnabled
-                  ? `Auto-removal after ${
-                      kanban.storedAutoArchiveAfterHours || 'configured'
-                    } hour${kanban.storedAutoArchiveAfterHours === 1 ? '' : 's'}`
+                  ? `Auto-removal after ${formatDuration(kanban.storedAutoArchiveAfterMinutes ?? null)}`
                   : 'Set up automatic cleanup for Stored cards'}
               </p>
             </div>
@@ -695,10 +705,9 @@ export function KanbanSettingsModal({
     </div>
   );
 
-  const resolvedStoredHours =
-    typeof storedAutomationHours === 'number'
-      ? storedAutomationHours
-      : kanban.storedAutoArchiveAfterHours ?? null;
+  const resolvedStoredMinutes = storedAutomationEnabled
+    ? getTotalMinutes()
+    : kanban.storedAutoArchiveAfterMinutes ?? null;
 
   const storedSettingsContent = (
     <div className="space-y-6">
@@ -714,11 +723,11 @@ export function KanbanSettingsModal({
           </p>
         </div>
         <p className="text-xs text-gray-600">
-          {storedAutomationEnabled && resolvedStoredHours
-            ? `Cards that stay in the Stored column longer than ${resolvedStoredHours} hour${
-                resolvedStoredHours === 1 ? '' : 's'
-              } (~${(resolvedStoredHours / 24).toFixed(1)} day${
-                Math.round(resolvedStoredHours / 24) === 1 ? '' : 's'
+          {storedAutomationEnabled && resolvedStoredMinutes
+            ? `Cards that stay in the Stored column longer than ${formatDuration(
+                resolvedStoredMinutes,
+              )} (~${(resolvedStoredMinutes / 1440).toFixed(1)} day${
+                Math.round(resolvedStoredMinutes / 1440) === 1 ? '' : 's'
               }) will be archived automatically.`
             : 'Enable this setting to automatically archive Stored items after a defined time window.'}
         </p>
@@ -734,7 +743,13 @@ export function KanbanSettingsModal({
           </div>
           <button
             onClick={() => {
-              setStoredAutomationEnabled((prev) => !prev);
+              setStoredAutomationEnabled((prev) => {
+                const next = !prev;
+                if (next && storedHoursInput === 0 && storedMinutesInput === 0) {
+                  setStoredHoursInput(1);
+                }
+                return next;
+              });
               setStoredSettingsError(null);
             }}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
@@ -752,26 +767,47 @@ export function KanbanSettingsModal({
         {storedAutomationEnabled && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Auto-remove after (hours)
+              Auto-remove after
             </label>
-            <input
-              type="number"
-              min={1}
-              max={720}
-              value={storedAutomationHours === '' ? '' : storedAutomationHours}
-              onChange={(e) => handleStoredHoursInput(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                storedSettingsError ? 'border-red-300' : 'border-gray-300'
-              }`}
-              placeholder="e.g. 72"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Minimum 1 hour, maximum 720 hours (30 days). Current window:{' '}
-              {resolvedStoredHours
-                ? `${resolvedStoredHours}h ≈ ${(resolvedStoredHours / 24).toFixed(1)} day${
-                    Math.round(resolvedStoredHours / 24) === 1 ? '' : 's'
-                  }`
-                : 'not set'}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    max={720}
+                    value={storedHoursInput}
+                    onChange={(e) => handleDurationPartChange('hours', e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      storedSettingsError ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                  />
+                  <span className="text-sm text-gray-600">hours</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Max 720 hours (30 days)</p>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    max={59}
+                    value={storedMinutesInput}
+                    onChange={(e) => handleDurationPartChange('minutes', e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      storedSettingsError ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                  />
+                  <span className="text-sm text-gray-600">minutes</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">0–59 minutes</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-3">
+              Current window:{' '}
+              {resolvedStoredMinutes ? `${formatDuration(resolvedStoredMinutes)} (~${(resolvedStoredMinutes / 1440).toFixed(1)} day${
+                  Math.round(resolvedStoredMinutes / 1440) === 1 ? '' : 's'
+                })` : 'not set'}
             </p>
             {storedSettingsError && (
               <p className="mt-1 text-sm text-red-600">{storedSettingsError}</p>
@@ -792,7 +828,9 @@ export function KanbanSettingsModal({
         <button
           onClick={() => {
             setStoredAutomationEnabled(kanban.storedAutoArchiveEnabled ?? false);
-            setStoredAutomationHours(kanban.storedAutoArchiveAfterHours ?? '');
+            const minutes = kanban.storedAutoArchiveAfterMinutes ?? 0;
+            setStoredHoursInput(Math.floor(minutes / 60));
+            setStoredMinutesInput(minutes % 60);
             setStoredSettingsError(null);
             setActiveTab('overview');
           }}

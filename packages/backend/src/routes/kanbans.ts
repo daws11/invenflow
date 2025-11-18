@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { nanoid } from 'nanoid';
 import { db } from '../db';
-import { kanbans, products, kanbanLinks, locations, productGroups, productGroupSettings } from '../db/schema';
-import { eq, and, asc, sql } from 'drizzle-orm';
+import { kanbans, products, kanbanLinks, locations, productGroups, productGroupSettings, storedLogs } from '../db/schema';
+import { eq, and, asc, sql, isNull } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
 import { cacheMiddleware, invalidateCache } from '../middleware/cache';
@@ -30,10 +30,13 @@ router.get('/', cacheMiddleware({ ttl: 10 * 60 * 1000 }), async (req, res, next)
         formFieldSettings: kanbans.formFieldSettings,
         thresholdRules: kanbans.thresholdRules,
         storedAutoArchiveEnabled: kanbans.storedAutoArchiveEnabled,
-        storedAutoArchiveAfterHours: kanbans.storedAutoArchiveAfterHours,
+        storedAutoArchiveAfterMinutes: kanbans.storedAutoArchiveAfterMinutes,
         createdAt: kanbans.createdAt,
         updatedAt: kanbans.updatedAt,
-        productCount: sql<number>`cast(count(${products.id}) as integer)`.as('productCount'),
+        // Only count non-rejected products so summary counts match board view
+        productCount: sql<number>`cast(count(*) filter (where ${products.isRejected} = false) as integer)`.as(
+          'productCount',
+        ),
       })
       .from(kanbans)
       .leftJoin(products, eq(kanbans.id, products.kanbanId))
@@ -65,10 +68,13 @@ router.get('/:id', async (req, res, next) => {
         formFieldSettings: kanbans.formFieldSettings,
         thresholdRules: kanbans.thresholdRules,
         storedAutoArchiveEnabled: kanbans.storedAutoArchiveEnabled,
-        storedAutoArchiveAfterHours: kanbans.storedAutoArchiveAfterHours,
+        storedAutoArchiveAfterMinutes: kanbans.storedAutoArchiveAfterMinutes,
         createdAt: kanbans.createdAt,
         updatedAt: kanbans.updatedAt,
-        productCount: sql<number>`cast(count(${products.id}) as integer)`.as('productCount'),
+        // Keep detail-level productCount aligned with non-rejected products
+        productCount: sql<number>`cast(count(*) filter (where ${products.isRejected} = false) as integer)`.as(
+          'productCount',
+        ),
       })
       .from(kanbans)
       .leftJoin(products, eq(kanbans.id, products.kanbanId))
@@ -83,11 +89,23 @@ router.get('/:id', async (req, res, next) => {
     const kanban = kanbanData[0];
 
     // Get products for this kanban
-    const kanbanProducts = await db
+    const kanbanProductsQuery = await db
       .select()
       .from(products)
-      .where(eq(products.kanbanId, id))
+      .leftJoin(storedLogs, eq(products.id, storedLogs.productId))
+      .where(
+        and(
+          eq(products.kanbanId, id),
+          // Hide rejected products from the live kanban board
+          eq(products.isRejected, false),
+          // Hide products that have been auto-archived to stored logs
+          isNull(storedLogs.id),
+        ),
+      )
       .orderBy(asc(products.columnPosition), asc(products.createdAt));
+
+    // Extract products from the joined result
+    const kanbanProducts = kanbanProductsQuery.map(result => result.products);
 
     // Get location details if this is a receive kanban
     let location = null;
@@ -240,14 +258,14 @@ router.put('/:id', async (req, res, next) => {
       formFieldSettings,
       locationId,
       storedAutoArchiveEnabled,
-      storedAutoArchiveAfterHours,
+      storedAutoArchiveAfterMinutes,
     } = validationResult.data;
 
     // Check if kanban exists and get its type for validation
     const [existingKanban] = await db
       .select({
         type: kanbans.type,
-        storedAutoArchiveAfterHours: kanbans.storedAutoArchiveAfterHours,
+        storedAutoArchiveAfterMinutes: kanbans.storedAutoArchiveAfterMinutes,
       })
       .from(kanbans)
       .where(eq(kanbans.id, id))
@@ -264,18 +282,18 @@ router.put('/:id', async (req, res, next) => {
 
     if (
       (storedAutoArchiveEnabled !== undefined ||
-        storedAutoArchiveAfterHours !== undefined) &&
+        storedAutoArchiveAfterMinutes !== undefined) &&
       existingKanban.type !== 'receive'
     ) {
       throw createError('Stored column automation is only available for Receive kanbans', 400);
     }
 
     if (
-      storedAutoArchiveAfterHours !== undefined &&
-      storedAutoArchiveAfterHours !== null &&
-      (storedAutoArchiveAfterHours < 1 || storedAutoArchiveAfterHours > 720)
+      storedAutoArchiveAfterMinutes !== undefined &&
+      storedAutoArchiveAfterMinutes !== null &&
+      (storedAutoArchiveAfterMinutes < 1 || storedAutoArchiveAfterMinutes > 43200)
     ) {
-      throw createError('storedAutoArchiveAfterHours must be between 1 and 720 hours', 400);
+      throw createError('storedAutoArchiveAfterMinutes must be between 1 minute and 30 days', 400);
     }
 
     // Validate locationId if provided
@@ -346,12 +364,12 @@ router.put('/:id', async (req, res, next) => {
     }
     if (storedAutoArchiveEnabled !== undefined) {
       updateData.storedAutoArchiveEnabled = storedAutoArchiveEnabled;
-      if (!storedAutoArchiveEnabled && storedAutoArchiveAfterHours === undefined) {
-        updateData.storedAutoArchiveAfterHours = null;
+      if (!storedAutoArchiveEnabled && storedAutoArchiveAfterMinutes === undefined) {
+        updateData.storedAutoArchiveAfterMinutes = null;
       }
     }
-    if (storedAutoArchiveAfterHours !== undefined) {
-      updateData.storedAutoArchiveAfterHours = storedAutoArchiveAfterHours;
+    if (storedAutoArchiveAfterMinutes !== undefined) {
+      updateData.storedAutoArchiveAfterMinutes = storedAutoArchiveAfterMinutes;
     }
     updateData.updatedAt = new Date().toISOString();
 

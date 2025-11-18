@@ -257,7 +257,10 @@ export function InventoryGrid({ items: _items, loading, viewMode, onProductClick
                       </div>
                       <button
                         onClick={(e) => handleMoveClick(e, item)}
-                        className="mt-2 w-full flex items-center justify-center px-3 py-1.5 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                        disabled={isMovementModalOpen}
+                        className={`mt-2 w-full flex items-center justify-center px-3 py-1.5 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors ${
+                          isMovementModalOpen ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
                       >
                         <ArrowsRightLeftIcon className="h-4 w-4 mr-1.5" />
                         Move Product
@@ -449,7 +452,10 @@ export function InventoryGrid({ items: _items, loading, viewMode, onProductClick
                           </div>
                           <button
                             onClick={(e) => handleMoveClick(e, item)}
-                            className="mt-2 w-full flex items-center justify-center px-3 py-1.5 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            disabled={isMovementModalOpen}
+                            className={`mt-2 w-full flex items-center justify-center px-3 py-1.5 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors ${
+                              isMovementModalOpen ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
                           >
                             <ArrowsRightLeftIcon className="h-4 w-4 mr-1.5" />
                             Move Product

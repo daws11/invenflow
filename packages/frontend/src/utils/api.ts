@@ -22,10 +22,12 @@ import {
   CreateBulkMovement,
   UpdateBulkMovement,
   ConfirmBulkMovement,
+  ConfirmMovement,
   BulkMovementFilters,
   BulkMovementListResponse,
   BulkMovementWithDetails,
   PublicBulkMovementResponse,
+  PublicMovementResponse,
   FormFieldSettings,
   LinkedReceiveKanban,
   StoredLogWithRelations,
@@ -412,6 +414,30 @@ export const movementApi = {
     });
     return response.data;
   },
+
+  getById: async (id: string): Promise<any> => {
+    const response = await api.get(`/api/movements/${id}`);
+    return response.data;
+  },
+
+  update: async (
+    id: string,
+    data: {
+      toArea?: string | null;
+      toLocationId?: string | null;
+      toPersonId?: string | null;
+      quantity?: number;
+      notes?: string | null;
+    },
+  ): Promise<any> => {
+    const response = await api.patch(`/api/movements/${id}`, data);
+    return response.data;
+  },
+
+  cancel: async (id: string): Promise<{ message: string; id: string; status: string }> => {
+    const response = await api.post(`/api/movements/${id}/cancel`);
+    return response.data;
+  },
 };
 
 // Public Form API calls
@@ -623,6 +649,30 @@ export const bulkMovementApi = {
   }> => {
     const response = await axios.post(
       `${API_BASE_URL}/api/public/bulk-movements/${token}/confirm`,
+      data,
+    );
+    return response.data;
+  },
+};
+
+export const publicMovementApi = {
+  getByToken: async (token: string): Promise<PublicMovementResponse> => {
+    const response = await axios.get(
+      `${API_BASE_URL}/api/public/movements/${token}`,
+    );
+    return response.data;
+  },
+
+  confirm: async (
+    token: string,
+    data: ConfirmMovement,
+  ): Promise<{
+    message: string;
+    movementLogId: string;
+    quantityProcessed: number;
+  }> => {
+    const response = await axios.post(
+      `${API_BASE_URL}/api/public/movements/${token}/confirm`,
       data,
     );
     return response.data;

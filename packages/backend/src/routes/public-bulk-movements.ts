@@ -124,7 +124,31 @@ router.post('/:token/confirm', async (req: Request, res: Response, next: NextFun
         throw new Error('Bulk movement token has expired');
       }
 
-      // 3. Get all bulk movement items
+      // 3. Resolve source & destination areas for area-to-area tracking
+      let fromArea: string | null = null;
+      let toArea: string | null = null;
+
+      if (bulkMovement.fromLocationId) {
+        const [fromLocation] = await tx
+          .select()
+          .from(locations)
+          .where(eq(locations.id, bulkMovement.fromLocationId))
+          .limit(1);
+
+        fromArea = fromLocation?.area ?? null;
+      }
+
+      if (bulkMovement.toLocationId) {
+        const [toLocation] = await tx
+          .select()
+          .from(locations)
+          .where(eq(locations.id, bulkMovement.toLocationId))
+          .limit(1);
+
+        toArea = toLocation?.area ?? null;
+      }
+
+      // 4. Get all bulk movement items
       const allItems = await tx
         .select()
         .from(bulkMovementItems)
@@ -144,7 +168,7 @@ router.post('/:token/confirm', async (req: Request, res: Response, next: NextFun
         }
       }
 
-      // 4. Update bulk movement items with received quantities
+      // 5. Update bulk movement items with received quantities
       for (const confirmedItem of confirmedItems) {
         await tx
           .update(bulkMovementItems)
@@ -152,7 +176,7 @@ router.post('/:token/confirm', async (req: Request, res: Response, next: NextFun
           .where(eq(bulkMovementItems.id, confirmedItem.itemId));
       }
 
-      // 5. For each item with quantityReceived > 0, create new products at destination
+      // 6. For each item with quantityReceived > 0, create new products at destination
       const createdProducts: any[] = [];
       
       for (const confirmedItem of confirmedItems) {
@@ -198,28 +222,79 @@ router.post('/:token/confirm', async (req: Request, res: Response, next: NextFun
 
           createdProducts.push(newProduct);
 
-          // Create movement log entry for audit trail
-          await tx
+          // Create movement log entry for audit trail (area-to-area aware)
+          const [movementLog] = await tx
             .insert(movementLogs)
             .values({
               productId: newProduct.id,
+              fromArea,
+              toArea,
               fromLocationId: bulkMovement.fromLocationId,
               toLocationId: bulkMovement.toLocationId,
               fromPersonId: null,
               toPersonId: null,
+              // We treat fromStockLevel as the total quantity that left this bulk movement item.
+              // Movement table will compute remainingFrom = fromStockLevel - quantityMoved,
+              // which correctly models partial receipts (some units still in transit).
               fromStockLevel: item.quantitySent,
               quantityMoved: confirmedItem.quantityReceived, // Actual quantity received and moved
               notes: `Bulk movement confirmation. ${notes || ''}`,
               movedBy: confirmedBy,
-            });
+            })
+            .returning();
+
+          // Compute destination total stock (toStockLevel) at the bulk destination location
+          // Group primarily by SKU; if SKU is null, fall back to kanban + productDetails.
+          let toStockLevel: number | null = null;
+          if (bulkMovement.toLocationId) {
+            const sku = newProduct.sku;
+
+            if (sku) {
+              const [row] = await tx
+                .select({
+                  total: sql<number>`coalesce(sum(${products.stockLevel}), 0)`,
+                })
+                .from(products)
+                .where(
+                  and(
+                    eq(products.locationId, bulkMovement.toLocationId),
+                    eq(products.sku, sku),
+                  ),
+                );
+
+              toStockLevel = Number(row?.total ?? 0);
+            } else {
+              const [row] = await tx
+                .select({
+                  total: sql<number>`coalesce(sum(${products.stockLevel}), 0)`,
+                })
+                .from(products)
+                .where(
+                  and(
+                    eq(products.locationId, bulkMovement.toLocationId),
+                    eq(products.kanbanId, newProduct.kanbanId),
+                    eq(products.productDetails, newProduct.productDetails),
+                  ),
+                );
+
+              toStockLevel = Number(row?.total ?? 0);
+            }
+
+            await tx
+              .update(movementLogs)
+              .set({
+                toStockLevel,
+              })
+              .where(eq(movementLogs.id, movementLog.id));
+          }
         }
       }
 
-      // 6. Update original products' status back to Stored if not all quantity was sent
+      // 7. Update original products' status back to Stored if not all quantity was sent
       // (In this implementation, we already reduced stock when creating bulk movement)
       // The original product remains in 'In Transit' status with reduced stock
       
-      // Update bulk movement status to 'received'
+      // 8. Update bulk movement status to 'received'
       await tx
         .update(bulkMovements)
         .set({

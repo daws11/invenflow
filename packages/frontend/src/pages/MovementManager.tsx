@@ -4,6 +4,10 @@ import { useBulkMovementStore } from '../store/bulkMovementStore';
 import { MovementModal } from '../components/MovementModal';
 import { BulkMovementDetailModal } from '../components/BulkMovementDetailModal';
 import { BulkMovementEditModal } from '../components/BulkMovementEditModal';
+import SingleMovementDetailModal from '../components/SingleMovementDetailModal';
+import SingleMovementEditModal from '../components/SingleMovementEditModal';
+import { useLocationStore } from '../store/locationStore';
+import { usePersonStore } from '../store/personStore';
 import {
   ArrowPathIcon,
   PlusIcon,
@@ -11,6 +15,7 @@ import {
   CalendarIcon,
   ArrowRightIcon,
 } from '@heroicons/react/24/outline';
+import { useToastStore } from '../store/toastStore';
 
 export default function MovementManager() {
   const {
@@ -35,12 +40,23 @@ export default function MovementManager() {
   const selectedBulk = useMemo(() => bulkMovements.find(b => b.id === selectedBulkId) || null, [bulkMovements, selectedBulkId]);
   const [isBulkDetailOpen, setIsBulkDetailOpen] = useState(false);
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
+  const [selectedMovementId, setSelectedMovementId] = useState<string | null>(null);
+  const [isSingleDetailOpen, setIsSingleDetailOpen] = useState(false);
+  const [isSingleEditOpen, setIsSingleEditOpen] = useState(false);
+  const selectedMovement = useMemo(
+    () => movements.find(m => m.id === selectedMovementId) || null,
+    [movements, selectedMovementId]
+  );
+  const { locations, fetchLocations } = useLocationStore();
+  const { persons, fetchPersons } = usePersonStore();
 
   useEffect(() => {
     fetchMovements();
     fetchStats();
     fetchBulkMovements();
-  }, [fetchMovements, fetchStats, fetchBulkMovements]);
+    fetchLocations();
+    fetchPersons({ activeOnly: true });
+  }, [fetchMovements, fetchStats, fetchBulkMovements, fetchLocations, fetchPersons]);
 
   const handleRefresh = () => {
     fetchMovements();
@@ -52,6 +68,21 @@ export default function MovementManager() {
     fetchMovements();
     fetchStats();
   };
+
+  const copyConfirmationLink = (token: string) => {
+    const url = `${window.location.origin}/movement/confirm/${token}`;
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        useToastStore.getState().addSuccessToast('Confirmation link copied');
+      })
+      .catch(() => {
+        useToastStore.getState().addErrorToast('Failed to copy link');
+      });
+  };
+
+  const canEditSingle = (row: any) => row.kind === 'single' && row.statusLabel === 'Pending Confirmation';
+  const canCancelSingle = canEditSingle;
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -72,6 +103,20 @@ export default function MovementManager() {
       const importType = isSystemImport 
         ? movement.movedBy?.split(':')[1] 
         : null;
+      const statusMeta = (() => {
+        switch (movement.status) {
+          case 'pending':
+            return { label: 'Pending Confirmation', className: 'bg-yellow-100 text-yellow-700 border-yellow-300' };
+          case 'cancelled':
+            return { label: 'Cancelled', className: 'bg-gray-100 text-gray-700 border-gray-300' };
+          case 'expired':
+            return { label: 'Expired', className: 'bg-red-100 text-red-700 border-red-300' };
+          case 'in_transit':
+            return { label: 'In Transit', className: 'bg-blue-100 text-blue-700 border-blue-300' };
+          default:
+            return { label: 'Completed', className: 'bg-green-100 text-green-700 border-green-300' };
+        }
+      })();
       
       return {
         kind: 'single' as const,
@@ -86,6 +131,9 @@ export default function MovementManager() {
         movedBy: movement.movedBy || 'System',
         isSystemImport,
         importType,
+        statusLabel: statusMeta.label,
+        statusBadgeClass: statusMeta.className,
+        publicToken: movement.publicToken,
       };
     });
 
@@ -98,6 +146,11 @@ export default function MovementManager() {
         : isConfirmed
         ? 'Confirmed'
         : 'Pending';
+      const statusBadgeClass = isCancelled
+        ? 'bg-red-100 text-red-700 border-red-300'
+        : isConfirmed
+        ? 'bg-green-100 text-green-700 border-green-300'
+        : 'bg-yellow-100 text-yellow-700 border-yellow-300';
 
       return {
         kind: 'bulk' as const,
@@ -110,6 +163,7 @@ export default function MovementManager() {
         movedBy: bm.createdBy,
         statusLabel,
         editable: !isConfirmed && !isCancelled,
+        statusBadgeClass,
       };
     });
 
@@ -506,19 +560,13 @@ export default function MovementManager() {
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm">
-                      {row.kind === 'bulk' ? (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${
-                          row.statusLabel === 'Pending'
-                            ? 'bg-yellow-100 text-yellow-700 border-yellow-300'
-                            : row.statusLabel === 'Confirmed'
-                            ? 'bg-green-100 text-green-700 border-green-300'
-                            : 'bg-red-100 text-red-700 border-red-300'
-                        }`}>
-                          {row.statusLabel}
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${
+                          row.statusBadgeClass || 'bg-gray-100 text-gray-700 border-gray-200'
+                        }`}
+                      >
+                        {row.statusLabel || '—'}
                         </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm">
                       {row.kind === 'bulk' ? (
@@ -557,7 +605,49 @@ export default function MovementManager() {
                           </button>
                         </div>
                       ) : (
-                        <span className="text-xs text-gray-400">—</span>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              setSelectedMovementId(row.id);
+                              setIsSingleDetailOpen(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                          >
+                            View
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedMovementId(row.id);
+                              setIsSingleEditOpen(true);
+                            }}
+                            disabled={!canEditSingle(row)}
+                            className="text-indigo-600 hover:text-indigo-800 text-xs font-medium disabled:text-gray-300 disabled:cursor-not-allowed"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!canCancelSingle(row)) return;
+                              if (confirm('Cancel this movement?')) {
+                                const { movementApi } = await import('../utils/api');
+                                await movementApi.cancel(row.id);
+                                handleRefresh();
+                              }
+                            }}
+                            disabled={!canCancelSingle(row)}
+                            className="text-red-600 hover:text-red-800 text-xs font-medium disabled:text-gray-300 disabled:cursor-not-allowed"
+                          >
+                            Cancel
+                          </button>
+                          {row.statusLabel === 'Pending Confirmation' && row.publicToken && (
+                            <button
+                              onClick={() => copyConfirmationLink(row.publicToken!)}
+                              className="text-gray-600 hover:text-gray-800 text-xs font-medium"
+                            >
+                              Copy Link
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -593,6 +683,26 @@ export default function MovementManager() {
           bulkMovement={selectedBulk}
         />
       )}
+
+      <SingleMovementDetailModal
+        isOpen={isSingleDetailOpen}
+        onClose={() => setIsSingleDetailOpen(false)}
+        movement={selectedMovement}
+      />
+      <SingleMovementEditModal
+        isOpen={isSingleEditOpen}
+        onClose={() => setIsSingleEditOpen(false)}
+        movement={selectedMovement}
+        locations={locations}
+        persons={persons}
+        onSave={async (data) => {
+          if (!selectedMovement) return;
+          const { movementApi } = await import('../utils/api');
+          await movementApi.update(selectedMovement.id, data);
+          setIsSingleEditOpen(false);
+          handleRefresh();
+        }}
+      />
     </div>
   );
 }

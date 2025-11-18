@@ -67,30 +67,42 @@ export type CreateBulkMovementItem = z.infer<typeof CreateBulkMovementItemSchema
 
 // Create Bulk Movement (input)
 export const CreateBulkMovementSchema = z.object({
-  fromLocationId: z.string().uuid(),
+  // Source can be specified by concrete location or by area (for general-location source)
+  fromLocationId: z.string().uuid().nullable().optional(),
   fromArea: z.string().min(1).max(255).nullable().optional(),
+  // Destination can be specified by area (resolved to general location) or explicit location
   toArea: z.string().min(1).max(255).nullable().optional(),
   toLocationId: z.string().uuid().nullable().optional(),
   items: z.array(CreateBulkMovementItemSchema).min(1, 'At least one item is required'),
   notes: z.string().max(1000).nullable().optional(),
 })
-  // Ensure we have at least an area or a concrete destination location
+  // Ensure we have at least a source area or a concrete source location
+  .refine(
+    (data) => Boolean(data.fromArea || data.fromLocationId),
+    {
+      message: 'Either fromArea or fromLocationId must be provided',
+      path: ['fromArea'],
+    },
+  )
+  // Ensure we have at least a destination area or a concrete destination location
   .refine(
     (data) => Boolean(data.toArea || data.toLocationId),
     {
       message: 'Either toArea or toLocationId must be provided',
       path: ['toArea'],
-    }
+    },
   )
   // If both from/to locations are provided, they must be different
   .refine(
     (data) =>
-      !data.toLocationId || data.fromLocationId !== data.toLocationId,
-  {
-    message: 'Source and destination locations must be different',
-    path: ['toLocationId'],
-  }
-);
+      !data.toLocationId ||
+      !data.fromLocationId ||
+      data.fromLocationId !== data.toLocationId,
+    {
+      message: 'Source and destination locations must be different',
+      path: ['toLocationId'],
+    },
+  );
 
 export type CreateBulkMovement = z.infer<typeof CreateBulkMovementSchema>;
 

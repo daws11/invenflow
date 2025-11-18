@@ -1,0 +1,1 @@
+ALTER TABLE "movement_logs" ADD COLUMN "cancelled_at" timestamp;
