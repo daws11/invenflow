@@ -109,3 +109,5 @@ logs/*
 .env.staging
 
 .VSCodeCounter/*
+
+backend/uploads/*
