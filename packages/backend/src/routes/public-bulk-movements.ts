@@ -239,6 +239,7 @@ router.post('/:token/confirm', async (req: Request, res: Response, next: NextFun
 
     // Confirming a bulk movement creates stored products; invalidate inventory caches
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/locations');
 
     res.json({

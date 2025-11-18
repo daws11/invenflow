@@ -155,6 +155,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
     // Invalidate inventory-related caches so stock changes are reflected immediately
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/locations');
 
     res.status(201).json({

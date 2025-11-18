@@ -189,6 +189,7 @@ router.post('/', async (req, res, next) => {
 
     // Invalidate relevant caches
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/kanbans');
 
     res.status(201).json(createdProduct);
@@ -305,6 +306,7 @@ router.put('/:id', async (req, res, next) => {
 
     // Invalidate relevant caches
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/kanbans');
 
     res.json(updatedProduct);
@@ -667,6 +669,7 @@ router.delete('/:id', async (req, res, next) => {
 
     // Invalidate relevant caches
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/kanbans');
 
     res.json({ message: 'Product deleted successfully' });
@@ -707,6 +710,7 @@ router.post('/bulk-delete', async (req, res, next) => {
 
     // Invalidate relevant caches
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/kanbans');
 
     res.json({ 
@@ -753,6 +757,7 @@ router.post('/bulk-update', async (req, res, next) => {
 
     // Invalidate relevant caches
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/kanbans');
 
     res.json({ 
@@ -828,6 +833,7 @@ router.post('/bulk-reject', async (req, res, next) => {
 
     // Invalidate relevant caches
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/kanbans');
 
     res.json({
@@ -873,6 +879,7 @@ router.post('/:id/unreject', async (req, res, next) => {
 
     // Invalidate relevant caches
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/kanbans');
 
     res.json(updated);
@@ -972,6 +979,7 @@ router.post('/bulk-move', async (req, res, next) => {
 
     // Invalidate relevant caches
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/kanbans');
 
     res.json({
@@ -1158,6 +1166,7 @@ router.post('/reorder', async (req, res, next) => {
 
     // Invalidate caches
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/kanbans');
 
     res.json({

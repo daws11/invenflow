@@ -321,6 +321,7 @@ router.post('/', async (req, res, next) => {
 
     // Invalidate inventory-related caches so movements are reflected immediately
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/locations');
 
     res.status(201).json(result);

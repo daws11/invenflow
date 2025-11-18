@@ -123,6 +123,7 @@ router.post('/', async (req, res, next) => {
 
     // Invalidate caches
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/kanbans');
 
     res.json({
@@ -239,6 +240,7 @@ router.put('/:id', async (req, res, next) => {
 
     // Invalidate caches
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/kanbans');
 
     res.json({
@@ -325,6 +327,7 @@ router.delete('/:id', async (req, res, next) => {
 
     // Invalidate caches
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/kanbans');
 
     res.json({ message: 'Product group deleted successfully' });
@@ -394,6 +397,7 @@ router.post('/:id/add-products', async (req, res, next) => {
 
     // Invalidate caches
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/kanbans');
 
     res.json({
@@ -447,6 +451,7 @@ router.post('/:id/remove-products', async (req, res, next) => {
 
     // Invalidate caches
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/kanbans');
 
     res.json({

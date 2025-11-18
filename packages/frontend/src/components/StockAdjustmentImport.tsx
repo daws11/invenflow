@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { inventoryApi } from '../utils/api';
+import { useToast } from '../store/toastStore';
 import { ArrowUpTrayIcon, DocumentArrowDownIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 type PreviewRow = {
@@ -88,6 +89,7 @@ export function StockAdjustmentImport({ onSuccess }: StockAdjustmentImportProps)
   const [result, setResult] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
+  const toast = useToast();
 
   const handleFile = async (f: File) => {
     setFile(f);
@@ -149,9 +151,12 @@ export function StockAdjustmentImport({ onSuccess }: StockAdjustmentImportProps)
       };
       const res = await inventoryApi.importStored(payload);
       setResult(res);
+      toast.success(`Import completed! ${res.totals.successful} products imported successfully.`);
       onSuccess?.(); // Trigger refresh after successful import
     } catch (e: any) {
-      setError(e?.response?.data?.error || e?.message || 'Import failed');
+      const errorMessage = e?.response?.data?.error || e?.message || 'Import failed';
+      setError(errorMessage);
+      toast.error(`Import failed: ${errorMessage}`);
     } finally {
       setProcessing(false);
     }

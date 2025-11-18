@@ -1423,6 +1423,7 @@ router.post('/import/stored', authorizeRoles('admin', 'manager'), async (req, re
     // Invalidate caches so the UI receives fresh data immediately after import
     // This clears inventory lists (including grouped and sku location endpoints) and locations list
     invalidateCache('/api/inventory');
+    invalidateCache('/api/inventory/stats');
     invalidateCache('/api/locations');
 
     res.json({

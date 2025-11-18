@@ -113,17 +113,6 @@ export default function LoginForm() {
             </button>
           </div>
 
-          <div className="text-center">
-            <p className="text-xs text-gray-500">
-              Default admin credentials:
-            </p>
-            <p className="text-xs text-gray-400">
-              Email: admin@invenflow.com
-            </p>
-            <p className="text-xs text-gray-400">
-              Password: admin123
-            </p>
-          </div>
         </form>
       </div>
     </div>
