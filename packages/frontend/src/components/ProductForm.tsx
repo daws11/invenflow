@@ -5,13 +5,6 @@ import { useInventoryStore } from '../store/inventoryStore';
 import { useLocationStore } from '../store/locationStore';
 import { Slider } from './Slider';
 import { BottomSheet } from './BottomSheet';
-import { BasicInlineEdit } from './BasicInlineEdit';
-import {
-  TagIcon,
-  BuildingOfficeIcon,
-  CubeIcon,
-  CurrencyDollarIcon,
-} from '@heroicons/react/24/outline';
 
 interface ProductFormProps {
   kanbanId: string;
@@ -47,10 +40,6 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Options for select fields
-  const categoryOptions = DEFAULT_CATEGORIES.map(cat => ({ value: cat, label: cat }));
-  const priorityOptions = DEFAULT_PRIORITIES.map(pri => ({ value: pri, label: pri }));
-  const unitOptions = DEFAULT_UNITS.filter(unit => unit !== 'Custom').map(unit => ({ value: unit, label: unit }));
 
   useEffect(() => {
     fetchLocations();
@@ -182,75 +171,70 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
     <div className="space-y-4">
       {/* Product Name - Compact */}
       <div className="mb-3">
-        <BasicInlineEdit
-          value={formData.productDetails}
-          onSave={(value) => setFormData({ ...formData, productDetails: value })}
-          type="textarea"
+        <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Product Name *</h4>
+        <textarea
+          className={`w-full px-3 py-2 bg-white border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-y shadow-sm ${errors.productDetails ? 'border-red-500' : 'border-gray-300 hover:border-blue-200 hover:bg-blue-50/50'}`}
           placeholder="Enter product name"
+          value={formData.productDetails}
+          onChange={(e) => setFormData({ ...formData, productDetails: e.target.value })}
           rows={2}
           maxLength={1000}
-          className="text-base font-semibold text-gray-900 leading-tight"
-          validation={(value) => {
-            if (!value || value.toString().trim().length === 0) {
-              return 'Product name is required';
-            }
-            return null;
-          }}
         />
+        {errors.productDetails && (
+          <p className="mt-1 text-sm text-red-600">{errors.productDetails}</p>
+        )}
       </div>
 
       {/* Compact Basic Info Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Category</h4>
-          <BasicInlineEdit
+          <select
+            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-blue-200 hover:bg-blue-50/50"
             value={formData.category}
-            onSave={(value) => setFormData({ ...formData, category: value })}
-            type="select"
-            options={categoryOptions}
-            placeholder="Select category"
-            displayValue={formData.category ? (
-              <div className="flex items-center">
-                <TagIcon className="h-3 w-3 text-gray-400 mr-1" />
-                <span className="text-xs text-gray-600">{formData.category}</span>
-              </div>
-            ) : undefined}
-          />
+            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+          >
+            <option value="">Select category</option>
+            {DEFAULT_CATEGORIES.map(category => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
         </div>
 
         <div>
           <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Supplier</h4>
-          <BasicInlineEdit
-            value={formData.supplier}
-            onSave={(value) => setFormData({ ...formData, supplier: value })}
+          <input
+            type="text"
+            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-blue-200 hover:bg-blue-50/50"
             placeholder="Enter supplier"
+            value={formData.supplier}
+            onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
             maxLength={255}
-            displayValue={formData.supplier ? (
-              <div className="flex items-center">
-                <BuildingOfficeIcon className="h-3 w-3 text-gray-400 mr-1" />
-                <span className="text-xs text-gray-600 truncate">{formData.supplier}</span>
-              </div>
-            ) : undefined}
           />
         </div>
 
         <div>
           <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Priority</h4>
-          <BasicInlineEdit
+          <select
+            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-blue-200 hover:bg-blue-50/50"
             value={formData.priority}
-            onSave={(value) => setFormData({ ...formData, priority: value })}
-            type="select"
-            options={priorityOptions}
-            placeholder="Select priority"
-          />
+            onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+          >
+            <option value="">Select priority</option>
+            {DEFAULT_PRIORITIES.map(priority => (
+              <option key={priority} value={priority}>{priority}</option>
+            ))}
+          </select>
         </div>
 
         <div>
           <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Tags</h4>
-          <BasicInlineEdit
-            value={formData.tags}
-            onSave={(value) => setFormData({ ...formData, tags: value })}
+          <input
+            type="text"
+            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-blue-200 hover:bg-blue-50/50"
             placeholder="urgent, fragile, bulk"
+            value={formData.tags}
+            onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
           />
         </div>
       </div>
@@ -260,69 +244,78 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
           <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Dimensions</h4>
-          <BasicInlineEdit
-            value={formData.dimensions}
-            onSave={(value) => setFormData({ ...formData, dimensions: value })}
+          <input
+            type="text"
+            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-blue-200 hover:bg-blue-50/50"
             placeholder="L x W x H"
+            value={formData.dimensions}
+            onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
           />
         </div>
 
         <div>
           <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Weight</h4>
-          <BasicInlineEdit
-            value={formData.weight}
-            onSave={(value) => setFormData({ ...formData, weight: value })}
+          <input
             type="number"
+            step="0.01"
+            min="0"
+            className={`w-full px-3 py-2 bg-white border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-blue-200 hover:bg-blue-50/50 ${errors.weight ? 'border-red-500' : 'border-gray-300'}`}
             placeholder="0.00"
-            displayValue={formData.weight ? (
-              <div className="flex items-center">
-                <CubeIcon className="h-3 w-3 text-gray-400 mr-1" />
-                <span className="text-xs text-gray-600">{formData.weight} {formData.unit || 'kg'}</span>
-              </div>
-            ) : undefined}
-            validation={(value) => {
-              if (value && (isNaN(Number(value)) || Number(value) <= 0)) {
-                return 'Weight must be a positive number';
-              }
-              return null;
-            }}
+            value={formData.weight}
+            onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
           />
+          {errors.weight && (
+            <p className="mt-1 text-sm text-red-600">{errors.weight}</p>
+          )}
         </div>
 
         <div>
           <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Unit</h4>
-          <BasicInlineEdit
-            value={formData.unit}
-            onSave={(value) => setFormData({ ...formData, unit: value })}
-            type="select"
-            options={unitOptions}
-            allowCustom={true}
-            customPlaceholder="Custom unit"
-            placeholder="Select unit"
-            maxLength={20}
-          />
+          <div className="flex gap-2">
+            <select
+              className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-blue-200 hover:bg-blue-50/50"
+              value={formData.unit === 'Custom' || !DEFAULT_UNITS.includes(formData.unit as any) ? 'Custom' : formData.unit}
+              onChange={(e) => {
+                if (e.target.value === 'Custom') {
+                  setFormData({ ...formData, unit: '' });
+                } else {
+                  setFormData({ ...formData, unit: e.target.value });
+                }
+              }}
+            >
+              <option value="">Select unit...</option>
+              {DEFAULT_UNITS.filter(unit => unit !== 'Custom').map((unit) => (
+                <option key={unit} value={unit}>{unit}</option>
+              ))}
+              <option value="Custom">Custom</option>
+            </select>
+            {(formData.unit === 'Custom' || !DEFAULT_UNITS.includes(formData.unit as any)) && formData.unit !== '' && (
+              <input
+                type="text"
+                className="w-24 px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-blue-200 hover:bg-blue-50/50"
+                placeholder="Custom unit"
+                value={formData.unit}
+                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                maxLength={20}
+              />
+            )}
+          </div>
         </div>
 
         <div>
           <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Unit Price</h4>
-          <BasicInlineEdit
-            value={formData.unitPrice}
-            onSave={(value) => setFormData({ ...formData, unitPrice: value })}
+          <input
             type="number"
+            step="0.01"
+            min="0"
+            className={`w-full px-3 py-2 bg-white border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-blue-200 hover:bg-blue-50/50 ${errors.unitPrice ? 'border-red-500' : 'border-gray-300'}`}
             placeholder="0.00"
-            displayValue={formData.unitPrice ? (
-              <div className="flex items-center">
-                <CurrencyDollarIcon className="h-3 w-3 text-gray-400 mr-1" />
-                <span className="text-xs text-gray-600">{formData.unitPrice}</span>
-              </div>
-            ) : undefined}
-            validation={(value) => {
-              if (value && (isNaN(Number(value)) || Number(value) <= 0)) {
-                return 'Unit price must be a positive number';
-              }
-              return null;
-            }}
+            value={formData.unitPrice}
+            onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
           />
+          {errors.unitPrice && (
+            <p className="mt-1 text-sm text-red-600">{errors.unitPrice}</p>
+          )}
         </div>
       </div>
 
@@ -330,16 +323,18 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
         {currentKanban?.type === 'receive' && (
           <div className="sm:col-span-2">
             <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Location</h4>
-            <BasicInlineEdit
+            <select
+              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-blue-200 hover:bg-blue-50/50"
               value={formData.locationId || ''}
-              onSave={(value) => setFormData({ ...formData, locationId: value || null })}
-              type="select"
-              options={locations.map(location => ({
-                value: location.id,
-                label: `${location.name} (${location.code}) - ${location.area}`
-              }))}
-              placeholder="Select a location..."
-            />
+              onChange={(e) => setFormData({ ...formData, locationId: e.target.value || null })}
+            >
+              <option value="">Select a location...</option>
+              {locations.map(location => (
+                <option key={location.id} value={location.id}>
+                  {location.name} ({location.code}) - {location.area}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -347,19 +342,19 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
         {currentKanban?.type === 'order' && currentKanban.linkedKanbans && currentKanban.linkedKanbans.length > 0 && (
           <div className="sm:col-span-3">
             <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Preferred Transfer Destination</h4>
-            <BasicInlineEdit
+            <select
+              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-blue-200 hover:bg-blue-50/50"
               value={formData.preferredReceiveKanbanId || ''}
-              onSave={(value) => setFormData({ ...formData, preferredReceiveKanbanId: value || '' })}
-              type="select"
-              options={[
-                { value: '', label: usingKanbanDefaultLabel },
-                ...currentKanban.linkedKanbans.map((link) => ({
-                  value: link.id,
-                  label: link.locationName ? `${link.name} - ${link.locationName}` : link.name
-                }))
-              ]}
-              placeholder="Select destination"
-            />
+              onChange={(e) => setFormData({ ...formData, preferredReceiveKanbanId: e.target.value || '' })}
+            >
+              <option value="">{usingKanbanDefaultLabel}</option>
+              {currentKanban.linkedKanbans.map((link) => (
+                <option key={link.id} value={link.id}>
+                  {link.name}
+                  {link.locationName && ` - ${link.locationName}`}
+                </option>
+              ))}
+            </select>
             <p className="mt-1 text-xs text-gray-500">
               This product will be transferred to the selected receive kanban when moved to "Purchased"
             </p>
@@ -369,37 +364,38 @@ export default function ProductForm({ kanbanId, initialColumn, product, onClose 
         {product && product.columnStatus === 'Stored' && (
           <div className="sm:col-span-2">
             <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Stock Level</h4>
-            <BasicInlineEdit
-              value={formData.stockLevel}
-              onSave={(value) => setFormData({ ...formData, stockLevel: value })}
+            <input
               type="number"
+              min="0"
+              className={`w-full px-3 py-2 bg-white border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-blue-200 hover:bg-blue-50/50 ${errors.stockLevel ? 'border-red-500' : 'border-gray-300'}`}
               placeholder="0"
-              validation={(value) => {
-                if (value && (isNaN(Number(value)) || Number(value) < 0)) {
-                  return 'Stock level must be a positive number';
-                }
-                return null;
-              }}
+              value={formData.stockLevel}
+              onChange={(e) => setFormData({ ...formData, stockLevel: e.target.value })}
             />
+            {errors.stockLevel && (
+              <p className="mt-1 text-sm text-red-600">{errors.stockLevel}</p>
+            )}
           </div>
         )}
 
         <div className="sm:col-span-3">
           <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Location Notes</h4>
-          <BasicInlineEdit
-            value={formData.location}
-            onSave={(value) => setFormData({ ...formData, location: value })}
+          <input
+            type="text"
+            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-blue-200 hover:bg-blue-50/50"
             placeholder="Additional location details (optional)"
+            value={formData.location}
+            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
           />
         </div>
 
         <div className="sm:col-span-3">
           <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Notes</h4>
-          <BasicInlineEdit
-            value={formData.notes}
-            onSave={(value) => setFormData({ ...formData, notes: value })}
-            type="textarea"
+          <textarea
+            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-y shadow-sm hover:border-blue-200 hover:bg-blue-50/50"
             placeholder="Add any special handling instructions or context..."
+            value={formData.notes}
+            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
             rows={3}
             maxLength={1000}
           />
