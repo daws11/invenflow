@@ -5,7 +5,7 @@ import { movementLogs, products, locations, persons } from '../db/schema';
 import { eq, desc, and, gte, lte, sql, inArray, isNull, type SQL } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
-import { invalidateCache } from '../middleware/cache';
+import { invalidateInventoryCaches, type CacheTagDescriptor } from '../utils/cacheInvalidation';
 import { CreateMovementSchema, CreateBatchDistributionSchema, UpdateMovementSchema } from '@invenflow/shared';
 import { getOrCreateGeneralLocation } from '../utils/generalLocation';
 import { executeSingleMovement } from '../services/singleMovementExecutor';
@@ -475,10 +475,26 @@ router.post('/', async (req, res, next) => {
       return;
     }
 
-    // Invalidate inventory-related caches so movements are reflected immediately
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/locations');
+    const movementInvalidationTags: CacheTagDescriptor[] = [
+      { resource: 'inventory' },
+      { resource: 'inventoryStats' },
+      { resource: 'product', id: result.product.id },
+    ];
+
+    if (result.movementLog.fromLocationId) {
+      movementInvalidationTags.push({
+        resource: 'location',
+        id: result.movementLog.fromLocationId,
+      });
+    }
+    if (result.movementLog.toLocationId) {
+      movementInvalidationTags.push({
+        resource: 'location',
+        id: result.movementLog.toLocationId,
+      });
+    }
+
+    await invalidateInventoryCaches(movementInvalidationTags);
 
     res.status(201).json(result);
   } catch (error) {
@@ -797,9 +813,22 @@ router.post('/batch-distribute', async (req, res, next) => {
       };
     });
 
-    // Invalidate inventory-related caches so batch distributions are reflected immediately
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/locations');
+    const batchInvalidationTags: CacheTagDescriptor[] = [
+      { resource: 'inventory' },
+      { resource: 'inventoryStats' },
+    ];
+
+    movements.forEach(({ productId, toLocationId, fromLocationId }) => {
+      batchInvalidationTags.push({ resource: 'product', id: productId });
+      if (toLocationId) {
+        batchInvalidationTags.push({ resource: 'location', id: toLocationId });
+      }
+      if (fromLocationId) {
+        batchInvalidationTags.push({ resource: 'location', id: fromLocationId });
+      }
+    });
+
+    await invalidateInventoryCaches(batchInvalidationTags);
 
     res.status(201).json(result);
   } catch (error) {

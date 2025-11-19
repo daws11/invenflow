@@ -35,7 +35,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
   const { fetchLocations } = useLocationStore();
   const { fetchPersons } = usePersonStore();
   const { deleteProduct, currentKanban, updateProduct: kanbanUpdateProduct } = useKanbanStore();
-  const { updateProduct: inventoryUpdateProduct, selectedItem } = useInventoryStore();
+  const { updateProduct: inventoryUpdateProduct, selectedItem, syncAfterMutation } = useInventoryStore();
   const { success: _success, error } = useToast();
 
   // Use the selectedItem from inventory store if available (always up-to-date),
@@ -89,14 +89,6 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
         inventoryUpdateProduct(currentItem.id, updateData),
         kanbanUpdateProduct(currentItem.id, updateData)
       ]);
-
-      // For grouped view, we need to refresh the grouped data since it's aggregated
-      // and can't be easily updated optimistically
-      const { displayMode, fetchGroupedInventory } = useInventoryStore.getState();
-      if (displayMode === 'grouped') {
-        // Refresh grouped inventory to reflect the changes
-        fetchGroupedInventory();
-      }
     } catch (err) {
       console.error('Failed to update product:', err);
       error('Failed to update product');
@@ -109,6 +101,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
     try {
       await deleteProduct(currentItem.id);
       _success('Product deleted successfully');
+      await syncAfterMutation();
       onClose();
     } catch (err) {
       console.error('Failed to delete product:', err);

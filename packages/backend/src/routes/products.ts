@@ -5,11 +5,44 @@ import { eq, and, desc, getTableColumns, sql, inArray, isNull } from 'drizzle-or
 import { createError } from '../middleware/errorHandler';
 import type { NewProduct } from '../db/schema';
 import { authenticateToken } from '../middleware/auth';
-import { invalidateCache } from '../middleware/cache';
+import { invalidateInventoryCaches, type CacheTagDescriptor } from '../utils/cacheInvalidation';
 import { nanoid } from 'nanoid';
 import { generateStableSku, normalizeSku } from '../utils/sku';
 
+type ProductRecord = typeof products.$inferSelect;
+
 const router = Router();
+
+type ProductInvalidationContext = {
+  productIds?: Array<string | null | undefined>;
+  kanbanIds?: Array<string | null | undefined>;
+  locationIds?: Array<string | null | undefined>;
+  skuValues?: Array<string | null | undefined>;
+};
+
+const invalidateProductCaches = async (context: ProductInvalidationContext = {}) => {
+  const tags: CacheTagDescriptor[] = [];
+
+  const addUniqueTags = (
+    values: Array<string | null | undefined> | undefined,
+    resource: CacheTagDescriptor["resource"],
+  ) => {
+    if (!values) {
+      return;
+    }
+    const unique = Array.from(
+      new Set(values.filter((value): value is string => Boolean(value))),
+    );
+    unique.forEach((value) => tags.push({ resource, id: value }));
+  };
+
+  addUniqueTags(context.productIds, "product");
+  addUniqueTags(context.kanbanIds, "kanban");
+  addUniqueTags(context.locationIds, "location");
+  addUniqueTags(context.skuValues, "sku");
+
+  await invalidateInventoryCaches(tags);
+};
 
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
@@ -213,10 +246,12 @@ router.post('/', async (req, res, next) => {
       .values(newProduct)
       .returning();
 
-    // Invalidate relevant caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/kanbans');
+    await invalidateProductCaches({
+      productIds: [createdProduct.id],
+      kanbanIds: [createdProduct.kanbanId],
+      locationIds: [createdProduct.locationId],
+      skuValues: [createdProduct.sku],
+    });
 
     res.status(201).json(createdProduct);
   } catch (error) {
@@ -330,10 +365,12 @@ router.put('/:id', async (req, res, next) => {
       throw createError('Product not found', 404);
     }
 
-    // Invalidate relevant caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/kanbans');
+    await invalidateProductCaches({
+      productIds: [updatedProduct.id],
+      kanbanIds: [updatedProduct.kanbanId, currentProduct.kanbanId],
+      locationIds: [updatedProduct.locationId, currentProduct.locationId],
+      skuValues: [updatedProduct.sku, currentProduct.sku],
+    });
 
     res.json(updatedProduct);
   } catch (error) {
@@ -693,10 +730,12 @@ router.delete('/:id', async (req, res, next) => {
       throw createError('Product not found', 404);
     }
 
-    // Invalidate relevant caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/kanbans');
+    await invalidateProductCaches({
+      productIds: [deletedProduct.id],
+      kanbanIds: [deletedProduct.kanbanId],
+      locationIds: [deletedProduct.locationId],
+      skuValues: [deletedProduct.sku],
+    });
 
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {
@@ -734,10 +773,12 @@ router.post('/bulk-delete', async (req, res, next) => {
       }
     }
 
-    // Invalidate relevant caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/kanbans');
+    await invalidateProductCaches({
+      productIds: results.map((product) => product.id),
+      kanbanIds: results.map((product) => product.kanbanId),
+      locationIds: results.map((product) => product.locationId),
+      skuValues: results.map((product) => product.sku),
+    });
 
     res.json({ 
       message: `${results.length} products deleted successfully`,
@@ -781,10 +822,12 @@ router.post('/bulk-update', async (req, res, next) => {
       }
     }
 
-    // Invalidate relevant caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/kanbans');
+    await invalidateProductCaches({
+      productIds: results.map((product) => product.id),
+      kanbanIds: results.map((product) => product.kanbanId),
+      locationIds: results.map((product) => product.locationId),
+      skuValues: results.map((product) => product.sku),
+    });
 
     res.json({ 
       message: `${results.length} products updated successfully`,
@@ -857,10 +900,12 @@ router.post('/bulk-reject', async (req, res, next) => {
       }
     }
 
-    // Invalidate relevant caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/kanbans');
+    await invalidateProductCaches({
+      productIds: results.map((product) => product.id),
+      kanbanIds: results.map((product) => product.kanbanId),
+      locationIds: results.map((product) => product.locationId),
+      skuValues: results.map((product) => product.sku),
+    });
 
     res.json({
       message: `${results.length} products rejected successfully`,
@@ -903,10 +948,12 @@ router.post('/:id/unreject', async (req, res, next) => {
       .where(eq(products.id, id))
       .returning();
 
-    // Invalidate relevant caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/kanbans');
+    await invalidateProductCaches({
+      productIds: [updated.id, product.id],
+      kanbanIds: [updated.kanbanId, product.kanbanId],
+      locationIds: [updated.locationId, product.locationId],
+      skuValues: [updated.sku, product.sku],
+    });
 
     res.json(updated);
   } catch (error) {
@@ -987,10 +1034,15 @@ router.post('/bulk-move', async (req, res, next) => {
       }
     }
 
-    // Invalidate relevant caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/kanbans');
+    await invalidateProductCaches({
+      productIds: results.map((product) => product.id),
+      kanbanIds: results.map((product) => product.kanbanId),
+      locationIds: [
+        ...results.map((product) => product.locationId),
+        locationId,
+      ],
+      skuValues: results.map((product) => product.sku),
+    });
 
     res.json({
       message: `${results.length} products moved successfully`,
@@ -1124,8 +1176,8 @@ router.post('/reorder', async (req, res, next) => {
     }
 
     // Apply new positions inside a transaction for consistency
-    const updatedProducts: unknown[] = [];
-    const updatedGroups: unknown[] = [];
+    const updatedProducts: ProductRecord[] = [];
+    const updatedGroups: typeof productGroups.$inferSelect[] = [];
 
     await db.transaction(async (tx) => {
       for (let index = 0; index < normalizedOrderedItems.length; index++) {
@@ -1174,10 +1226,10 @@ router.post('/reorder', async (req, res, next) => {
       }
     });
 
-    // Invalidate caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/kanbans');
+    await invalidateProductCaches({
+      productIds: updatedProducts.map((product) => product.id),
+      kanbanIds: [kanbanId],
+    });
 
     res.json({
       message: 'Items reordered successfully',

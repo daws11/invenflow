@@ -64,9 +64,6 @@ export default function ValidationModal({
       if (!formData.locationId) {
         newErrors.locationId = 'Storage location is required';
       }
-      if (!storagePhoto) {
-        newErrors.storagePhoto = 'Storage photo is required';
-      }
     }
 
     setErrors(newErrors);
@@ -86,7 +83,7 @@ export default function ValidationModal({
       recipientName: formData.recipientName,
       locationId: formData.locationId || undefined,
       receivedImage: columnStatus === 'Received' ? receivedImage : undefined,
-      storagePhoto: columnStatus === 'Stored' ? storagePhoto : undefined,
+      storagePhoto: columnStatus === 'Stored' && storagePhoto ? storagePhoto : undefined,
       notes: formData.notes || undefined,
       validatedBy: 'current-user', // TODO: Get from auth context
     };
@@ -204,12 +201,12 @@ export default function ValidationModal({
             </div>
           )}
 
-          {/* Image Upload for Stored Status */}
+          {/* Image Upload for Stored Status (Optional) */}
           {isForStored && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Camera className="w-4 h-4 inline mr-1" />
-                Storage Location Photo
+                Storage Location Photo (Optional)
               </label>
               <ImageUpload
                 value={storagePhoto}
@@ -217,9 +214,6 @@ export default function ValidationModal({
                 placeholder="Upload photo of storage location"
                 disabled={isLoading}
               />
-              {errors.storagePhoto && (
-                <p className="mt-1 text-sm text-red-600">{errors.storagePhoto}</p>
-              )}
             </div>
           )}
 

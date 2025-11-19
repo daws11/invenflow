@@ -19,9 +19,10 @@ import {
 } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
-import { cacheMiddleware, invalidateCache } from '../middleware/cache';
+import { cacheMiddleware } from '../middleware/cache';
 import { z } from 'zod';
 import { generateStableSku, buildProductFingerprint } from '../utils/sku';
+import { invalidateInventoryCaches } from '../utils/cacheInvalidation';
 
 const router = Router();
 
@@ -85,7 +86,11 @@ const SORTABLE_COLUMNS = {
 } as const;
 
 // Get inventory items (products from receive kanbans with 'received' or 'stored' status)
-router.get('/', cacheMiddleware({ ttl: 2 * 60 * 1000 }), async (req, res, next) => {
+router.get('/', cacheMiddleware({
+  ttl: 60 * 1000,
+  sharedAcrossUsers: true,
+  tags: [{ resource: 'inventory' }],
+}), async (req, res, next) => {
   try {
     const pageNumber = toNumberValue(req.query.page) ?? 1;
     const pageSizeNumber = toNumberValue(req.query.pageSize) ?? 20;
@@ -610,7 +615,11 @@ router.get('/export', authorizeRoles('admin', 'manager'), async (req, res, next)
 });
 
 // Get inventory statistics
-router.get('/stats', async (req, res, next) => {
+router.get('/stats', cacheMiddleware({
+  ttl: 5 * 60 * 1000,
+  sharedAcrossUsers: true,
+  tags: [{ resource: 'inventoryStats' }],
+}), async (req, res, next) => {
   try {
     // Get total inventory count
     const [rawTotalStats] = await db
@@ -710,7 +719,11 @@ router.get('/stats', async (req, res, next) => {
 });
 
 // Get grouped inventory items (products grouped by SKU with status breakdown)
-router.get('/grouped', cacheMiddleware({ ttl: 5 * 60 * 1000 }), async (req, res, next) => {
+router.get('/grouped', cacheMiddleware({
+  ttl: 2 * 60 * 1000,
+  sharedAcrossUsers: true,
+  tags: [{ resource: 'inventory' }],
+}), async (req, res, next) => {
   try {
     const searchValue = toStringValue(req.query.search);
     const categoryValues = toStringArray(req.query.category);
@@ -1504,9 +1517,7 @@ router.post('/import/stored', authorizeRoles('admin', 'manager'), async (req, re
 
     // Invalidate caches so the UI receives fresh data immediately after import
     // This clears inventory lists (including grouped and sku location endpoints) and locations list
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/locations');
+    await invalidateInventoryCaches([{ resource: 'location' }]);
 
     res.json({
       importBatchId: batchId,

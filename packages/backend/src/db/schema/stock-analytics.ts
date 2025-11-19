@@ -112,3 +112,4 @@ export type StockAlert = typeof stockAlerts.$inferSelect;
 export type NewStockAlert = typeof stockAlerts.$inferInsert;
 
 
+

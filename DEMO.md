@@ -104,6 +104,12 @@ pnpm dev
 4. Set stock level to "50"
 5. Stock badge appears on the product card
 
+### **Scenario 7: Cache Consistency Smoke Test**
+1. From the Kanban List, rename or delete a board and verify the list updates instantly without reloading the page.
+2. Create or remove a kanban link and confirm the summary counts update right away.
+3. Open **Inventory Manager**, adjust a product (edit, move, or delete) or run a stock import.
+4. Ensure list view, grouped view, and inventory stats all refresh automatically after the mutation completes.
+
 ## 🔧 **API Testing (Optional)**
 
 Test the API directly with curl commands:

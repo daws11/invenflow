@@ -3,7 +3,11 @@ import { db } from '../db';
 import { locations, products } from '../db/schema';
 import { eq, desc, asc, and, or, ilike, SQL, ne, sql } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
-import { invalidateCache } from '../middleware/cache';
+import { cacheMiddleware } from '../middleware/cache';
+import {
+  invalidateInventoryCaches,
+  type CacheTagDescriptor,
+} from '../utils/cacheInvalidation';
 import {
   LocationSchema,
   CreateLocationSchema,
@@ -13,6 +17,19 @@ import { authenticateToken } from '../middleware/auth';
 import { ensureGeneralLocationsForDefaultAreas } from '../utils/generalLocation';
 
 const router = Router();
+
+const invalidateLocationCaches = async (
+  locationIds: Array<string | null | undefined> = [],
+) => {
+  const descriptors: CacheTagDescriptor[] = [{ resource: 'location' }];
+
+  const uniqueIds = Array.from(
+    new Set(locationIds.filter((value): value is string => Boolean(value))),
+  );
+  uniqueIds.forEach((id) => descriptors.push({ resource: 'location', id }));
+
+  await invalidateInventoryCaches(descriptors);
+};
 
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
@@ -39,7 +56,14 @@ const combineSqlClauses = (clauses: SQL<unknown>[]): SQL<unknown> => {
 };
 
 // Get all locations (with optional search and area filter)
-router.get('/', async (req, res, next) => {
+router.get(
+  '/',
+  cacheMiddleware({
+    ttl: 5 * 60 * 1000,
+    sharedAcrossUsers: true,
+    tags: [{ resource: 'location' }],
+  }),
+  async (req, res, next) => {
   try {
     const { search, area, sortBy = 'name', sortOrder = 'asc', activeOnly = 'true' } = req.query;
 
@@ -191,8 +215,7 @@ router.post('/', async (req, res, next) => {
       .values(newLocation)
       .returning();
 
-    // Invalidate cache setelah pembuatan berhasil
-    invalidateCache('/api/locations');
+    await invalidateLocationCaches([createdLocation.id]);
 
     res.status(201).json(createdLocation);
   } catch (error) {
@@ -204,8 +227,7 @@ router.post('/', async (req, res, next) => {
 router.post('/ensure-general-locations', async (_req, res, next) => {
   try {
     await ensureGeneralLocationsForDefaultAreas();
-    // Invalidate cache so new locations appear in subsequent fetches
-    invalidateCache('/api/locations');
+    await invalidateLocationCaches();
     res.json({ message: 'General locations ensured for all default areas' });
   } catch (error) {
     next(error);
@@ -271,8 +293,7 @@ router.put('/:id', async (req, res, next) => {
       .where(eq(locations.id, id))
       .returning();
 
-    // Invalidate cache setelah update berhasil
-    invalidateCache('/api/locations');
+    await invalidateLocationCaches([id]);
 
     res.json(updatedLocation);
   } catch (error) {
@@ -312,8 +333,7 @@ router.delete('/:id', async (req, res, next) => {
       .where(eq(locations.id, id))
       .returning();
 
-    // Invalidate cache setelah penghapusan berhasil
-    invalidateCache('/api/locations');
+    await invalidateLocationCaches([id]);
 
     res.json({ message: 'Location deleted successfully' });
   } catch (error) {

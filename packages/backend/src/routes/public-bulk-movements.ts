@@ -15,7 +15,7 @@ import {
 import { eq, and, sql, isNull } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { Request, Response, NextFunction } from 'express';
-import { invalidateCache } from '../middleware/cache';
+import { invalidateInventoryCaches } from '../utils/cacheInvalidation';
 
 const router = Router();
 
@@ -313,17 +313,24 @@ router.post('/:token/confirm', async (req: Request, res: Response, next: NextFun
         bulkMovementId: bulkMovement.id,
         createdProductsCount: createdProducts.length,
         confirmedItemsCount: confirmedItems.filter(i => i.quantityReceived > 0).length,
+        affectedProductIds: createdProducts.map(product => product.id),
+        affectedLocationIds: [
+          bulkMovement.fromLocationId,
+          bulkMovement.toLocationId,
+        ].filter((id): id is string => Boolean(id)),
       };
     });
 
-    // Confirming a bulk movement creates stored products; invalidate inventory caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/locations');
+    const { affectedProductIds, affectedLocationIds, ...responseData } = result;
+
+    await invalidateInventoryCaches([
+      ...affectedProductIds.map((id) => ({ resource: 'product', id })),
+      ...affectedLocationIds.map((id) => ({ resource: 'location', id })),
+    ]);
 
     res.json({
       message: 'Bulk movement confirmed successfully',
-      ...result,
+      ...responseData,
     });
   } catch (error) {
     next(error);

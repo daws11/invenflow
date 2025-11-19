@@ -56,12 +56,6 @@ router.post('/validate', async (req, res) => {
           details: 'Lokasi wajib dipilih untuk status Stored'
         });
       }
-      if (!validatedData.storagePhoto) {
-        return res.status(400).json({
-          error: 'Validasi gagal',
-          details: 'Gambar storage wajib diisi untuk status Stored'
-        });
-      }
     }
 
     // Create new validation record
