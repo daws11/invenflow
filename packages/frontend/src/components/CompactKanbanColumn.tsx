@@ -1,11 +1,12 @@
 import { Product, Kanban, Location, ProductGroupWithDetails } from '@invenflow/shared';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import CompactProductRow from './CompactProductRow';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
 import { CompactGroupedProductCard } from './CompactGroupedProductCard';
+import { useCommentStore } from '../store/commentStore';
 
 interface CompactKanbanColumnProps {
   id: string;
@@ -31,10 +32,23 @@ export default function CompactKanbanColumn({
   const { setNodeRef, isOver } = useDroppable({
     id: id,
   });
+  const loadSummaries = useCommentStore((state) => state.loadSummaries);
+  const connectStream = useCommentStore((state) => state.connectStream);
 
   const { isColumnCollapsed, toggleColumnCollapsed } = useViewPreferencesStore();
   const isCollapsed = kanban ? isColumnCollapsed(kanban.id, id) : false;
   const [visibleCount, setVisibleCount] = useState(50);
+
+  useEffect(() => {
+    connectStream();
+  }, [connectStream]);
+
+  const productIdKey = useMemo(() => products.map((product) => product.id).join(','), [products]);
+
+  useEffect(() => {
+    if (!productIdKey) return;
+    loadSummaries(productIdKey.split(',').filter(Boolean));
+  }, [productIdKey, loadSummaries]);
 
   const handleToggle = () => {
     if (kanban) {

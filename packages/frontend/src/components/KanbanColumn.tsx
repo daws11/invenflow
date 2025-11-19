@@ -1,8 +1,10 @@
+import { useEffect, useMemo } from 'react';
 import { Product, Kanban, ProductGroupWithDetails } from '@invenflow/shared';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import ProductCard from './ProductCard';
 import { GroupedProductCard } from './GroupedProductCard';
+import { useCommentStore } from '../store/commentStore';
 
 interface KanbanColumnProps {
   id: string;
@@ -27,6 +29,19 @@ export default function KanbanColumn({
   const { setNodeRef, isOver } = useDroppable({
     id: id,
   });
+  const loadSummaries = useCommentStore((state) => state.loadSummaries);
+  const connectStream = useCommentStore((state) => state.connectStream);
+
+  useEffect(() => {
+    connectStream();
+  }, [connectStream]);
+
+  const productIdKey = useMemo(() => products.map((product) => product.id).join(','), [products]);
+
+  useEffect(() => {
+    if (!productIdKey) return;
+    loadSummaries(productIdKey.split(',').filter(Boolean));
+  }, [productIdKey, loadSummaries]);
 
   // Build mixed list of group blocks and ungrouped products, ordered by columnPosition then createdAt
   const columnGroups: ProductGroupWithDetails[] =

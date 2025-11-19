@@ -10,6 +10,8 @@ import { useBulkSelectionStore } from '../store/bulkSelectionStore';
 import { useProductGroupStore } from '../store/productGroupStore';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useToast } from '../store/toastStore';
+import { useCommentStore } from '../store/commentStore';
+import { CommentBadge } from './comments';
 
 interface ProductCardProps {
   product: Product;
@@ -35,6 +37,7 @@ export default function ProductCard({ product, onView, location, kanban, isDragg
   const { refreshCurrentKanban } = useKanbanStore();
   const toast = useToast();
   const [isRemovingFromGroup, setIsRemovingFromGroup] = useState(false);
+  const commentCount = useCommentStore((state) => state.countsByProduct[product.id]?.count ?? 0);
 
   const resolvedLocation: Location | null = useMemo(() => {
     if (location) return location;
@@ -385,8 +388,19 @@ export default function ProductCard({ product, onView, location, kanban, isDragg
         </div>
       )}
 
-      <div className="text-xs text-gray-500">
-        Created: {formatDateWithTime(product.createdAt)}
+      <div className="flex items-center justify-between text-xs text-gray-500">
+        <span>Created: {formatDateWithTime(product.createdAt)}</span>
+        {commentCount > 0 && (
+          <CommentBadge
+            count={commentCount}
+            highlight
+            variant="card"
+            onClick={(event) => {
+              event.stopPropagation();
+              onView?.();
+            }}
+          />
+        )}
       </div>
 
       </div>

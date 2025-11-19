@@ -33,6 +33,9 @@ import {
   StoredLogWithRelations,
   StoredLogListResponse,
   StoredLogFilters,
+  ProductComment,
+  CreateCommentInput,
+  UpdateCommentInput,
 } from "@invenflow/shared";
 import { useAuthStore } from "../store/authStore";
 
@@ -320,6 +323,12 @@ export interface TransferLogWithRelations
   toLocation: Location | null;
 }
 
+export interface CommentSummary {
+  productId: string;
+  count: number;
+  latestCommentAt: string | null;
+}
+
 // Transfer log API calls
 export const transferLogApi = {
   getAll: async (params?: {
@@ -353,6 +362,31 @@ export const transferLogApi = {
     const response = await api.get(`/api/transfer-logs/kanban/${kanbanId}`, {
       params,
     });
+    return response.data;
+  },
+};
+
+export const commentApi = {
+  list: async (productId: string): Promise<ProductComment[]> => {
+    const response = await api.get(`/api/products/${productId}/comments`);
+    return response.data;
+  },
+  create: async (productId: string, data: CreateCommentInput): Promise<ProductComment> => {
+    const response = await api.post(`/api/products/${productId}/comments`, data);
+    return response.data;
+  },
+  update: async (commentId: string, data: UpdateCommentInput): Promise<ProductComment> => {
+    const response = await api.put(`/api/comments/${commentId}`, data);
+    return response.data;
+  },
+  remove: async (commentId: string): Promise<void> => {
+    await api.delete(`/api/comments/${commentId}`);
+  },
+  getSummary: async (productIds: string[]): Promise<CommentSummary[]> => {
+    if (productIds.length === 0) {
+      return [];
+    }
+    const response = await api.post('/api/comments/summary', { productIds });
     return response.data;
   },
 };

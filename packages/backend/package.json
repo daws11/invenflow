@@ -30,6 +30,7 @@
     "multer": "^2.0.2",
     "nanoid": "^5.0.4",
     "postgres": "^3.4.3",
+    "ws": "^8.17.1",
     "zod": "^3.22.4"
   },
   "devDependencies": {

@@ -21,6 +21,9 @@ import {
   ExclamationTriangleIcon,
   PhotoIcon,
 } from '@heroicons/react/24/outline';
+import { useAuthStore } from '../store/authStore';
+import { useCommentStore } from '../store/commentStore';
+import { CommentForm, CommentList } from './comments';
 
 interface ProductSidebarProps {
   product: Product | null;
@@ -44,6 +47,21 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
   const [isSearching, setIsSearching] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const productId = product?.id ?? '';
+  const currentUser = useAuthStore((state) => state.user);
+  const comments = useCommentStore((state) =>
+    productId ? state.commentsByProduct[productId] ?? [] : [],
+  );
+  const isCommentsLoading = useCommentStore((state) =>
+    productId ? state.loadingByProduct[productId] ?? false : false,
+  );
+  const fetchComments = useCommentStore((state) => state.fetchComments);
+  const addComment = useCommentStore((state) => state.addComment);
+  const editComment = useCommentStore((state) => state.editComment);
+  const deleteCommentAction = useCommentStore((state) => state.deleteComment);
+  const updatingCommentId = useCommentStore((state) => state.updatingCommentId);
+  const deletingCommentId = useCommentStore((state) => state.deletingCommentId);
+  const connectStream = useCommentStore((state) => state.connectStream);
 
   useEffect(() => {
     fetchLocations();
@@ -76,6 +94,27 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!productId) return;
+    connectStream();
+    fetchComments(productId);
+  }, [productId, fetchComments, connectStream]);
+
+  const handleAddComment = async (content: string) => {
+    if (!productId) return;
+    await addComment(productId, content);
+  };
+
+  const handleEditComment = async (commentId: string, content: string) => {
+    if (!productId) return;
+    await editComment(productId, commentId, content);
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!productId) return;
+    await deleteCommentAction(productId, commentId);
+  };
 
   const searchProducts = async (query: string) => {
     if (query.length < 2) {
@@ -636,6 +675,30 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
                 {product.notes}
               </div>
             ) : undefined}
+          />
+        </div>
+
+        {/* Comments */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-gray-900">Comments</h4>
+            <span className="text-xs text-gray-500">{comments.length} total</span>
+          </div>
+          <div className="max-h-64 overflow-y-auto pr-1">
+            <CommentList
+              comments={comments}
+              currentUserId={currentUser?.id ?? null}
+              isLoading={isCommentsLoading}
+              updatingCommentId={updatingCommentId}
+              deletingCommentId={deletingCommentId}
+              onEdit={handleEditComment}
+              onDelete={handleDeleteComment}
+            />
+          </div>
+          <CommentForm
+            onSubmit={handleAddComment}
+            placeholder="Share updates or ask a question..."
+            submitLabel="Add Comment"
           />
         </div>
                 </div>

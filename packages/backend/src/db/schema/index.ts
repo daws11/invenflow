@@ -14,3 +14,4 @@ export * from './users';
 export * from './import-batches';
 export * from './sku-aliases';
 export * from './stored-logs';
+export * from './product-comments';

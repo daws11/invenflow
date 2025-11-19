@@ -29,9 +29,11 @@ import { publicBulkMovementsRouter } from "./routes/public-bulk-movements";
 import { publicMovementsRouter } from "./routes/public-movements";
 import productGroupsRouter from "./routes/product-groups";
 import { storedLogsRouter } from "./routes/stored-logs";
+import { productCommentsRouter } from "./routes/product-comments";
 import { startStoredCleanup } from "./services/storedCleanup";
 import { startCacheWarming, stopCacheWarming } from "./services/cacheWarming";
 import { redisManager } from "./config/redis";
+import { initializeCommentWebSocket } from "./services/commentWebSocket";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -142,6 +144,7 @@ app.use("/api/locations", locationsRouter);
 app.use("/api/movements", movementsRouter);
 app.use("/api/persons", personsRouter);
 app.use("/api/products", productsRouter);
+app.use("/api", productCommentsRouter);
 app.use("/api/product-groups", productGroupsRouter);
 app.use("/api/transfer-logs", transferLogsRouter);
 app.use("/api/stored-logs", storedLogsRouter);
@@ -232,6 +235,8 @@ const server = app.listen(env.PORT, "0.0.0.0", () => {
     console.log(`📁 File uploads: http://localhost:${env.PORT}/uploads/`);
   }
 });
+
+initializeCommentWebSocket(server);
 
 const gracefulShutdown = async (signal: string) => {
   console.log(`\nReceived ${signal}, shutting down gracefully...`);

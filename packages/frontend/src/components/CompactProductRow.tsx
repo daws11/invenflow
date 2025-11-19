@@ -11,6 +11,8 @@ import {
 } from '../utils/thresholdCalculator';
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 import { useBulkSelectionStore } from '../store/bulkSelectionStore';
+import { useCommentStore } from '../store/commentStore';
+import { CommentBadge } from './comments';
 
 interface CompactProductRowProps {
   product: Product;
@@ -30,6 +32,7 @@ export default function CompactProductRow({ product, onView, location, kanban, d
   const toggleSelection = useBulkSelectionStore((state) => state.toggleSelection);
   const selected = useBulkSelectionStore((state) => state.selectedProductIds.has(product.id));
   const selectionActive = useBulkSelectionStore((state) => state.selectedProductIds.size > 0);
+  const commentCount = useCommentStore((state) => state.countsByProduct[product.id]?.count ?? 0);
 
   // Update current time every second for real-time threshold recalculation
   useEffect(() => {
@@ -299,6 +302,20 @@ export default function CompactProductRow({ product, onView, location, kanban, d
               <span className="truncate">
                 {location ? `${location.name} - ${location.area}` : product.locationId}
               </span>
+            </div>
+          )}
+
+          {commentCount > 0 && (
+            <div data-no-drag>
+              <CommentBadge
+                count={commentCount}
+                variant="compact"
+                highlight
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onView?.();
+                }}
+              />
             </div>
           )}
         </div>
