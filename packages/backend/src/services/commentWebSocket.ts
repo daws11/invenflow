@@ -16,6 +16,8 @@ export const initializeCommentWebSocket = (server: Server) => {
 
   const wss = new WebSocketServer({ server, path: '/ws/comments' });
 
+  console.log('📡 Comment WebSocket initialized at /ws/comments');
+
   const broadcast = (data: unknown) => {
     const payload = JSON.stringify(data);
     wss.clients.forEach((client: WebSocketWithHeartbeat) => {
@@ -34,23 +36,25 @@ export const initializeCommentWebSocket = (server: Server) => {
   commentEventEmitter.on(COMMENT_EVENTS.DELETED, handleDeleted);
 
   wss.on('connection', (socket: WebSocketWithHeartbeat, request: IncomingMessage) => {
-    const originProtocol =
-      (request.headers['x-forwarded-proto'] as string | undefined) ?? 'http';
-    const host = request.headers.host ?? 'localhost';
-    const url = new URL(request.url ?? '', `${originProtocol}://${host}`);
-    const token = url.searchParams.get('token');
-
-    if (!token) {
-      socket.close(1008, 'Authentication required');
-      return;
-    }
-
     try {
-      jwt.verify(token, env.JWT_SECRET);
-    } catch {
-      socket.close(1008, 'Invalid token');
-      return;
-    }
+      const originProtocol =
+        (request.headers['x-forwarded-proto'] as string | undefined) ?? 'http';
+      const host = request.headers.host ?? 'localhost';
+      const url = new URL(request.url ?? '', `${originProtocol}://${host}`);
+      const token = url.searchParams.get('token');
+
+      if (!token) {
+        socket.close(1008, 'Authentication required');
+        return;
+      }
+
+      try {
+        jwt.verify(token, env.JWT_SECRET);
+      } catch (error) {
+        console.error('[CommentWebSocket] Invalid token', error);
+        socket.close(1008, 'Invalid token');
+        return;
+      }
 
     socket.isAlive = true;
     socket.on('pong', () => {
@@ -58,6 +62,11 @@ export const initializeCommentWebSocket = (server: Server) => {
     });
 
     socket.send(JSON.stringify({ type: 'connected', timestamp: Date.now() }));
+    } catch (error) {
+      console.error('[CommentWebSocket] Error handling connection', error);
+      socket.close(1011, 'Internal server error');
+      return;
+    }
   });
 
   const heartbeat = setInterval(() => {

@@ -30,7 +30,7 @@ export const env = {
   CACHE_ENABLED: process.env.CACHE_ENABLED !== "false",
   CACHE_DEFAULT_TTL_MS: Math.max(
     1000,
-    toNumber(process.env.CACHE_DEFAULT_TTL_MS, 5 * 60 * 1000),
+    toNumber(process.env.CACHE_DEFAULT_TTL_MS, 30 * 1000),
   ),
   CACHE_TAG_TTL_MS: Math.max(
     5 * 60 * 1000,

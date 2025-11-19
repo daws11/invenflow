@@ -118,9 +118,13 @@ class CacheService {
     return this.withRedis(async (client) => {
       let cursor = "0";
       let deleted = 0;
-      const matchPattern = `${this.getKey(
-        pattern.endsWith("*") ? pattern : `${pattern}*`,
-      )}`;
+
+      // If pattern is empty, delete all HTTP cache entries
+      const matchPattern = pattern === ""
+        ? `${KEY_PREFIX}*`
+        : `${this.getKey(pattern.endsWith("*") ? pattern : `${pattern}*`)}`;
+
+      console.log(`[CacheService] deleteByPattern using match pattern: ${matchPattern}`);
 
       do {
         const [nextCursor, keys] = await client.scan(
@@ -132,10 +136,12 @@ class CacheService {
         );
         cursor = nextCursor;
         if (keys.length) {
+          console.log(`[CacheService] Found ${keys.length} keys to delete:`, keys.slice(0, 5), keys.length > 5 ? '...' : '');
           deleted += await client.del(...keys);
         }
       } while (cursor !== "0");
 
+      console.log(`[CacheService] deleteByPattern deleted ${deleted} entries`);
       if (deleted) {
         await client.hincrby(STATS_KEY, "deletes", deleted);
       }
@@ -150,21 +156,33 @@ class CacheService {
       return 0;
     }
 
+    console.log(`[CacheService] deleteByTags called with tags:`, uniqueTags);
+
     return this.withRedis(async (client) => {
       let totalDeleted = 0;
       for (const tag of uniqueTags) {
         const tagKey = this.getTagKey(tag);
+        console.log(`[CacheService] Processing tag: ${tag} -> tagKey: ${tagKey}`);
+
         const members = await client.smembers(tagKey);
+        console.log(`[CacheService] Tag ${tag} has ${members.length} members:`, members);
+
         if (members.length) {
-          totalDeleted += await client.del(...members);
+          const deleted = await client.del(...members);
+          totalDeleted += deleted;
+          console.log(`[CacheService] Deleted ${deleted} cache entries for tag ${tag}`);
         }
+
+        // Delete the tag set itself
         await client.del(tagKey);
+        console.log(`[CacheService] Deleted tag set ${tagKey}`);
       }
 
       if (totalDeleted) {
         await client.hincrby(STATS_KEY, "deletes", totalDeleted);
       }
 
+      console.log(`[CacheService] Total deleted entries: ${totalDeleted}`);
       return totalDeleted;
     }, 0);
   }

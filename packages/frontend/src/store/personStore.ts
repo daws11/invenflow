@@ -22,7 +22,7 @@ interface PersonStore {
   clearError: () => void;
 }
 
-export const usePersonStore = create<PersonStore>((set, _get) => ({
+export const usePersonStore = create<PersonStore>((set, get) => ({
   persons: [],
   loading: false,
   error: null,
@@ -64,13 +64,12 @@ export const usePersonStore = create<PersonStore>((set, _get) => ({
     set({ loading: true, error: null });
     try {
       const response = await api.post('/api/persons', data);
-
       const newPerson = response.data;
-      set((state) => ({
-        persons: [...state.persons, newPerson],
-        loading: false
-      }));
 
+      // Re-fetch all persons to ensure cache invalidation works
+      await get().fetchPersons();
+
+      set({ loading: false });
       return newPerson;
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Failed to create person';
@@ -83,15 +82,12 @@ export const usePersonStore = create<PersonStore>((set, _get) => ({
     set({ loading: true, error: null });
     try {
       const response = await api.put(`/api/persons/${id}`, data);
-
       const updatedPerson = response.data;
-      set((state) => ({
-        persons: state.persons.map((person) =>
-          person.id === id ? updatedPerson : person
-        ),
-        loading: false
-      }));
 
+      // Re-fetch all persons to ensure cache invalidation works
+      await get().fetchPersons();
+
+      set({ loading: false });
       return updatedPerson;
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Failed to update person';
@@ -105,10 +101,10 @@ export const usePersonStore = create<PersonStore>((set, _get) => ({
     try {
       await api.delete(`/api/persons/${id}`);
 
-      set((state) => ({
-        persons: state.persons.filter((person) => person.id !== id),
-        loading: false
-      }));
+      // Re-fetch all persons to ensure cache invalidation works
+      await get().fetchPersons();
+
+      set({ loading: false });
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Failed to delete person';
       set({ error: errorMessage, loading: false });

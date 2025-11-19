@@ -5,8 +5,7 @@ import { kanbans, products, kanbanLinks, locations, productGroups, productGroupS
 import { eq, and, asc, sql, isNull } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
-import { cacheMiddleware } from '../middleware/cache';
-import { invalidateKanbanCache } from '../utils/cacheInvalidation';
+// import { emitInventoryEvent } from '../services/inventoryEvents'; // Temporarily disabled due to TypeScript issues
 import { UpdateKanbanSchema, FormFieldSettingsSchema, DEFAULT_FORM_FIELD_SETTINGS } from '@invenflow/shared';
 
 const router = Router();
@@ -15,11 +14,7 @@ const router = Router();
 router.use(authenticateToken);
 
 // Get all kanbans
-router.get('/', cacheMiddleware({
-  ttl: 3 * 60 * 1000,
-  sharedAcrossUsers: true,
-  tags: [{ resource: 'kanban' }],
-}), async (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const allKanbans = await db
       .select({
@@ -234,11 +229,9 @@ router.post('/', async (req, res, next) => {
       .values(newKanban)
       .returning();
 
-    // Invalidate cache setelah pembuatan berhasil (list + detail baru)
-    await invalidateKanbanCache(createdKanban.id);
-
     res.status(201).json(createdKanban);
   } catch (error) {
+    console.error('CreateKanban - Error:', error);
     next(error);
   }
 });
@@ -376,7 +369,9 @@ router.put('/:id', async (req, res, next) => {
     if (storedAutoArchiveAfterMinutes !== undefined) {
       updateData.storedAutoArchiveAfterMinutes = storedAutoArchiveAfterMinutes;
     }
-    updateData.updatedAt = new Date().toISOString();
+    updateData.updatedAt = new Date();
+
+    console.log('UpdateKanban - Before update:', { id, updateData });
 
     const [updatedKanban] = await db
       .update(kanbans)
@@ -384,11 +379,11 @@ router.put('/:id', async (req, res, next) => {
       .where(eq(kanbans.id, id))
       .returning();
 
-    // Invalidate cache setelah update berhasil (list + detail)
-    await invalidateKanbanCache(id);
+    console.log('UpdateKanban - After update:', updatedKanban);
 
     res.json(updatedKanban);
   } catch (error) {
+    console.error('UpdateKanban - Error:', error);
     next(error);
   }
 });
@@ -445,9 +440,6 @@ router.put('/:id/public-form-settings', async (req, res, next) => {
       .set(updateData)
       .where(eq(kanbans.id, id))
       .returning();
-
-    // Invalidate cache setelah update public form settings berhasil
-    await invalidateKanbanCache(id);
 
     res.json(updatedKanban);
   } catch (error) {
@@ -606,9 +598,6 @@ router.post('/:id/links', async (req, res, next) => {
       }
     }
 
-    // Invalidate cache setelah menambah link berhasil
-    await invalidateKanbanCache(id);
-
     res.status(201).json(linkedKanbans);
   } catch (error) {
     next(error);
@@ -672,9 +661,6 @@ router.delete('/:id/links/:linkId', async (req, res, next) => {
       .leftJoin(locations, eq(kanbans.locationId, locations.id))
       .where(eq(kanbanLinks.orderKanbanId, id));
 
-    // Invalidate cache setelah menghapus link berhasil
-    await invalidateKanbanCache(id);
-
     res.json(linkedKanbans);
   } catch (error) {
     next(error);
@@ -686,20 +672,38 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const [deletedKanban] = await db
+    // Cek apakah kanban ada sebelum delete
+    const [existingKanban] = await db
+      .select()
+      .from(kanbans)
+      .where(eq(kanbans.id, id))
+      .limit(1);
+
+    if (!existingKanban) {
+      throw createError('Kanban not found', 404);
+    }
+
+    console.log('DeleteKanban - Attempting to delete kanban:', { id, name: existingKanban.name });
+
+    // Lakukan delete dengan returning untuk memastikan berhasil
+    const deletedResult = await db
       .delete(kanbans)
       .where(eq(kanbans.id, id))
       .returning();
 
-    if (!deletedKanban) {
-      throw createError('Kanban not found', 404);
+    if (deletedResult.length === 0) {
+      console.error('DeleteKanban - Delete operation returned empty result:', { id });
+      throw createError('Failed to delete kanban', 500);
     }
 
-    // Invalidate cache setelah penghapusan berhasil
-    await invalidateKanbanCache(id);
+    console.log('DeleteKanban - Successfully deleted kanban:', { id, deletedKanban: deletedResult[0] });
 
-    res.json({ message: 'Kanban deleted successfully' });
+    res.json({
+      message: 'Kanban deleted successfully',
+      deletedId: id
+    });
   } catch (error) {
+    console.error('DeleteKanban - Error:', error);
     next(error);
   }
 });

@@ -78,18 +78,13 @@ export const useDepartmentStore = create<DepartmentStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await api.post('/api/departments', data);
-
       const newDepartment = response.data;
-      set((state) => ({
-        departments: [...state.departments, newDepartment],
-        loading: false
-      }));
 
-      // Refresh active departments if new one is active
-      if (newDepartment.isActive) {
-        await get().fetchActiveDepartments();
-      }
+      // Re-fetch all departments to ensure cache invalidation works
+      await get().fetchDepartments();
+      await get().fetchActiveDepartments();
 
+      set({ loading: false });
       return newDepartment;
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Failed to create department';
@@ -102,18 +97,13 @@ export const useDepartmentStore = create<DepartmentStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await api.put(`/api/departments/${id}`, data);
-
       const updatedDepartment = response.data;
-      set((state) => ({
-        departments: state.departments.map((dept) =>
-          dept.id === id ? updatedDepartment : dept
-        ),
-        loading: false
-      }));
 
-      // Refresh active departments
+      // Re-fetch all departments to ensure cache invalidation works
+      await get().fetchDepartments();
       await get().fetchActiveDepartments();
 
+      set({ loading: false });
       return updatedDepartment;
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Failed to update department';
@@ -127,11 +117,11 @@ export const useDepartmentStore = create<DepartmentStore>((set, get) => ({
     try {
       await api.delete(`/api/departments/${id}`);
 
-      set((state) => ({
-        departments: state.departments.filter((dept) => dept.id !== id),
-        activeDepartments: state.activeDepartments.filter((dept) => dept.id !== id),
-        loading: false
-      }));
+      // Re-fetch all departments to ensure cache invalidation works
+      await get().fetchDepartments();
+      await get().fetchActiveDepartments();
+
+      set({ loading: false });
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Failed to delete department';
       set({ error: errorMessage, loading: false });

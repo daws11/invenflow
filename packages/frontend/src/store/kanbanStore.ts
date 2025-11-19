@@ -90,6 +90,7 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await kanbanApi.update(id, data);
+      
       set(state => ({
         kanbans: state.kanbans.map(k => k.id === id ? { ...k, ...data } : k),
         currentKanban: state.currentKanban?.id === id
@@ -115,6 +116,7 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const updatedKanban = await kanbanApi.updatePublicFormSettings(id, { isPublicFormEnabled: enabled });
+      
       set(state => ({
         kanbans: state.kanbans.map(k => k.id === id ? updatedKanban : k),
         currentKanban: state.currentKanban?.id === id
@@ -135,6 +137,7 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await kanbanApi.delete(id);
+      
       set(state => ({
         kanbans: state.kanbans.filter(k => k.id !== id),
         currentKanban: state.currentKanban?.id === id ? null : state.currentKanban,
@@ -206,26 +209,27 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     const { currentKanban } = get();
     if (!currentKanban) return;
     
-    // Find the product to move
     const productToMove = currentKanban.products.find(p => p.id === id);
     if (!productToMove) return;
     
-    // Store previous state for rollback
-    const previousProducts = currentKanban.products;
+    const previousProducts = currentKanban.products.map(product => ({ ...product }));
+    const optimisticProduct: Product = {
+      ...productToMove,
+      columnStatus,
+      columnEnteredAt: new Date() as unknown as Date,
+      locationId: locationId !== undefined ? (locationId ?? null) : productToMove.locationId,
+    };
     
-    // OPTIMISTIC UPDATE: Update UI immediately
     set(state => ({
       currentKanban: state.currentKanban
         ? {
             ...state.currentKanban,
               products: state.currentKanban.products.map(p =>
-                p.id === id 
-                ? { ...p, columnStatus, columnEnteredAt: new Date() as unknown as Date }
-                : p
-            )
+              p.id === id ? optimisticProduct : p
+            ),
           }
         : null,
-      error: null
+      error: null,
     }));
     
     try {
@@ -276,23 +280,39 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
   },
 
   deleteProduct: async (id: string) => {
-    set({ loading: true, error: null });
+    const { currentKanban } = get();
+    if (!currentKanban) {
+      return;
+    }
+
+    const previousProducts = currentKanban.products.map(product => ({ ...product }));
+
+    set(state => ({
+      currentKanban: state.currentKanban
+        ? {
+            ...state.currentKanban,
+            products: state.currentKanban.products.filter(p => p.id !== id),
+          }
+        : null,
+      loading: true,
+      error: null,
+    }));
+
     try {
       await productApi.delete(id);
+      set({ loading: false });
+    } catch (error) {
       set(state => ({
         currentKanban: state.currentKanban
           ? {
               ...state.currentKanban,
-              products: state.currentKanban.products.filter(p => p.id !== id)
+              products: previousProducts,
             }
           : null,
-        loading: false
-      }));
-    } catch (error) {
-      set({
         error: error instanceof Error ? error.message : 'Failed to delete product',
-        loading: false
-      });
+        loading: false,
+      }));
+      throw error;
     }
   },
 
@@ -305,7 +325,7 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     if (!productToTransfer) return;
     
     // Store previous state for rollback
-    const previousProducts = currentKanban.products;
+    const previousProducts = currentKanban.products.map(product => ({ ...product }));
     
     // OPTIMISTIC UPDATE: Remove product from current kanban immediately
     set(state => ({
@@ -420,6 +440,7 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const updatedLinks = await kanbanApi.addLink(orderKanbanId, receiveKanbanId);
+      
       set(state => ({
         currentKanban: state.currentKanban?.id === orderKanbanId
           ? {
@@ -442,6 +463,7 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const updatedLinks = await kanbanApi.removeLink(orderKanbanId, linkId);
+      
       set(state => ({
         currentKanban: state.currentKanban?.id === orderKanbanId
           ? {

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { InventoryItem } from '@invenflow/shared';
 import { useInventoryStore } from '../store/inventoryStore';
+import { useInventoryWebSocket } from '../hooks/useInventoryWebSocket';
 import { InventoryGrid } from '../components/InventoryGrid';
+import { InventoryList } from '../components/InventoryList';
 import { InventoryGroupedView } from '../components/InventoryGroupedView';
 import { InventoryGroupedList } from '../components/InventoryGroupedList';
 import { InventoryFilters } from '../components/InventoryFilters';
@@ -50,6 +52,8 @@ export default function InventoryManager() {
     setPage,
     refreshInventory,
     clearError,
+    handleRealtimeEvent,
+    setRealtimeStatus,
   } = useInventoryStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -75,6 +79,14 @@ export default function InventoryManager() {
   useEffect(() => {
     setFilters({ search: searchQuery || undefined });
   }, [searchQuery, setFilters]);
+
+  const { status: inventorySocketStatus } = useInventoryWebSocket({
+    onEvent: handleRealtimeEvent,
+  });
+
+  useEffect(() => {
+    setRealtimeStatus(inventorySocketStatus);
+  }, [inventorySocketStatus, setRealtimeStatus]);
 
   // Apply search to grouped view efficiently
   useEffect(() => {
@@ -413,12 +425,21 @@ export default function InventoryManager() {
             )}
           </div>
         ) : (
-          <InventoryGrid
-            loading={loading}
-            viewMode={viewMode === 'list' ? 'unified' : viewMode}
-            onProductClick={handleProductClick}
-            onMovementSuccess={refreshInventory}
-          />
+          <div>
+            {viewMode === 'list' ? (
+              <InventoryList
+                loading={loading}
+                onProductClick={handleProductClick}
+              />
+            ) : (
+              <InventoryGrid
+                loading={loading}
+                viewMode={viewMode}
+                onProductClick={handleProductClick}
+                onMovementSuccess={refreshInventory}
+              />
+            )}
+          </div>
         )}
       </div>
 

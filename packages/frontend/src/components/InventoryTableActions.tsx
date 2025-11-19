@@ -6,7 +6,11 @@ import {
   ArrowDownTrayIcon,
   FunnelIcon,
   Cog6ToothIcon,
+  ChevronDownIcon,
+  EyeIcon,
+  EyeSlashIcon,
 } from '@heroicons/react/24/outline';
+import { useState, useEffect } from 'react';
 import { InventoryItem } from '@invenflow/shared';
 
 interface InventoryTableActionsProps {
@@ -20,6 +24,8 @@ interface InventoryTableActionsProps {
   onShowColumnManager: () => void;
   totalItems: number;
   loading?: boolean;
+  hiddenColumns?: Set<string>;
+  onToggleColumnVisibility?: (columnName: string) => void;
 }
 
 export function InventoryTableActions({
@@ -33,16 +39,41 @@ export function InventoryTableActions({
   onShowColumnManager,
   totalItems,
   loading = false,
+  hiddenColumns = new Set(),
+  onToggleColumnVisibility,
 }: InventoryTableActionsProps) {
+  const [showColumnDropdown, setShowColumnDropdown] = useState(false);
+
   const hasSelection = selectedItems.length > 0;
   const hasArchivedItems = selectedItems.some(item => (item as any).archived);
   const hasActiveItems = selectedItems.some(item => !(item as any).archived);
+
+  const columns = [
+    { key: 'sku', label: 'SKU' },
+    { key: 'category', label: 'Category' },
+    { key: 'supplier', label: 'Supplier' },
+    { key: 'source', label: 'Source' },
+    { key: 'daysInInventory', label: 'Days in Inventory' },
+    { key: 'unit', label: 'Unit' },
+  ];
 
   const handleBulkAction = (action: () => void, actionName: string) => {
     if (window.confirm(`Are you sure you want to ${actionName} ${selectedItems.length} selected items?`)) {
       action();
     }
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShowColumnDropdown(false);
+    };
+
+    if (showColumnDropdown) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showColumnDropdown]);
 
   return (
     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 p-4 bg-white rounded-lg border border-gray-200">
@@ -115,6 +146,51 @@ export function InventoryTableActions({
               <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
               Export
             </button>
+          </div>
+        )}
+
+        {/* Column Visibility Dropdown */}
+        {onToggleColumnVisibility && (
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowColumnDropdown(!showColumnDropdown);
+              }}
+              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              title="Toggle column visibility"
+            >
+              <EyeIcon className="h-4 w-4 mr-2" />
+              Columns
+              <ChevronDownIcon className={`ml-2 h-4 w-4 transition-transform ${showColumnDropdown ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showColumnDropdown && (
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                <div className="py-1">
+                  {columns.map((column) => {
+                    const isHidden = hiddenColumns.has(column.key);
+                    return (
+                      <button
+                        key={column.key}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleColumnVisibility(column.key);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                      >
+                        {isHidden ? (
+                          <EyeSlashIcon className="h-4 w-4 mr-2 text-gray-400" />
+                        ) : (
+                          <EyeIcon className="h-4 w-4 mr-2 text-gray-600" />
+                        )}
+                        {column.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

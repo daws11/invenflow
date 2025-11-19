@@ -34,6 +34,7 @@ import { startStoredCleanup } from "./services/storedCleanup";
 import { startCacheWarming, stopCacheWarming } from "./services/cacheWarming";
 import { redisManager } from "./config/redis";
 import { initializeCommentWebSocket } from "./services/commentWebSocket";
+import { initializeInventoryWebSocket } from "./services/inventoryWebSocket";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -237,6 +238,7 @@ const server = app.listen(env.PORT, "0.0.0.0", () => {
 });
 
 initializeCommentWebSocket(server);
+initializeInventoryWebSocket(server);
 
 const gracefulShutdown = async (signal: string) => {
   console.log(`\nReceived ${signal}, shutting down gracefully...`);

@@ -10,6 +10,11 @@ import {
 import { inventoryApi } from '../utils/api';
 import { useToastStore } from './toastStore';
 import { debounce } from '../utils/debounce';
+import { globalRequestDeduplicator } from '../utils/requestDeduplicator';
+import type {
+  InventoryWebSocketEvent,
+  InventoryWebSocketStatus,
+} from '../hooks/useInventoryWebSocket';
 
 interface InventoryState {
   // Data
@@ -62,6 +67,9 @@ interface InventoryState {
   setGroupedViewMode: (mode: 'grid' | 'list') => void;
   setSelectedItem: (item: InventoryItem | null) => void;
   setShowDetailModal: (show: boolean) => void;
+  realtimeStatus: InventoryWebSocketStatus;
+  setRealtimeStatus: (status: InventoryWebSocketStatus) => void;
+  handleRealtimeEvent: (event: InventoryWebSocketEvent) => void;
   updateProduct: (productId: string, updateData: Record<string, any>) => Promise<void>;
   updateProductStock: (productId: string, stockLevel: number) => Promise<void>;
   updateProductLocation: (productId: string, location: string, locationId?: string) => Promise<void>;
@@ -78,8 +86,82 @@ const defaultFilters: InventoryFilters = {
   viewMode: 'unified',
 };
 
-export const useInventoryStore = create<InventoryState>((set, get) => ({
-  // Initial state
+export const useInventoryStore = create<InventoryState>((set, get) => {
+  let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const runInventoryRefresh = async () => {
+    await get().refreshInventory();
+    const { displayMode, lastGroupedParams } = get();
+    if (displayMode === 'grouped') {
+      await get().fetchGroupedInventory(lastGroupedParams);
+    }
+  };
+
+  const triggerRealtimeSync = async () => {
+    try {
+      await runInventoryRefresh();
+    } catch (error) {
+      console.error('[inventoryStore] Failed to refresh after realtime event', error);
+    }
+  };
+
+  const scheduleRealtimeRefresh = () => {
+    if (typeof window === 'undefined') {
+      void triggerRealtimeSync();
+      return;
+    }
+    if (realtimeRefreshTimer) {
+      return;
+    }
+    realtimeRefreshTimer = setTimeout(() => {
+      realtimeRefreshTimer = null;
+      void triggerRealtimeSync();
+    }, 400) as ReturnType<typeof setTimeout>;
+  };
+
+  const upsertProductInState = (product: InventoryItem) => {
+    set((state) => {
+      const index = state.items.findIndex((item) => item.id === product.id);
+      if (index === -1) {
+        return {};
+      }
+      const updatedItems = [...state.items];
+      updatedItems[index] = { ...updatedItems[index], ...product };
+      return {
+        items: updatedItems,
+        selectedItem:
+          state.selectedItem?.id === product.id
+            ? { ...state.selectedItem, ...product }
+            : state.selectedItem,
+      };
+    });
+  };
+
+  const removeProductFromState = (productId: string) => {
+    set((state) => {
+      const filtered = state.items.filter((item) => item.id !== productId);
+      if (filtered.length === state.items.length) {
+        return {};
+      }
+      const shouldCloseDetail = state.selectedItem?.id === productId;
+      return {
+        items: filtered,
+        selectedItem: shouldCloseDetail ? null : state.selectedItem,
+        showDetailModal: shouldCloseDetail ? false : state.showDetailModal,
+      };
+    });
+  };
+
+  const hasProductInState = (productId?: string | null) => {
+    if (!productId) {
+      return false;
+    }
+    const { items } = get();
+    return items.some((item) => item.id === productId);
+  };
+
+  return {
+    // Initial state
   items: [],
   groupedItems: [],
   stats: null,
@@ -103,6 +185,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   lastGroupedParams: {},
   selectedItem: null,
   showDetailModal: false,
+  realtimeStatus: 'idle',
 
   fetchInventory: async (params = {}) => {
     set({ loading: true, error: null });
@@ -119,7 +202,10 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
         ...params,
       };
 
-      const response: InventoryResponse = await inventoryApi.getInventory(mergedParams);
+      const response: InventoryResponse = await globalRequestDeduplicator.run(
+        `inventory:list:${JSON.stringify(mergedParams)}`,
+        () => inventoryApi.getInventory(mergedParams),
+      );
 
       set({
         items: response.items,
@@ -142,7 +228,10 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     set({ statsLoading: true });
 
     try {
-      const stats = await inventoryApi.getStats();
+      const stats = await globalRequestDeduplicator.run(
+        'inventory:stats',
+        () => inventoryApi.getStats(),
+      );
       set({ stats, statsLoading: false });
     } catch (error) {
       console.error('Failed to fetch inventory stats:', error);
@@ -186,7 +275,10 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     set({ loading: true, error: null, lastGroupedParams: { ...params } });
 
     try {
-      const response: GroupedInventoryResponse = await inventoryApi.getGroupedInventory(params);
+      const response: GroupedInventoryResponse = await globalRequestDeduplicator.run(
+        `inventory:grouped:${JSON.stringify(params)}`,
+        () => inventoryApi.getGroupedInventory(params),
+      );
 
       set({
         groupedItems: response.items,
@@ -246,6 +338,46 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     if (!show) {
       set({ selectedItem: null });
     }
+  },
+  handleRealtimeEvent: (event) => {
+    if (!event || !event.type) {
+      return;
+    }
+
+    const product = (event as { product?: InventoryItem }).product;
+
+    switch (event.type) {
+      case 'inventory:product-updated':
+      case 'inventory:product-moved':
+      case 'inventory:stock-changed':
+      case 'inventory:location-changed': {
+        if (product && hasProductInState(product.id)) {
+          upsertProductInState(product);
+        } else if (hasProductInState((event as { productId?: string }).productId)) {
+          scheduleRealtimeRefresh();
+        }
+        break;
+      }
+      case 'inventory:product-deleted': {
+        const productId = (event as { productId?: string }).productId;
+        if (productId) {
+          removeProductFromState(productId);
+        } else {
+          scheduleRealtimeRefresh();
+        }
+        break;
+      }
+      case 'inventory:product-created':
+      case 'inventory:bulk-updated': {
+        scheduleRealtimeRefresh();
+        break;
+      }
+      default:
+        break;
+    }
+  },
+  setRealtimeStatus: (status) => {
+    set({ realtimeStatus: status });
   },
 
   updateProduct: async (productId, updateData) => {
@@ -379,10 +511,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   refreshInventory: () => Promise.all([get().fetchInventory(), get().fetchStats()]).then(() => {}),
 
   syncAfterMutation: async () => {
-    await get().refreshInventory();
-    const { displayMode, lastGroupedParams } = get();
-    if (displayMode === 'grouped') {
-      await get().fetchGroupedInventory(lastGroupedParams);
-    }
+    await runInventoryRefresh();
   },
-}));
+  };
+});

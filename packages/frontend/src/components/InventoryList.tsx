@@ -70,6 +70,8 @@ export function InventoryList({
   const [sortConfig, setSortConfig] = useState<SortConfig>({ field: 'updatedAt', direction: 'desc' });
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showRowActions, setShowRowActions] = useState<string | null>(null);
+  const [compactMode] = useState(true); // Always compact mode, no toggle
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchLocations();
@@ -285,6 +287,20 @@ export function InventoryList({
     });
   };
 
+  const toggleColumnVisibility = (columnName: string) => {
+    setHiddenColumns(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(columnName)) {
+        newSet.delete(columnName);
+      } else {
+        newSet.add(columnName);
+      }
+      return newSet;
+    });
+  };
+
+  // Remove toggleCompactMode function since we always use compact mode
+
   const getSortIcon = (field: SortField) => {
     if (sortConfig.field !== field) {
       return <ArrowsUpDownIcon className="h-4 w-4 text-gray-400" />;
@@ -370,13 +386,15 @@ export function InventoryList({
         onShowColumnManager={onShowColumnManager || (() => {})}
         totalItems={items.length}
         loading={loading}
+        hiddenColumns={hiddenColumns}
+        onToggleColumnVisibility={toggleColumnVisibility}
       />
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
+        <table className={`min-w-full divide-y divide-gray-200 ${compactMode ? 'text-sm' : ''}`}>
           <thead className="bg-gray-50">
             <tr>
-              <th scope="col" className="px-6 py-3 text-left w-12">
+              <th scope="col" className={`${compactMode ? 'px-3 py-2' : 'px-6 py-3'} text-left w-12`}>
                 <input
                   type="checkbox"
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
@@ -384,12 +402,12 @@ export function InventoryList({
                   onChange={handleSelectAll}
                 />
               </th>
-              <th scope="col" className="px-6 py-3 text-left w-8">
+              <th scope="col" className={`${compactMode ? 'px-3 py-2' : 'px-6 py-3'} text-left w-8`}>
                 <span className="sr-only">Expand</span>
               </th>
             <th
               scope="col"
-              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+              className={`${compactMode ? 'px-3 py-2' : 'px-6 py-3'} text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100`}
               onClick={() => handleSort('productDetails')}
             >
               <div className="flex items-center space-x-1">
@@ -399,7 +417,7 @@ export function InventoryList({
             </th>
             <th
               scope="col"
-              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+              className={`${compactMode ? 'px-3 py-2' : 'px-6 py-3'} text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100`}
               onClick={() => handleSort('location')}
             >
               <div className="flex items-center space-x-1">
@@ -407,12 +425,12 @@ export function InventoryList({
                 {getSortIcon('location')}
               </div>
             </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th scope="col" className={`${compactMode ? 'px-3 py-2' : 'px-6 py-3'} text-left text-xs font-medium text-gray-500 uppercase tracking-wider`}>
               Status
             </th>
             <th
               scope="col"
-              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+              className={`${compactMode ? 'px-3 py-2' : 'px-6 py-3'} text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100`}
               onClick={() => handleSort('stockLevel')}
             >
               <div className="flex items-center space-x-1">
@@ -420,29 +438,39 @@ export function InventoryList({
                 {getSortIcon('stockLevel')}
               </div>
             </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Category
-            </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Supplier
-            </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Source
-            </th>
-            <th
-              scope="col"
-              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-              onClick={() => handleSort('daysInInventory')}
-            >
-              <div className="flex items-center space-x-1">
-                <span>Days in Inventory</span>
-                {getSortIcon('daysInInventory')}
-              </div>
-            </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Unit
-            </th>
-            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {!hiddenColumns.has('category') && (
+              <th scope="col" className={`${compactMode ? 'px-3 py-2' : 'px-6 py-3'} text-left text-xs font-medium text-gray-500 uppercase tracking-wider`}>
+                Category
+              </th>
+            )}
+            {!hiddenColumns.has('supplier') && (
+              <th scope="col" className={`${compactMode ? 'px-3 py-2' : 'px-6 py-3'} text-left text-xs font-medium text-gray-500 uppercase tracking-wider`}>
+                Supplier
+              </th>
+            )}
+            {!hiddenColumns.has('source') && (
+              <th scope="col" className={`${compactMode ? 'px-3 py-2' : 'px-6 py-3'} text-left text-xs font-medium text-gray-500 uppercase tracking-wider`}>
+                Source
+              </th>
+            )}
+            {!hiddenColumns.has('daysInInventory') && (
+              <th
+                scope="col"
+                className={`${compactMode ? 'px-3 py-2' : 'px-6 py-3'} text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100`}
+                onClick={() => handleSort('daysInInventory')}
+              >
+                <div className="flex items-center space-x-1">
+                  <span>Days in Inv.</span>
+                  {getSortIcon('daysInInventory')}
+                </div>
+              </th>
+            )}
+            {!hiddenColumns.has('unit') && (
+              <th scope="col" className={`${compactMode ? 'px-3 py-2' : 'px-6 py-3'} text-left text-xs font-medium text-gray-500 uppercase tracking-wider`}>
+                Unit
+              </th>
+            )}
+            <th scope="col" className={`${compactMode ? 'px-3 py-2' : 'px-6 py-3'} text-right text-xs font-medium text-gray-500 uppercase tracking-wider`}>
               Actions
             </th>
           </tr>
@@ -454,8 +482,8 @@ export function InventoryList({
 
             return (
               <React.Fragment key={item.id}>
-                <tr className={`hover:bg-gray-50 transition-colors ${selectedItems.has(item.id) ? 'bg-blue-50' : ''}`}>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                <tr className={`hover:bg-gray-50 transition-colors ${selectedItems.has(item.id) ? 'bg-blue-50' : ''} ${compactMode ? 'text-sm' : ''}`}>
+                  <td className={`${compactMode ? 'px-3 py-2' : 'px-6 py-4'} whitespace-nowrap`}>
                     <input
                       type="checkbox"
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
@@ -463,25 +491,25 @@ export function InventoryList({
                       onChange={() => handleSelectItem(item.id)}
                     />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className={`${compactMode ? 'px-3 py-2' : 'px-6 py-4'} whitespace-nowrap`}>
                     <button
                       onClick={() => toggleRowExpansion(item.id)}
                       className="text-gray-400 hover:text-gray-600"
                     >
                       {isExpanded ? (
-                        <ChevronDownIcon className="h-4 w-4" />
+                        <ChevronDownIcon className={`${compactMode ? 'h-3 w-3' : 'h-4 w-4'}`} />
                       ) : (
-                        <ChevronRightIcon className="h-4 w-4" />
+                        <ChevronRightIcon className={`${compactMode ? 'h-3 w-3' : 'h-4 w-4'}`} />
                       )}
                     </button>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className={`${compactMode ? 'px-3 py-2' : 'px-6 py-4'}`}>
                     <div>
                       <BasicInlineEdit
                         value={item.productDetails}
                         onSave={(value) => handleUpdateProductDetails(item.id, value)}
                         placeholder="Product name"
-                        className="text-sm font-medium text-gray-900 mb-1"
+                        className={`${compactMode ? 'text-xs' : 'text-sm'} font-medium text-gray-900 mb-1`}
                         validation={(value) => {
                           if (!value || value.toString().trim().length === 0) {
                             return 'Product name is required';
@@ -492,50 +520,52 @@ export function InventoryList({
                           return null;
                         }}
                       />
-                      <BasicInlineEdit
-                        value={item.sku || ''}
-                        onSave={(value) => handleUpdateSku(item.id, value)}
-                        placeholder="Enter SKU"
-                        displayValue={item.sku ? `SKU: ${item.sku}` : ''}
-                        className="text-sm text-gray-500"
-                        validation={(value) => {
-                          if (value && value.toString().length > 100) {
-                            return 'SKU must be less than 100 characters';
-                          }
-                          return null;
-                        }}
-                      />
+                      {!hiddenColumns.has('sku') && (
+                        <BasicInlineEdit
+                          value={item.sku || ''}
+                          onSave={(value) => handleUpdateSku(item.id, value)}
+                          placeholder="Enter SKU"
+                          displayValue={item.sku ? `SKU: ${item.sku}` : ''}
+                          className={`${compactMode ? 'text-xs' : 'text-sm'} text-gray-500`}
+                          validation={(value) => {
+                            if (value && value.toString().length > 100) {
+                              return 'SKU must be less than 100 characters';
+                            }
+                            return null;
+                          }}
+                        />
+                      )}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center text-sm text-gray-900">
+                  <td className={`${compactMode ? 'px-3 py-2' : 'px-6 py-4'}`}>
+                    <div className={`flex items-center ${compactMode ? 'text-xs' : 'text-sm'} text-gray-900`}>
                       {assignment.type === 'person' ? (
-                        <svg className="w-4 h-4 text-purple-600 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} text-purple-600 mr-1 flex-shrink-0`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
                       ) : assignment.type === 'location' ? (
-                        <MapPinIcon className="h-4 w-4 text-blue-500 mr-1 flex-shrink-0" />
+                        <MapPinIcon className={`${compactMode ? 'h-3 w-3' : 'h-4 w-4'} text-blue-500 mr-1 flex-shrink-0`} />
                       ) : (
-                        <MapPinIcon className="h-4 w-4 text-gray-300 mr-1 flex-shrink-0" />
+                        <MapPinIcon className={`${compactMode ? 'h-3 w-3' : 'h-4 w-4'} text-gray-300 mr-1 flex-shrink-0`} />
                       )}
                       <span className={assignment.type === 'person' ? 'text-purple-700 font-medium' : ''}>
                         {assignment.display}
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center space-x-2">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.columnStatus)}`}>
+                  <td className={`${compactMode ? 'px-3 py-2' : 'px-6 py-4'} whitespace-nowrap`}>
+                    <div className="flex items-center space-x-1">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.columnStatus)}`}>
                         {item.columnStatus}
                       </span>
                       {item.priority && (
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(item.priority)}`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(item.priority)}`}>
                           {item.priority}
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className={`${compactMode ? 'px-3 py-2' : 'px-6 py-4'} whitespace-nowrap`}>
                     {item.columnStatus === 'Stored' ? (
                       <div className="flex items-center">
                         <BasicInlineEdit
@@ -553,87 +583,97 @@ export function InventoryList({
                             return null;
                           }}
                         />
-                        {item.stockLevel !== null && item.stockLevel <= 10 && (
+                        {item.stockLevel !== null && item.stockLevel <= 10 && !compactMode && (
                           <span className={`ml-2 text-xs ${getStockStatusColor(item.stockLevel)} px-2 py-1 rounded-full`}>
                             Low Stock
                           </span>
                         )}
                       </div>
                     ) : (
-                      <span className="text-sm text-gray-400">—</span>
+                      <span className={`${compactMode ? 'text-xs' : 'text-sm'} text-gray-400`}>—</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {item.category ? (
-                      <div className="flex items-center text-sm text-gray-900">
-                        <TagIcon className="h-4 w-4 text-gray-400 mr-1" />
-                        {item.category}
+                  {!hiddenColumns.has('category') && (
+                    <td className={`${compactMode ? 'px-3 py-2' : 'px-6 py-4'} whitespace-nowrap`}>
+                      {item.category ? (
+                        <div className={`flex items-center ${compactMode ? 'text-xs' : 'text-sm'} text-gray-900`}>
+                          <TagIcon className={`${compactMode ? 'h-3 w-3' : 'h-4 w-4'} text-gray-400 mr-1`} />
+                          {item.category}
+                        </div>
+                      ) : (
+                        <span className={`${compactMode ? 'text-xs' : 'text-sm'} text-gray-400`}>—</span>
+                      )}
+                    </td>
+                  )}
+                  {!hiddenColumns.has('supplier') && (
+                    <td className={`${compactMode ? 'px-3 py-2' : 'px-6 py-4'} whitespace-nowrap`}>
+                      {item.supplier ? (
+                        <div className={`flex items-center ${compactMode ? 'text-xs' : 'text-sm'} text-gray-900`}>
+                          <BuildingOfficeIcon className={`${compactMode ? 'h-3 w-3' : 'h-4 w-4'} text-gray-400 mr-1`} />
+                          {item.supplier}
+                        </div>
+                      ) : (
+                        <span className={`${compactMode ? 'text-xs' : 'text-sm'} text-gray-400`}>—</span>
+                      )}
+                    </td>
+                  )}
+                  {!hiddenColumns.has('source') && (
+                    <td className={`${compactMode ? 'px-3 py-2' : 'px-6 py-4'} whitespace-nowrap`}>
+                      {item.kanban ? (
+                        <div className={`flex items-center ${compactMode ? 'text-xs' : 'text-sm'} text-gray-900`}>
+                          {item.kanban.id === 'direct-import' ? (
+                            <div className="flex items-center">
+                              <svg className={`${compactMode ? 'h-3 w-3' : 'h-4 w-4'} text-green-500 mr-1`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                              </svg>
+                              <span className="text-green-700 font-medium">Direct Import</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center">
+                              <svg className={`${compactMode ? 'h-3 w-3' : 'h-4 w-4'} text-blue-500 mr-1`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 002-2M9 7a2 2 0 012 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 002-2" />
+                              </svg>
+                              <span className="text-blue-700">{item.kanban.name}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className={`${compactMode ? 'text-xs' : 'text-sm'} text-gray-400`}>—</span>
+                      )}
+                    </td>
+                  )}
+                  {!hiddenColumns.has('daysInInventory') && (
+                    <td className={`${compactMode ? 'px-3 py-2' : 'px-6 py-4'} whitespace-nowrap`}>
+                      <div className={`flex items-center ${compactMode ? 'text-xs' : 'text-sm'} text-gray-600`}>
+                        <ClockIcon className={`${compactMode ? 'h-3 w-3' : 'h-4 w-4'} text-gray-400 mr-1`} />
+                        <span>{item.daysInInventory} days</span>
                       </div>
-                    ) : (
-                      <span className="text-sm text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {item.supplier ? (
-                      <div className="flex items-center text-sm text-gray-900">
-                        <BuildingOfficeIcon className="h-4 w-4 text-gray-400 mr-1" />
-                        {item.supplier}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {item.kanban ? (
-                      <div className="flex items-center text-sm text-gray-900">
-                        {item.kanban.id === 'direct-import' ? (
-                          <div className="flex items-center">
-                            <svg className="h-4 w-4 text-green-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                            </svg>
-                            <span className="text-green-700 font-medium">Direct Import</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center">
-                            <svg className="h-4 w-4 text-blue-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 002-2M9 7a2 2 0 012 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 002-2" />
-                            </svg>
-                            <span className="text-blue-700">{item.kanban.name}</span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <ClockIcon className="h-4 w-4 text-gray-400 mr-1" />
-                      <span>{item.daysInInventory} days</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">
-                      {item.unit || '#'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end space-x-1">
+                    </td>
+                  )}
+                  {!hiddenColumns.has('unit') && (
+                    <td className={`${compactMode ? 'px-3 py-2' : 'px-6 py-4'} whitespace-nowrap`}>
+                      <span className={`${compactMode ? 'text-xs' : 'text-sm'} text-gray-900`}>
+                        {item.unit || '#'}
+                      </span>
+                    </td>
+                  )}
+                  <td className={`${compactMode ? 'px-3 py-2' : 'px-6 py-4'} whitespace-nowrap text-right ${compactMode ? 'text-xs' : 'text-sm'} font-medium`}>
+                    <div className={`flex items-center justify-end ${compactMode ? 'space-x-0.5' : 'space-x-1'}`}>
                       {/* Quick Actions */}
                       <button
                         onClick={() => onProductClick(item)}
                         className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
                         title="View details"
                       >
-                        <EyeIcon className="h-4 w-4" />
+                        <EyeIcon className={`${compactMode ? 'h-3 w-3' : 'h-4 w-4'}`} />
                       </button>
-                      
+
                       <button
                         onClick={() => onProductClick(item)}
                         className="text-gray-600 hover:text-gray-900 p-1 rounded hover:bg-gray-50"
                         title="Edit item"
                       >
-                        <PencilIcon className="h-4 w-4" />
+                        <PencilIcon className={`${compactMode ? 'h-3 w-3' : 'h-4 w-4'}`} />
                       </button>
 
 
@@ -698,11 +738,11 @@ export function InventoryList({
                 {/* Expandable Row */}
                 {isExpanded && (
                   <tr className="bg-gray-50">
-                    <td colSpan={10} className="px-6 py-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                    <td colSpan={compactMode ? 6 : 10} className={`${compactMode ? 'px-3 py-2' : 'px-6 py-4'}`}>
+                      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 ${compactMode ? 'gap-2' : 'gap-4'} ${compactMode ? 'text-xs' : 'text-sm'}`}>
                         {/* Product Details */}
                         <div>
-                          <h4 className="font-medium text-gray-900 mb-2">Product Information</h4>
+                          <h4 className={`font-medium text-gray-900 mb-2 ${compactMode ? 'text-sm' : ''}`}>Product Information</h4>
                           <div className="space-y-1">
                             {item.unitPrice && formatCurrency(item.unitPrice) && (
                               <div className="flex items-center">
@@ -744,12 +784,12 @@ export function InventoryList({
                         {/* Tags */}
                         {item.tags && Array.isArray(item.tags) && item.tags.length > 0 && (
                           <div>
-                            <h4 className="font-medium text-gray-900 mb-2">Tags</h4>
-                            <div className="flex flex-wrap gap-1">
+                            <h4 className={`font-medium text-gray-900 mb-2 ${compactMode ? 'text-sm' : ''}`}>Tags</h4>
+                            <div className={`flex flex-wrap ${compactMode ? 'gap-0.5' : 'gap-1'}`}>
                               {item.tags.map((tag, index) => (
                                 <span
                                   key={index}
-                                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+                                  className={`inline-flex items-center px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-800 ${compactMode ? 'text-xs' : 'text-xs'}`}
                                 >
                                   {tag}
                                 </span>
@@ -760,7 +800,7 @@ export function InventoryList({
 
                         {/* Timestamps */}
                         <div>
-                          <h4 className="font-medium text-gray-900 mb-2">Timeline</h4>
+                          <h4 className={`font-medium text-gray-900 mb-2 ${compactMode ? 'text-sm' : ''}`}>Timeline</h4>
                           <div className="space-y-1">
                             <div className="flex items-center text-gray-600">
                               <CalendarIcon className="h-4 w-4 text-gray-400 mr-2" />
@@ -776,8 +816,8 @@ export function InventoryList({
                         {/* Notes */}
                         {item.notes && (
                           <div className="md:col-span-2 lg:col-span-3">
-                            <h4 className="font-medium text-gray-900 mb-2">Notes</h4>
-                            <p className="text-gray-700 bg-white p-3 rounded-md border border-gray-200">
+                            <h4 className={`font-medium text-gray-900 mb-2 ${compactMode ? 'text-sm' : ''}`}>Notes</h4>
+                            <p className={`text-gray-700 bg-white rounded-md border border-gray-200 ${compactMode ? 'p-2 text-xs' : 'p-3'}`}>
                               {item.notes}
                             </p>
                           </div>
