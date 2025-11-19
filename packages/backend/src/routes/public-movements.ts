@@ -15,7 +15,7 @@ import {
 } from '../db/schema';
 import { createError } from '../middleware/errorHandler';
 import { executeSingleMovement } from '../services/singleMovementExecutor';
-import { invalidateCache } from '../middleware/cache';
+import { invalidateInventoryCaches } from '../utils/cacheInvalidation';
 
 const router = Router();
 const fromLocations = alias(locations, 'fromLocations');
@@ -224,16 +224,27 @@ router.post('/:token/confirm', async (req, res, next) => {
       return {
         movementLogId: movementLog.id,
         quantityProcessed: quantityReceived,
+        affectedProductIds: [
+          product.id,
+          executionResult.destinationProduct?.id,
+        ].filter((id): id is string => Boolean(id)),
+        affectedLocationIds: [
+          movementLog.fromLocationId,
+          movementLog.toLocationId,
+        ].filter((id): id is string => Boolean(id)),
       };
     });
 
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/locations');
+    const { affectedProductIds, affectedLocationIds, ...responseData } = result;
+
+    await invalidateInventoryCaches([
+      ...affectedProductIds.map((id) => ({ resource: 'product', id })),
+      ...affectedLocationIds.map((id) => ({ resource: 'location', id })),
+    ]);
 
     res.json({
       message: 'Movement confirmed successfully',
-      movementLogId: result.movementLogId,
-      quantityProcessed: result.quantityProcessed,
+      ...responseData,
     });
   } catch (error) {
     next(error);

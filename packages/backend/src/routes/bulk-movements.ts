@@ -18,10 +18,34 @@ import { eq, and, gte, lte, inArray, desc, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { authenticateToken } from '../middleware/auth';
 import type { Request, Response, NextFunction } from 'express';
-import { invalidateCache } from '../middleware/cache';
+import { invalidateInventoryCaches, type CacheTagDescriptor } from '../utils/cacheInvalidation';
 import { getOrCreateGeneralLocation } from '../utils/generalLocation';
 
 const router = Router();
+
+const buildBulkMovementInvalidationTags = (
+  productIds: Array<string | null | undefined>,
+  locationIds: Array<string | null | undefined>,
+): CacheTagDescriptor[] => {
+  const tags: CacheTagDescriptor[] = [];
+
+  const uniqueProductIds = Array.from(
+    new Set(productIds.filter((value): value is string => Boolean(value))),
+  );
+  const uniqueLocationIds = Array.from(
+    new Set(locationIds.filter((value): value is string => Boolean(value))),
+  );
+
+  uniqueProductIds.forEach((id) => {
+    tags.push({ resource: 'product', id });
+  });
+
+  uniqueLocationIds.forEach((id) => {
+    tags.push({ resource: 'location', id });
+  });
+
+  return tags;
+};
 
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
@@ -53,6 +77,8 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
     // Use transaction to ensure data consistency
     const result = await db.transaction(async (tx) => {
+      const affectedProductIds = new Set<string>();
+      const affectedLocationIds = new Set<string | null | undefined>();
       // 1. Resolve source location & area (support area-to-area using general locations)
       let effectiveFromLocationId: string;
       let fromLocationRow: typeof locations.$inferSelect | null = null;
@@ -243,13 +269,20 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         items: createdItems,
         fromLocation: fromLocationRow!,
         toLocation: toLocationRow!,
+        affectedProductIds: items.map((item) => item.productId),
+        affectedLocationIds: [
+          fromLocationRow?.id ?? null,
+          toLocationRow?.id ?? null,
+        ],
       };
     });
 
-    // Invalidate inventory-related caches so stock changes are reflected immediately
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/locations');
+    await invalidateInventoryCaches(
+      buildBulkMovementInvalidationTags(
+        result.affectedProductIds,
+        result.affectedLocationIds,
+      ),
+    );
 
     res.status(201).json({
       ...result.bulkMovement,
@@ -492,12 +525,22 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
         })
         .where(eq(bulkMovements.id, id));
 
-      return { success: true };
+      return {
+        success: true,
+        affectedProductIds: items.map((item) => item.productId),
+        affectedLocationIds: [
+          bulkMovement.fromLocationId,
+          bulkMovement.toLocationId,
+        ],
+      };
     });
 
-    // Cancelling a bulk movement restores stock; invalidate inventory caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/locations');
+    await invalidateInventoryCaches(
+      buildBulkMovementInvalidationTags(
+        result.affectedProductIds,
+        result.affectedLocationIds,
+      ),
+    );
 
     res.json({ message: 'Bulk movement cancelled successfully' });
   } catch (error) {
@@ -565,8 +608,22 @@ router.post('/:id/cancel', async (req: Request, res: Response, next: NextFunctio
         })
         .where(eq(bulkMovements.id, id));
 
-      return { success: true };
+      return {
+        success: true,
+        affectedProductIds: items.map((item) => item.productId),
+        affectedLocationIds: [
+          bulkMovement.fromLocationId,
+          bulkMovement.toLocationId,
+        ],
+      };
     });
+
+    await invalidateInventoryCaches(
+      buildBulkMovementInvalidationTags(
+        result.affectedProductIds,
+        result.affectedLocationIds,
+      ),
+    );
 
     res.json({ message: 'Bulk movement cancelled successfully' });
   } catch (error) {
@@ -794,14 +851,24 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
           code: updatedBulkMovementData.toLocation!.code,
           area: updatedBulkMovementData.toLocation!.area,
         },
+        affectedProductIds: updatedItems.map((item) => item.productId),
+        affectedLocationIds: [
+          bulkMovement.fromLocationId,
+          toLocationId ?? updatedBulkMovementData.toLocation?.id ?? bulkMovement.toLocationId,
+        ],
       };
     });
 
-    // Editing a bulk movement can adjust reserved stock; invalidate inventory caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/locations');
+    const { affectedProductIds, affectedLocationIds, ...responsePayload } = result;
 
-    res.json(result);
+    await invalidateInventoryCaches(
+      buildBulkMovementInvalidationTags(affectedProductIds, affectedLocationIds),
+    );
+    await invalidateInventoryCaches(
+      buildBulkMovementInvalidationTags(affectedProductIds, affectedLocationIds),
+    );
+
+    res.json(responsePayload);
   } catch (error) {
     next(error);
   }
@@ -835,6 +902,9 @@ router.post('/check-expired', async (req: Request, res: Response, next: NextFunc
 
       // Optionally, revert products back to 'Stored' status for pending movements
       for (const movement of expiredMovements) {
+        affectedLocationIds.add(movement.fromLocationId);
+        affectedLocationIds.add(movement.toLocationId);
+
         if (movement.status === 'pending') {
           const items = await tx
             .select()
@@ -842,6 +912,7 @@ router.post('/check-expired', async (req: Request, res: Response, next: NextFunc
             .where(eq(bulkMovementItems.bulkMovementId, movement.id));
 
           for (const item of items) {
+            affectedProductIds.add(item.productId);
             const [product] = await tx
               .select()
               .from(products)
@@ -864,14 +935,21 @@ router.post('/check-expired', async (req: Request, res: Response, next: NextFunc
         }
       }
 
-      return { expiredCount: expiredMovements.length };
+      return {
+        expiredCount: expiredMovements.length,
+        affectedProductIds: Array.from(affectedProductIds),
+        affectedLocationIds: Array.from(affectedLocationIds),
+      };
     });
 
-    // Expiring bulk movements can adjust product states; invalidate inventory caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/locations');
+    await invalidateInventoryCaches(
+      buildBulkMovementInvalidationTags(
+        result.affectedProductIds,
+        result.affectedLocationIds,
+      ),
+    );
 
-    res.json(result);
+    res.json({ expiredCount: result.expiredCount });
   } catch (error) {
     next(error);
   }

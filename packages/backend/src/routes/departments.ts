@@ -9,12 +9,32 @@ import {
   UpdateDepartmentSchema
 } from '@invenflow/shared';
 import { authenticateToken } from '../middleware/auth';
-import { invalidateCache } from '../middleware/cache';
+import { cacheMiddleware } from '../middleware/cache';
+import {
+  invalidateResources,
+  type CacheTagDescriptor,
+} from '../utils/cacheInvalidation';
 
 const router = Router();
 
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
+
+const invalidateDepartmentCaches = async (
+  departmentIds: Array<string | null | undefined> = [],
+) => {
+  const descriptors: CacheTagDescriptor[] = [
+    { resource: 'department' },
+    { resource: 'person' },
+  ];
+
+  const uniqueIds = Array.from(
+    new Set(departmentIds.filter((value): value is string => Boolean(value))),
+  );
+  uniqueIds.forEach((id) => descriptors.push({ resource: 'department', id }));
+
+  await invalidateResources(descriptors);
+};
 
 const combineSqlClauses = (clauses: SQL<unknown>[]): SQL<unknown> => {
   if (clauses.length === 0) {
@@ -30,7 +50,14 @@ const combineSqlClauses = (clauses: SQL<unknown>[]): SQL<unknown> => {
 };
 
 // Get all departments (with optional search and active filter)
-router.get('/', async (req, res, next) => {
+router.get(
+  '/',
+  cacheMiddleware({
+    ttl: 10 * 60 * 1000,
+    sharedAcrossUsers: true,
+    tags: [{ resource: 'department' }],
+  }),
+  async (req, res, next) => {
   try {
     const { search, activeOnly = 'false', sortBy = 'name', sortOrder = 'asc' } = req.query;
 
@@ -99,7 +126,14 @@ router.get('/', async (req, res, next) => {
 });
 
 // Get active departments only (for dropdowns)
-router.get('/active', async (req, res, next) => {
+router.get(
+  '/active',
+  cacheMiddleware({
+    ttl: 10 * 60 * 1000,
+    sharedAcrossUsers: true,
+    tags: [{ resource: 'department' }],
+  }),
+  async (req, res, next) => {
   try {
     const activeDepartments = await db
       .select()
@@ -171,8 +205,7 @@ router.post('/', async (req, res, next) => {
       .values(newDepartment)
       .returning();
 
-    // Invalidate cached departments endpoints so new department appears immediately
-    invalidateCache('/api/departments');
+    await invalidateDepartmentCaches([createdDepartment.id]);
 
     res.status(201).json(createdDepartment);
   } catch (error) {
@@ -225,8 +258,7 @@ router.put('/:id', async (req, res, next) => {
       .where(eq(departments.id, id))
       .returning();
 
-    // Invalidate cached departments endpoints so updates are reflected immediately
-    invalidateCache('/api/departments');
+    await invalidateDepartmentCaches([id]);
 
     res.json(updatedDepartment);
   } catch (error) {
@@ -266,8 +298,7 @@ router.delete('/:id', async (req, res, next) => {
       .where(eq(departments.id, id))
       .returning();
 
-    // Invalidate cached departments endpoints so deletions are reflected immediately
-    invalidateCache('/api/departments');
+    await invalidateDepartmentCaches([id]);
 
     res.json({ message: 'Department deleted successfully' });
   } catch (error) {

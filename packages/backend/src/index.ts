@@ -30,6 +30,8 @@ import { publicMovementsRouter } from "./routes/public-movements";
 import productGroupsRouter from "./routes/product-groups";
 import { storedLogsRouter } from "./routes/stored-logs";
 import { startStoredCleanup } from "./services/storedCleanup";
+import { startCacheWarming, stopCacheWarming } from "./services/cacheWarming";
+import { redisManager } from "./config/redis";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -202,9 +204,10 @@ startPerformanceLogging(60000); // Log every minute
 
 // Start stored cleanup service
 startStoredCleanup();
+startCacheWarming();
 
 // Start server
-app.listen(env.PORT, "0.0.0.0", () => {
+const server = app.listen(env.PORT, "0.0.0.0", () => {
   console.log(`🚀 InvenFlow server running on port ${env.PORT}`);
   console.log(`📊 Health check: http://localhost:${env.PORT}/api/health`);
   console.log(`🌍 Environment: ${env.NODE_ENV}`);
@@ -229,3 +232,19 @@ app.listen(env.PORT, "0.0.0.0", () => {
     console.log(`📁 File uploads: http://localhost:${env.PORT}/uploads/`);
   }
 });
+
+const gracefulShutdown = async (signal: string) => {
+  console.log(`\nReceived ${signal}, shutting down gracefully...`);
+  stopCacheWarming();
+  await redisManager.shutdown().catch((error) => {
+    console.error("[Redis] shutdown error", error);
+  });
+
+  server.close(() => {
+    console.log("HTTP server closed");
+    process.exit(0);
+  });
+};
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));

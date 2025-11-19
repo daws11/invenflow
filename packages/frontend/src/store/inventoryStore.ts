@@ -39,6 +39,12 @@ interface InventoryState {
   viewMode: 'unified' | 'by-kanban' | 'list';
   displayMode: 'individual' | 'grouped';
   groupedViewMode: 'grid' | 'list';
+  lastGroupedParams?: {
+    search?: string;
+    category?: string[];
+    supplier?: string[];
+    status?: string;
+  };
 
   // Selected item for detail view
   selectedItem: InventoryItem | null;
@@ -63,6 +69,7 @@ interface InventoryState {
   setPageSize: (size: number) => void;
   clearError: () => void;
   refreshInventory: () => Promise<void>;
+  syncAfterMutation: () => Promise<void>;
 }
 
 const defaultFilters: InventoryFilters = {
@@ -93,6 +100,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   viewMode: 'list',
   displayMode: 'grouped', // Default to grouped view
   groupedViewMode: 'list', // Default grouped view as list
+  lastGroupedParams: {},
   selectedItem: null,
   showDetailModal: false,
 
@@ -175,7 +183,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   },
 
   fetchGroupedInventory: async (params = {}) => {
-    set({ loading: true, error: null });
+    set({ loading: true, error: null, lastGroupedParams: { ...params } });
 
     try {
       const response: GroupedInventoryResponse = await inventoryApi.getGroupedInventory(params);
@@ -256,6 +264,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
       // Make API call in background
       const { productApi } = await import('../utils/api');
       await productApi.update(productId, updateData);
+      await get().syncAfterMutation();
     } catch (error) {
       // Revert optimistic update on error by fetching fresh data
       get().fetchInventory();
@@ -294,6 +303,8 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
         message: 'Stock level updated successfully',
         type: 'success',
       });
+
+      await get().syncAfterMutation();
     } catch (error) {
       // Revert optimistic update on error
       const { items } = get();
@@ -340,6 +351,8 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
         message: 'Location updated successfully',
         type: 'success',
       });
+
+      await get().syncAfterMutation();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update location';
       set({ error: errorMessage, loading: false });
@@ -364,4 +377,12 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   clearError: () => set({ error: null }),
 
   refreshInventory: () => Promise.all([get().fetchInventory(), get().fetchStats()]).then(() => {}),
+
+  syncAfterMutation: async () => {
+    await get().refreshInventory();
+    const { displayMode, lastGroupedParams } = get();
+    if (displayMode === 'grouped') {
+      await get().fetchGroupedInventory(lastGroupedParams);
+    }
+  },
 }));

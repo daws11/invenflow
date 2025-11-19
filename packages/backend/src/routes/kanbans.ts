@@ -5,7 +5,8 @@ import { kanbans, products, kanbanLinks, locations, productGroups, productGroupS
 import { eq, and, asc, sql, isNull } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
-import { cacheMiddleware, invalidateCache } from '../middleware/cache';
+import { cacheMiddleware } from '../middleware/cache';
+import { invalidateKanbanCache } from '../utils/cacheInvalidation';
 import { UpdateKanbanSchema, FormFieldSettingsSchema, DEFAULT_FORM_FIELD_SETTINGS } from '@invenflow/shared';
 
 const router = Router();
@@ -14,7 +15,11 @@ const router = Router();
 router.use(authenticateToken);
 
 // Get all kanbans
-router.get('/', cacheMiddleware({ ttl: 10 * 60 * 1000 }), async (req, res, next) => {
+router.get('/', cacheMiddleware({
+  ttl: 3 * 60 * 1000,
+  sharedAcrossUsers: true,
+  tags: [{ resource: 'kanban' }],
+}), async (req, res, next) => {
   try {
     const allKanbans = await db
       .select({
@@ -229,8 +234,8 @@ router.post('/', async (req, res, next) => {
       .values(newKanban)
       .returning();
 
-    // Invalidate cache setelah pembuatan berhasil
-    invalidateCache('/api/kanbans');
+    // Invalidate cache setelah pembuatan berhasil (list + detail baru)
+    await invalidateKanbanCache(createdKanban.id);
 
     res.status(201).json(createdKanban);
   } catch (error) {
@@ -379,8 +384,8 @@ router.put('/:id', async (req, res, next) => {
       .where(eq(kanbans.id, id))
       .returning();
 
-    // Invalidate cache setelah update berhasil
-    invalidateCache('/api/kanbans');
+    // Invalidate cache setelah update berhasil (list + detail)
+    await invalidateKanbanCache(id);
 
     res.json(updatedKanban);
   } catch (error) {
@@ -442,7 +447,7 @@ router.put('/:id/public-form-settings', async (req, res, next) => {
       .returning();
 
     // Invalidate cache setelah update public form settings berhasil
-    invalidateCache('/api/kanbans');
+    await invalidateKanbanCache(id);
 
     res.json(updatedKanban);
   } catch (error) {
@@ -602,7 +607,7 @@ router.post('/:id/links', async (req, res, next) => {
     }
 
     // Invalidate cache setelah menambah link berhasil
-    invalidateCache('/api/kanbans');
+    await invalidateKanbanCache(id);
 
     res.status(201).json(linkedKanbans);
   } catch (error) {
@@ -668,7 +673,7 @@ router.delete('/:id/links/:linkId', async (req, res, next) => {
       .where(eq(kanbanLinks.orderKanbanId, id));
 
     // Invalidate cache setelah menghapus link berhasil
-    invalidateCache('/api/kanbans');
+    await invalidateKanbanCache(id);
 
     res.json(linkedKanbans);
   } catch (error) {
@@ -691,7 +696,7 @@ router.delete('/:id', async (req, res, next) => {
     }
 
     // Invalidate cache setelah penghapusan berhasil
-    invalidateCache('/api/kanbans');
+    await invalidateKanbanCache(id);
 
     res.json({ message: 'Kanban deleted successfully' });
   } catch (error) {

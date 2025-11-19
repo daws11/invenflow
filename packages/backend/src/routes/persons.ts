@@ -9,9 +9,37 @@ import {
   UpdatePersonSchema
 } from '@invenflow/shared';
 import { authenticateToken } from '../middleware/auth';
-import { invalidateCache } from '../middleware/cache';
+import { cacheMiddleware } from '../middleware/cache';
+import {
+  invalidateResources,
+  type CacheTagDescriptor,
+} from '../utils/cacheInvalidation';
 
 const router = Router();
+
+const invalidatePersonCaches = async (
+  personIds: Array<string | null | undefined> = [],
+  departmentIds: Array<string | null | undefined> = [],
+) => {
+  const descriptors: CacheTagDescriptor[] = [
+    { resource: 'person' },
+    { resource: 'department' },
+  ];
+
+  const uniquePersons = Array.from(
+    new Set(personIds.filter((value): value is string => Boolean(value))),
+  );
+  const uniqueDepartments = Array.from(
+    new Set(departmentIds.filter((value): value is string => Boolean(value))),
+  );
+
+  uniquePersons.forEach((id) => descriptors.push({ resource: 'person', id }));
+  uniqueDepartments.forEach((id) =>
+    descriptors.push({ resource: 'department', id }),
+  );
+
+  await invalidateResources(descriptors);
+};
 
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
@@ -36,7 +64,14 @@ const combineSqlClauses = (clauses: SQL<unknown>[]): SQL<unknown> => {
 };
 
 // Get all persons (with optional search and department filter)
-router.get('/', async (req, res, next) => {
+router.get(
+  '/',
+  cacheMiddleware({
+    ttl: 5 * 60 * 1000,
+    sharedAcrossUsers: true,
+    tags: [{ resource: 'person' }],
+  }),
+  async (req, res, next) => {
   try {
     const { search, department, sortBy = 'name', sortOrder = 'asc', activeOnly = 'true' } = req.query;
 
@@ -198,8 +233,7 @@ router.post('/', async (req, res, next) => {
       .values({ name, departmentId, isActive })
       .returning();
 
-    // Invalidate cached persons list so new person appears immediately
-    invalidateCache('/api/persons');
+    await invalidatePersonCaches([createdPerson.id], [createdPerson.departmentId]);
 
     res.status(201).json(createdPerson);
   } catch (error) {
@@ -246,8 +280,10 @@ router.put('/:id', async (req, res, next) => {
       .where(eq(persons.id, id))
       .returning();
 
-    // Invalidate cached persons list so updates are reflected immediately
-    invalidateCache('/api/persons');
+    await invalidatePersonCaches(
+      [updatedPerson.id],
+      [updatedPerson.departmentId, existingPerson.departmentId],
+    );
 
     res.json(updatedPerson);
   } catch (error) {
@@ -287,8 +323,7 @@ router.delete('/:id', async (req, res, next) => {
       .where(eq(persons.id, id))
       .returning();
 
-    // Invalidate cached persons list so deletions are reflected immediately
-    invalidateCache('/api/persons');
+    await invalidatePersonCaches([id]);
 
     res.json({ message: 'Person deleted successfully' });
   } catch (error) {

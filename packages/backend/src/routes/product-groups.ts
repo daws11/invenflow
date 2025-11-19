@@ -4,9 +4,29 @@ import { productGroups, productGroupSettings, products, kanbans } from '../db/sc
 import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
-import { invalidateCache } from '../middleware/cache';
+import { invalidateInventoryCaches, type CacheTagDescriptor } from '../utils/cacheInvalidation';
 
 const router = Router();
+
+const invalidateProductGroupCaches = async (options: {
+  kanbanId?: string | null;
+  productIds?: Array<string | null | undefined>;
+}) => {
+  const descriptors: CacheTagDescriptor[] = [];
+
+  if (options.kanbanId) {
+    descriptors.push({ resource: 'kanban', id: options.kanbanId });
+  }
+
+  if (options.productIds) {
+    const uniqueProductIds = Array.from(
+      new Set(options.productIds.filter((value): value is string => Boolean(value))),
+    );
+    uniqueProductIds.forEach((id) => descriptors.push({ resource: 'product', id }));
+  }
+
+  await invalidateInventoryCaches(descriptors);
+};
 
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
@@ -121,10 +141,10 @@ router.post('/', async (req, res, next) => {
       }
     }
 
-    // Invalidate caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/kanbans');
+    await invalidateProductGroupCaches({
+      kanbanId,
+      productIds,
+    });
 
     res.json({
       ...newGroup,
@@ -238,10 +258,9 @@ router.put('/:id', async (req, res, next) => {
       .from(productGroupSettings)
       .where(eq(productGroupSettings.productGroupId, id));
 
-    // Invalidate caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/kanbans');
+    await invalidateProductGroupCaches({
+      kanbanId: updatedGroup.kanbanId,
+    });
 
     res.json({
       ...updatedGroup,
@@ -266,6 +285,8 @@ router.delete('/:id', async (req, res, next) => {
       throw createError('Product group not found', 404);
     }
 
+    const affectedProductIds: string[] = [];
+
     // Ungroup products and normalize their column positions so they appear in a sensible order
     await db.transaction(async (tx) => {
       // Get group products before ungrouping
@@ -273,6 +294,8 @@ router.delete('/:id', async (req, res, next) => {
         .select()
         .from(products)
         .where(eq(products.productGroupId, id));
+
+      affectedProductIds.push(...groupProducts.map((product) => product.id));
 
     // Remove products from group
       await tx
@@ -325,10 +348,10 @@ router.delete('/:id', async (req, res, next) => {
       }
     });
 
-    // Invalidate caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/kanbans');
+    await invalidateProductGroupCaches({
+      kanbanId: group.kanbanId,
+      productIds: affectedProductIds,
+    });
 
     res.json({ message: 'Product group deleted successfully' });
   } catch (error) {
@@ -395,10 +418,10 @@ router.post('/:id/add-products', async (req, res, next) => {
       }
     }
 
-    // Invalidate caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/kanbans');
+    await invalidateProductGroupCaches({
+      kanbanId: group.kanbanId,
+      productIds,
+    });
 
     res.json({
       message: `${updatedProducts.length} products added to group`,
@@ -449,10 +472,10 @@ router.post('/:id/remove-products', async (req, res, next) => {
       }
     }
 
-    // Invalidate caches
-    invalidateCache('/api/inventory');
-    invalidateCache('/api/inventory/stats');
-    invalidateCache('/api/kanbans');
+    await invalidateProductGroupCaches({
+      kanbanId: group.kanbanId,
+      productIds,
+    });
 
     res.json({
       message: `${updatedProducts.length} products removed from group`,

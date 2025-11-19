@@ -1,259 +1,233 @@
-import { Request, Response, NextFunction } from 'express';
+import type { NextFunction, Request, Response } from "express";
+import { env } from "../config/env";
+import { cacheService } from "../services/cacheService";
+import {
+  buildTag,
+  type CacheTagDescriptor,
+} from "../utils/cacheInvalidation";
 
-interface CacheEntry {
-  data: any;
-  timestamp: number;
-  ttl: number;
-}
-
-interface CacheStats {
-  hits: number;
-  misses: number;
-  sets: number;
-  deletes: number;
-  size: number;
-}
-
-class InMemoryCache {
-  private cache = new Map<string, CacheEntry>();
-  private stats: CacheStats = {
-    hits: 0,
-    misses: 0,
-    sets: 0,
-    deletes: 0,
-    size: 0
-  };
-  private maxSize: number;
-  private cleanupInterval: NodeJS.Timeout;
-
-  constructor(maxSize = 1000) {
-    this.maxSize = maxSize;
-    
-    // Cleanup expired entries every 5 minutes
-    this.cleanupInterval = setInterval(() => {
-      this.cleanup();
-    }, 5 * 60 * 1000);
-  }
-
-  private generateKey(req: Request): string {
-    const { method, originalUrl, query, body } = req;
-    
-    // Create a stable key from request parameters
-    const keyParts = [
-      method,
-      originalUrl,
-      JSON.stringify(query),
-      // Only include body for POST requests to avoid large cache keys
-      method === 'POST' ? JSON.stringify(body) : ''
-    ];
-    
-    return keyParts.join('|');
-  }
-
-  private isExpired(entry: CacheEntry): boolean {
-    return Date.now() - entry.timestamp > entry.ttl;
-  }
-
-  private cleanup(): void {
-    const now = Date.now();
-    let deletedCount = 0;
-
-    for (const [key, entry] of this.cache.entries()) {
-      if (this.isExpired(entry)) {
-        this.cache.delete(key);
-        deletedCount++;
-      }
-    }
-
-    this.stats.size = this.cache.size;
-    
-    if (deletedCount > 0) {
-      console.log(`Cache cleanup: removed ${deletedCount} expired entries, ${this.cache.size} remaining`);
-    }
-  }
-
-  private evictOldest(): void {
-    if (this.cache.size >= this.maxSize) {
-      // Remove oldest entries (simple FIFO eviction)
-      const keysToDelete = Array.from(this.cache.keys()).slice(0, Math.floor(this.maxSize * 0.1));
-      
-      keysToDelete.forEach(key => {
-        this.cache.delete(key);
-        this.stats.deletes++;
-      });
-      
-      console.log(`Cache eviction: removed ${keysToDelete.length} entries to make space`);
-    }
-  }
-
-  get(req: Request): any | null {
-    const key = this.generateKey(req);
-    const entry = this.cache.get(key);
-
-    if (!entry) {
-      this.stats.misses++;
-      return null;
-    }
-
-    if (this.isExpired(entry)) {
-      this.cache.delete(key);
-      this.stats.misses++;
-      return null;
-    }
-
-    this.stats.hits++;
-    return entry.data;
-  }
-
-  set(req: Request, data: any, ttl: number): void {
-    const key = this.generateKey(req);
-    
-    // Evict old entries if cache is full
-    this.evictOldest();
-
-    const entry: CacheEntry = {
-      data,
-      timestamp: Date.now(),
-      ttl
-    };
-
-    this.cache.set(key, entry);
-    this.stats.sets++;
-    this.stats.size = this.cache.size;
-  }
-
-  delete(pattern?: string): void {
-    if (!pattern) {
-      this.cache.clear();
-      this.stats.deletes += this.stats.size;
-      this.stats.size = 0;
-      return;
-    }
-
-    // Delete entries matching pattern
-    let deletedCount = 0;
-    for (const key of this.cache.keys()) {
-      if (key.includes(pattern)) {
-        this.cache.delete(key);
-        deletedCount++;
-      }
-    }
-
-    this.stats.deletes += deletedCount;
-    this.stats.size = this.cache.size;
-  }
-
-  getStats(): CacheStats {
-    return { ...this.stats };
-  }
-
-  destroy(): void {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
-    }
-    this.cache.clear();
-  }
-}
-
-// Global cache instance
-const globalCache = new InMemoryCache(2000); // Increased size for production
-
-// Cache configuration for different endpoints
-const CACHE_CONFIG = {
-  '/api/inventory': { ttl: 2 * 60 * 1000, enabled: true }, // 2 minutes
-  '/api/inventory/grouped': { ttl: 5 * 60 * 1000, enabled: true }, // 5 minutes
-  '/api/inventory/stats': { ttl: 10 * 60 * 1000, enabled: true }, // 10 minutes
-  '/api/locations': { ttl: 15 * 60 * 1000, enabled: true }, // 15 minutes
-  '/api/kanbans': { ttl: 10 * 60 * 1000, enabled: true }, // 10 minutes
-  '/api/departments': { ttl: 30 * 60 * 1000, enabled: true }, // 30 minutes
-  '/api/persons': { ttl: 15 * 60 * 1000, enabled: true }, // 15 minutes
-} as const;
-
-export const cacheMiddleware = (options?: { 
-  ttl?: number; 
+interface CacheMiddlewareOptions {
+  ttl?: number;
   enabled?: boolean;
-  skipCache?: boolean;
-}) => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    // Skip caching for non-GET requests
-    if (req.method !== 'GET') {
+  sharedAcrossUsers?: boolean;
+  varyByHeaders?: string[];
+  tags?: CacheTagDescriptor[];
+  buildTags?: (req: Request) => CacheTagDescriptor[];
+}
+
+type CachedUser = {
+  id?: string;
+  role?: string;
+};
+
+const normalizeValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeValue(item)).sort();
+  }
+
+  if (value && typeof value === "object") {
+    return Object.keys(value as Record<string, unknown>)
+      .sort()
+      .reduce<Record<string, unknown>>((acc, key) => {
+        acc[key] = normalizeValue(
+          (value as Record<string, unknown>)[key],
+        );
+        return acc;
+      }, {});
+  }
+
+  return value;
+};
+
+const extractUser = (req: Request): CachedUser | undefined => {
+  const candidate = (req as Request & { user?: CachedUser }).user;
+  if (!candidate) {
+    return undefined;
+  }
+  return { id: candidate.id, role: candidate.role };
+};
+
+const calculateCacheKey = (
+  req: Request,
+  sharedAcrossUsers: boolean,
+  varyHeaders: string[],
+) => {
+  const user = extractUser(req);
+  const userKey = sharedAcrossUsers ? "shared" : user?.id ?? "anonymous";
+  const headerValues = varyHeaders.reduce<Record<string, string | string[] | undefined>>(
+    (acc, header) => {
+      acc[header] = req.headers[header];
+      return acc;
+    },
+    {},
+  );
+
+  return cacheService.generateKey({
+    method: req.method,
+    url: req.baseUrl + (req.path || ""),
+    query: normalizeValue(req.query),
+    body: req.method === "GET" ? undefined : normalizeValue(req.body),
+    user: userKey,
+    headers: normalizeValue(headerValues),
+  });
+};
+
+const setCachingHeaders = (
+  res: Response,
+  {
+    ttl,
+    etag,
+    tags,
+    cacheState,
+    varyHeaders,
+    storedAt,
+    remainingTtlMs,
+  }: {
+    ttl: number;
+    etag: string;
+    tags: string[];
+    cacheState: "HIT" | "MISS";
+    varyHeaders: string[];
+    storedAt?: number;
+    remainingTtlMs?: number;
+  },
+) => {
+  const ttlSeconds = Math.max(1, Math.floor(ttl / 1000));
+  const remainingSeconds =
+    remainingTtlMs && remainingTtlMs > 0
+      ? Math.max(1, Math.floor(remainingTtlMs / 1000))
+      : ttlSeconds;
+
+  res.setHeader(
+    "Cache-Control",
+    `public, max-age=${ttlSeconds}, must-revalidate`,
+  );
+  res.setHeader("ETag", etag);
+  res.setHeader("X-Cache", cacheState);
+  res.setHeader("X-Cache-TTL", remainingSeconds.toString());
+
+  if (tags.length) {
+    res.setHeader("X-Cache-Tags", tags.join(","));
+  }
+
+  if (varyHeaders.length) {
+    res.setHeader(
+      "Vary",
+      Array.from(new Set(varyHeaders.map((header) => header.toLowerCase()))).join(", "),
+    );
+  }
+
+  if (storedAt) {
+    res.setHeader("Last-Modified", new Date(storedAt).toUTCString());
+  }
+};
+
+export const cacheMiddleware = (options?: CacheMiddlewareOptions) => {
+  const ttl = options?.ttl ?? env.CACHE_DEFAULT_TTL_MS;
+  const sharedAcrossUsers = options?.sharedAcrossUsers ?? false;
+
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== "GET" || !env.CACHE_ENABLED) {
       return next();
     }
 
-    // Skip if explicitly disabled
-    if (options?.enabled === false || options?.skipCache) {
+    if (options?.enabled === false) {
       return next();
     }
 
-    // Get cache configuration for this endpoint
-    const endpoint = req.route?.path ? req.baseUrl + req.route.path : req.originalUrl;
-    const config = CACHE_CONFIG[endpoint as keyof typeof CACHE_CONFIG] || { ttl: 5 * 60 * 1000, enabled: true };
-    
-    // Use provided TTL or default from config
-    const ttl = options?.ttl || config.ttl;
-    
-    // Skip if caching is disabled for this endpoint
-    if (!config.enabled) {
+    if (req.headers["cache-control"] === "no-cache") {
       return next();
     }
 
-    // Skip caching if client requests fresh data
-    if (req.headers['cache-control'] === 'no-cache') {
-      return next();
+    const varyHeaders = [...(options?.varyByHeaders ?? [])];
+    if (!sharedAcrossUsers) {
+      varyHeaders.push("authorization");
     }
+
+    const descriptorTags = [
+      ...(options?.tags ?? []),
+      ...(options?.buildTags ? options.buildTags(req) : []),
+    ];
+    const tags = descriptorTags.map((descriptor) =>
+      buildTag(descriptor.resource, descriptor.id),
+    );
+
+    const cacheKey = calculateCacheKey(req, sharedAcrossUsers, varyHeaders);
 
     try {
-      // Try to get cached response
-      const cachedData = globalCache.get(req);
-      
-      if (cachedData) {
-        // Add cache headers
-        res.setHeader('X-Cache', 'HIT');
-        res.setHeader('X-Cache-TTL', Math.floor(ttl / 1000).toString());
-        return res.json(cachedData);
+      const cached = await cacheService.get(cacheKey);
+
+      if (cached) {
+        const ifNoneMatch = req.headers["if-none-match"];
+        if (ifNoneMatch && ifNoneMatch === cached.etag) {
+          setCachingHeaders(res, {
+            ttl,
+            etag: cached.etag,
+            tags: cached.tags,
+            cacheState: "HIT",
+            varyHeaders,
+            storedAt: cached.storedAt,
+            remainingTtlMs: Math.max(0, cached.ttlMs - (Date.now() - cached.storedAt)),
+          });
+          return res.status(304).end();
+        }
+
+        setCachingHeaders(res, {
+          ttl,
+          etag: cached.etag,
+          tags: cached.tags,
+          cacheState: "HIT",
+          varyHeaders,
+          storedAt: cached.storedAt,
+          remainingTtlMs: Math.max(0, cached.ttlMs - (Date.now() - cached.storedAt)),
+        });
+        return res.status(cached.statusCode).json(cached.body);
       }
 
-      // Cache miss - intercept response to cache it
-      const originalJson = res.json;
-      res.json = function(data: any) {
-        // Only cache successful responses
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          globalCache.set(req, data, ttl);
+      const originalJson = res.json.bind(res);
+
+      res.json = (body: unknown) => {
+        const statusCode = res.statusCode;
+
+        if (statusCode >= 200 && statusCode < 300) {
+          const etag = cacheService.generateEtag(body);
+          const storedAt = Date.now();
+          setCachingHeaders(res, {
+            ttl,
+            etag,
+            tags,
+            cacheState: "MISS",
+            varyHeaders,
+            storedAt,
+          });
+
+          cacheService
+            .set({
+              key: cacheKey,
+              body,
+              ttlMs: ttl,
+              tags,
+              statusCode,
+              headers: {},
+              etag,
+              storedAt,
+            })
+            .catch((error) =>
+              console.error("[CacheMiddleware] Failed to cache response", error),
+            );
         }
-        
-        // Add cache headers
-        res.setHeader('X-Cache', 'MISS');
-        res.setHeader('X-Cache-TTL', Math.floor(ttl / 1000).toString());
-        
-        return originalJson.call(this, data);
+
+        return originalJson(body);
       };
 
-      next();
+      return next();
     } catch (error) {
-      console.error('Cache middleware error:', error);
-      // Continue without caching on error
-      next();
+      console.error("[CacheMiddleware] Error while handling cache", error);
+      return next();
     }
   };
 };
 
-// Cache invalidation helper
-export const invalidateCache = (pattern?: string) => {
-  globalCache.delete(pattern);
+export const getCacheStats = async () => {
+  return cacheService.getStats();
 };
-
-// Cache statistics endpoint
-export const getCacheStats = () => {
-  return globalCache.getStats();
-};
-
-// Graceful shutdown
-process.on('SIGINT', () => {
-  globalCache.destroy();
-});
-
-process.on('SIGTERM', () => {
-  globalCache.destroy();
-});
-
-export { globalCache };

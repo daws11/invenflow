@@ -57,11 +57,12 @@ Successfully implemented comprehensive performance optimizations for InvenFlow t
 - **Expected Impact**: 70-90% faster response times for cached endpoints
 
 #### 6. Cache Invalidation ✅
-- **Files**: Updated mutation endpoints in `packages/backend/src/routes/products.ts`
+- **Files**: `packages/backend/src/utils/cacheInvalidation.ts`, `packages/backend/src/routes/kanbans.ts`, `packages/backend/src/routes/products.ts`, `packages/backend/src/routes/movements.ts`, `packages/backend/src/routes/bulk-movements.ts`, `packages/backend/src/routes/inventory.ts`
 - **Improvements**:
   - Automatic cache invalidation on data mutations
   - Pattern-based cache clearing for related data
   - Maintains data consistency while preserving cache benefits
+  - Dedicated helpers (`invalidateKanbanCache`, `invalidateInventoryCaches`) ensure wildcard list tags **and** per-resource tags are cleared consistently across kanban, inventory, movement, and bulk endpoints
 - **Expected Impact**: Ensures fresh data while maintaining cache performance
 
 #### 7. Frontend Component Optimization ✅
@@ -74,6 +75,7 @@ Successfully implemented comprehensive performance optimizations for InvenFlow t
   - useMemo for expensive calculations
   - Debounced API calls to prevent excessive requests
   - Optimized state management with change detection
+  - Store-level `syncAfterMutation` automatically refetches inventory lists, grouped data, and stats after every mutation
 - **Expected Impact**: 30-50% reduction in unnecessary re-renders
 
 ### Phase 3: Medium-term Optimizations (Month 1)
@@ -128,6 +130,7 @@ Successfully implemented comprehensive performance optimizations for InvenFlow t
 3. **Frontend Components**:
    - `InventoryListOptimized.tsx` - Memoized inventory list
    - `VirtualizedInventoryList.tsx` - Virtual scrolling implementation
+   - `store/inventoryStore.ts` - Unified post-mutation refresh flow for inventory/stats/grouped data
 4. **Configuration**:
    - `pm2/ecosystem.config.cjs` - Cluster mode configuration
    - `vite.config.ts` - Build optimization
