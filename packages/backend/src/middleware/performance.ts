@@ -211,7 +211,7 @@ export const healthCheckWithPerformance = async () => {
       errorRate: stats.requests.errorRate,
     },
     cache: {
-      hitRate: stats.cache.hits > 0 ?
+      hitRate: stats.cache.hits > 0 ? 
         Math.round((stats.cache.hits / (stats.cache.hits + stats.cache.misses)) * 100) : 0,
       size: stats.cache.keys,
     },

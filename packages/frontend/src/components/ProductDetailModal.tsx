@@ -183,7 +183,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
       <Slider
         isOpen={true}
         onClose={onClose}
-        title="Product Details"
+        title="Product Name"
       >
         <div className="space-y-3 sm:space-y-4">
           {/* Compact Header with Badges */}
