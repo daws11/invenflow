@@ -198,6 +198,7 @@ class CacheService {
       deletes: 0,
       keys: 0,
       tags: 0,
+      usedMemoryBytes: 0,
       healthy: false,
       lastError: redisManager.getLastError(),
     });

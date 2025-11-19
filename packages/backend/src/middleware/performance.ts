@@ -172,11 +172,11 @@ export const logSlowQuery = (query: string, duration: number, params?: any) => {
 };
 
 // Performance stats endpoint
-export const getPerformanceStats = () => {
+export const getPerformanceStats = async () => {
   const requestMetrics = performanceMonitor.getMetrics();
   const systemStats = performanceMonitor.getSystemStats();
   const slowQueries = performanceMonitor.getSlowQueries();
-  const cacheStats = getCacheStats();
+  const cacheStats = await getCacheStats();
   const dbStats = getConnectionStats();
 
   return {
@@ -195,7 +195,7 @@ export const getPerformanceStats = () => {
 
 // Health check with performance data
 export const healthCheckWithPerformance = async () => {
-  const stats = getPerformanceStats();
+  const stats = await getPerformanceStats();
   const isHealthy = stats.system.memory.used < 500 && // Less than 500MB
                    stats.requests.errorRate < 10 && // Less than 10% error rate
                    stats.requests.averageResponseTime < 2000; // Less than 2s average
@@ -211,9 +211,9 @@ export const healthCheckWithPerformance = async () => {
       errorRate: stats.requests.errorRate,
     },
     cache: {
-      hitRate: stats.cache.hits > 0 ? 
+      hitRate: stats.cache.hits > 0 ?
         Math.round((stats.cache.hits / (stats.cache.hits + stats.cache.misses)) * 100) : 0,
-      size: stats.cache.size,
+      size: stats.cache.keys,
     },
   };
 };
@@ -226,8 +226,8 @@ export const startPerformanceLogging = (intervalMs = 60000) => { // Default: 1 m
     clearInterval(performanceLogInterval);
   }
 
-  performanceLogInterval = setInterval(() => {
-    const stats = getPerformanceStats();
+  performanceLogInterval = setInterval(async () => {
+    const stats = await getPerformanceStats();
     console.log('📊 Performance Stats:', {
       requests: stats.requests,
       memory: `${stats.system.memory.used}MB / ${stats.system.memory.total}MB`,

@@ -890,8 +890,11 @@ router.post('/check-expired', async (req: Request, res: Response, next: NextFunc
         );
 
       if (expiredMovements.length === 0) {
-        return { expiredCount: 0 };
+        return { expiredCount: 0, affectedProductIds: [], affectedLocationIds: [] };
       }
+
+      const affectedProductIds = new Set<string>();
+      const affectedLocationIds = new Set<string>();
 
       // Update status to expired
       const expiredIds = expiredMovements.map(bm => bm.id);
@@ -944,8 +947,8 @@ router.post('/check-expired', async (req: Request, res: Response, next: NextFunc
 
     await invalidateInventoryCaches(
       buildBulkMovementInvalidationTags(
-        result.affectedProductIds,
-        result.affectedLocationIds,
+        result.affectedProductIds || [],
+        result.affectedLocationIds || [],
       ),
     );
 

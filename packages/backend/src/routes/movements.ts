@@ -818,7 +818,7 @@ router.post('/batch-distribute', async (req, res, next) => {
       { resource: 'inventoryStats' },
     ];
 
-    movements.forEach(({ productId, toLocationId, fromLocationId }) => {
+    result.movementLogs.forEach(({ productId, toLocationId, fromLocationId }: { productId: string; toLocationId: string | null; fromLocationId: string | null }) => {
       batchInvalidationTags.push({ resource: 'product', id: productId });
       if (toLocationId) {
         batchInvalidationTags.push({ resource: 'location', id: toLocationId });

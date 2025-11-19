@@ -1,4 +1,4 @@
-import type { Server } from 'node:http';
+import type { Server, IncomingMessage } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
@@ -18,7 +18,7 @@ export const initializeCommentWebSocket = (server: Server) => {
 
   const broadcast = (data: unknown) => {
     const payload = JSON.stringify(data);
-    wss.clients.forEach((client) => {
+    wss.clients.forEach((client: WebSocketWithHeartbeat) => {
       if (client.readyState === client.OPEN) {
         client.send(payload);
       }
@@ -33,7 +33,7 @@ export const initializeCommentWebSocket = (server: Server) => {
   commentEventEmitter.on(COMMENT_EVENTS.UPDATED, handleUpdated);
   commentEventEmitter.on(COMMENT_EVENTS.DELETED, handleDeleted);
 
-  wss.on('connection', (socket: WebSocketWithHeartbeat, request) => {
+  wss.on('connection', (socket: WebSocketWithHeartbeat, request: IncomingMessage) => {
     const originProtocol =
       (request.headers['x-forwarded-proto'] as string | undefined) ?? 'http';
     const host = request.headers.host ?? 'localhost';
@@ -61,7 +61,7 @@ export const initializeCommentWebSocket = (server: Server) => {
   });
 
   const heartbeat = setInterval(() => {
-    wss.clients.forEach((client) => {
+    wss.clients.forEach((client: WebSocketWithHeartbeat) => {
       const tracked = client as WebSocketWithHeartbeat;
       if (tracked.isAlive === false) {
         return tracked.terminate();

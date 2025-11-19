@@ -238,8 +238,8 @@ router.post('/:token/confirm', async (req, res, next) => {
     const { affectedProductIds, affectedLocationIds, ...responseData } = result;
 
     await invalidateInventoryCaches([
-      ...affectedProductIds.map((id) => ({ resource: 'product', id })),
-      ...affectedLocationIds.map((id) => ({ resource: 'location', id })),
+      ...(affectedProductIds || []).map((id) => ({ resource: 'product' as const, id })),
+      ...(affectedLocationIds || []).map((id) => ({ resource: 'location' as const, id })),
     ]);
 
     res.json({
