@@ -1,0 +1,10 @@
+{
+  "buildTime": "2025-11-18T09:52:42.678Z",
+  "gitCommit": "6695539eeac17387bd759d8b78c1df4e670111dc",
+  "gitBranch": "main",
+  "nodeVersion": "v18.19.1",
+  "pnpmVersion": "10.18.3",
+  "environment": "staging",
+  "backendSize": "532K",
+  "frontendSize": "1.3M"
+}

@@ -1,58 +1,48 @@
-import axios from 'axios';
+import { api } from "./api";
 import {
   ProductGroupWithDetails,
   CreateProductGroup,
   UpdateProductGroup,
   AddProductsToGroup,
   RemoveProductsFromGroup,
-} from '@invenflow/shared';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
-// Get auth token from localStorage
-const getAuthToken = () => {
-  const token = localStorage.getItem('auth_token');
-  return token ? `Bearer ${token}` : '';
-};
+} from "@invenflow/shared";
 
 export const productGroupApi = {
-  create: async (data: CreateProductGroup): Promise<ProductGroupWithDetails> => {
-    const response = await axios.post(`${API_URL}/api/product-groups`, data, {
-      headers: { Authorization: getAuthToken() },
-    });
+  create: async (
+    data: CreateProductGroup,
+  ): Promise<ProductGroupWithDetails> => {
+    const response = await api.post("/api/product-groups", data);
     return response.data;
   },
 
   getById: async (id: string): Promise<ProductGroupWithDetails> => {
-    const response = await axios.get(`${API_URL}/api/product-groups/${id}`, {
-      headers: { Authorization: getAuthToken() },
-    });
+    const response = await api.get(`/api/product-groups/${id}`);
     return response.data;
   },
 
-  update: async (id: string, data: UpdateProductGroup): Promise<ProductGroupWithDetails> => {
-    const response = await axios.put(`${API_URL}/api/product-groups/${id}`, data, {
-      headers: { Authorization: getAuthToken() },
-    });
+  update: async (
+    id: string,
+    data: UpdateProductGroup,
+  ): Promise<ProductGroupWithDetails> => {
+    const response = await api.put(`/api/product-groups/${id}`, data);
     return response.data;
   },
 
   delete: async (id: string): Promise<void> => {
-    await axios.delete(`${API_URL}/api/product-groups/${id}`, {
-      headers: { Authorization: getAuthToken() },
-    });
+    await api.delete(`/api/product-groups/${id}`);
   },
 
-  addProducts: async (groupId: string, data: AddProductsToGroup): Promise<void> => {
-    await axios.post(`${API_URL}/api/product-groups/${groupId}/add-products`, data, {
-      headers: { Authorization: getAuthToken() },
-    });
+  addProducts: async (
+    groupId: string,
+    data: AddProductsToGroup,
+  ): Promise<void> => {
+    await api.post(`/api/product-groups/${groupId}/add-products`, data);
   },
 
-  removeProducts: async (groupId: string, data: RemoveProductsFromGroup): Promise<void> => {
-    await axios.post(`${API_URL}/api/product-groups/${groupId}/remove-products`, data, {
-      headers: { Authorization: getAuthToken() },
-    });
+  removeProducts: async (
+    groupId: string,
+    data: RemoveProductsFromGroup,
+  ): Promise<void> => {
+    await api.post(`/api/product-groups/${groupId}/remove-products`, data);
   },
 };
-

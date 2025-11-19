@@ -1,7 +1,7 @@
-import { z } from 'zod';
-import { KanbanTypeSchema } from './kanban';
+import { z } from "zod";
+import { KanbanTypeSchema } from "./kanban.js";
 
-export const StoredLogRemovalTypeSchema = z.enum(['auto', 'manual']);
+export const StoredLogRemovalTypeSchema = z.enum(["auto", "manual"]);
 export type StoredLogRemovalType = z.infer<typeof StoredLogRemovalTypeSchema>;
 
 export const StoredLogSchema = z.object({
@@ -33,7 +33,9 @@ export const StoredLogWithRelationsSchema = StoredLogSchema.extend({
   productCurrentStatus: z.string().nullable().optional(),
 });
 
-export type StoredLogWithRelations = z.infer<typeof StoredLogWithRelationsSchema>;
+export type StoredLogWithRelations = z.infer<
+  typeof StoredLogWithRelationsSchema
+>;
 
 export const StoredLogFiltersSchema = z.object({
   kanbanId: z.string().uuid().optional(),
@@ -55,4 +57,3 @@ export const StoredLogListResponseSchema = z.object({
 });
 
 export type StoredLogListResponse = z.infer<typeof StoredLogListResponseSchema>;
-
