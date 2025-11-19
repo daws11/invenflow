@@ -17,7 +17,7 @@ export const StoredValidationSchema = z.object({
   columnStatus: z.literal('Stored'),
   recipientName: z.string().min(1, 'Nama penerima harus diisi'),
   locationId: z.string().uuid('ID lokasi tidak valid'),
-  storagePhoto: z.string().min(1, 'Gambar storage harus diupload'),
+  storagePhoto: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
 });
 
