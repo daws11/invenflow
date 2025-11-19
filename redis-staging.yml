@@ -1,0 +1,20 @@
+version: '3.8'
+services:
+  redis-staging:
+    image: redis:7-alpine
+    container_name: redis-invenflow-staging
+    restart: unless-stopped
+    ports:
+      - "6378:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-staging-data:/data
+    networks:
+      - invenflow-network
+
+volumes:
+  redis-staging-data:
+
+networks:
+  invenflow-network:
+    driver: bridge
