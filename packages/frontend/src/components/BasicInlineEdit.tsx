@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, isValidElement } from 'react';
 import { PencilIcon } from '@heroicons/react/24/outline';
+import { formatNumberInput, parseNumberInput, formatCurrency } from '../utils/formatters';
 
 interface BasicInlineEditProps {
   value: string | number | null;
@@ -32,19 +33,29 @@ export function BasicInlineEdit({
 }: BasicInlineEditProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [rawEditValue, setRawEditValue] = useState('');
   const [optimisticValue, setOptimisticValue] = useState<string | number | null>(null);
   const [hasError, setHasError] = useState(false);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(null);
 
   // Update edit value when prop value changes
   useEffect(() => {
-    setEditValue(value?.toString() || '');
+    if (type === 'number' && value !== null && value !== undefined) {
+      // For number inputs, store raw value and formatted display value
+      const rawValue = value.toString();
+      setRawEditValue(rawValue);
+      setEditValue(formatNumberInput(value));
+    } else {
+      const stringValue = value?.toString() || '';
+      setRawEditValue(stringValue);
+      setEditValue(stringValue);
+    }
     // Reset optimistic value when actual value updates
     if (optimisticValue !== null && value !== null && value.toString() === optimisticValue.toString()) {
       setOptimisticValue(null);
       setHasError(false);
     }
-  }, [value, optimisticValue]);
+  }, [value, optimisticValue, type]);
 
   // Focus input when editing starts
   useEffect(() => {
@@ -62,8 +73,8 @@ export function BasicInlineEdit({
   };
 
   const saveValue = async () => {
-    const newValue = type === 'number' ? Number(editValue) : editValue;
-    
+    const newValue = type === 'number' ? parseNumberInput(rawEditValue) : editValue;
+
     // Run validation if provided
     if (validation) {
       const validationError = validation(newValue);
@@ -73,12 +84,12 @@ export function BasicInlineEdit({
         return;
       }
     }
-    
+
     // Optimistic update - show the new value immediately
     setOptimisticValue(newValue);
     setIsEditing(false);
     setHasError(false);
-    
+
     try {
       // Save in background without showing loading
       await onSave(newValue);
@@ -94,7 +105,15 @@ export function BasicInlineEdit({
   };
 
   const cancelEdit = () => {
-    setEditValue(value?.toString() || '');
+    if (type === 'number' && value !== null && value !== undefined) {
+      const rawValue = value.toString();
+      setRawEditValue(rawValue);
+      setEditValue(formatNumberInput(value));
+    } else {
+      const stringValue = value?.toString() || '';
+      setRawEditValue(stringValue);
+      setEditValue(stringValue);
+    }
     setIsEditing(false);
     setHasError(false);
   };
@@ -107,6 +126,22 @@ export function BasicInlineEdit({
       e.preventDefault();
       cancelEdit();
     }
+  };
+
+  const handleFocus = () => {
+    if (type === 'number') {
+      // When focusing number input, show raw value for easy editing
+      setEditValue(rawEditValue);
+    }
+  };
+
+  const handleBlur = () => {
+    if (type === 'number') {
+      // When blurring number input, format the display value
+      const formatted = formatNumberInput(rawEditValue);
+      setEditValue(formatted);
+    }
+    saveValue();
   };
 
   if (isEditing) {
@@ -156,11 +191,22 @@ export function BasicInlineEdit({
         ) : (
           <input
             ref={inputRef as React.RefObject<HTMLInputElement>}
-            type={type}
+            type={type === 'number' ? 'text' : type} // Use text input for numbers to allow formatting
             value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
+            onChange={(e) => {
+              const newValue = e.target.value;
+              if (type === 'number') {
+                // For number inputs, store raw value and display formatted value
+                setRawEditValue(newValue);
+                setEditValue(newValue); // Show raw value while typing
+              } else {
+                setEditValue(newValue);
+                setRawEditValue(newValue);
+              }
+            }}
+            onFocus={type === 'number' ? handleFocus : undefined}
+            onBlur={type === 'number' ? handleBlur : saveValue}
             onKeyDown={handleKeyPress}
-            onBlur={saveValue}
             maxLength={maxLength}
             className="w-full px-3 py-2 bg-white border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm"
             placeholder={placeholder}
@@ -177,9 +223,34 @@ export function BasicInlineEdit({
 
   // Use optimistic value if available, otherwise use actual value
   const displayedValue = optimisticValue !== null ? optimisticValue : value;
-  
+
+  // For custom displayValue with optimistic values, create formatted display for numbers
+  const getOptimisticDisplayValue = () => {
+    if (!optimisticValue || !displayValue || type !== 'number') return null;
+
+    // For number types, we need to create a new displayValue with the optimistic value
+    // This assumes the parent passed a displayValue that uses formatCurrency or similar
+
+    // Try to extract the icon from the original displayValue if it's a React element
+    let iconElement = null;
+    if (isValidElement(displayValue) && displayValue.props.children) {
+      const children = displayValue.props.children;
+      if (Array.isArray(children) && children.length > 0) {
+        iconElement = children[0];
+      }
+    }
+
+    return (
+      <div className="flex items-center">
+        {iconElement}
+        <span className="text-xs text-gray-600">{formatCurrency(optimisticValue)}</span>
+      </div>
+    );
+  };
+
   // For custom displayValue, we need to check if we should show optimistic or custom display
   const shouldShowOptimistic = optimisticValue !== null && !displayValue;
+  const optimisticDisplayValue = getOptimisticDisplayValue();
 
   return (
     <div className="relative">
@@ -191,7 +262,9 @@ export function BasicInlineEdit({
       >
         <div className="flex items-center justify-between min-h-[2rem]">
           <div className="flex-1 min-w-0">
-            {displayValue && !shouldShowOptimistic ? (
+            {optimisticDisplayValue ? (
+              optimisticDisplayValue
+            ) : displayValue && !shouldShowOptimistic ? (
               displayValue
             ) : (
               <span className={`text-sm leading-relaxed ${!displayedValue ? 'text-gray-400 italic' : 'text-gray-900'} ${
