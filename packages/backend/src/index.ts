@@ -31,6 +31,7 @@ import { publicMovementsRouter } from "./routes/public-movements";
 import productGroupsRouter from "./routes/product-groups";
 import { storedLogsRouter } from "./routes/stored-logs";
 import { productCommentsRouter } from "./routes/product-comments";
+import { stockAdjustmentsRouter } from "./routes/stock-adjustments";
 import { startStoredCleanup } from "./services/storedCleanup";
 import { startCacheWarming, stopCacheWarming } from "./services/cacheWarming";
 import { redisManager } from "./config/redis";
@@ -151,6 +152,7 @@ app.use("/api", productCommentsRouter);
 app.use("/api/product-groups", productGroupsRouter);
 app.use("/api/transfer-logs", transferLogsRouter);
 app.use("/api/stored-logs", storedLogsRouter);
+app.use("/api/stock-adjustments", stockAdjustmentsRouter);
 app.use("/api/upload", uploadRouter);
 app.use("/api/validations", validationsRouter);
 

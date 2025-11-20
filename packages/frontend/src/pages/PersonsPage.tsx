@@ -8,7 +8,7 @@ import type { Person } from '@invenflow/shared';
 
 export default function PersonsPage() {
   const { persons, loading, fetchPersons } = usePersonStore();
-  const { departments, fetchDepartments } = useDepartmentStore();
+  const { fetchDepartments } = useDepartmentStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [searchQuery, setSearchQuery] = useState('');

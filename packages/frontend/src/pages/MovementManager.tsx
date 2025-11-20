@@ -17,6 +17,25 @@ import {
 } from '@heroicons/react/24/outline';
 import { useToastStore } from '../store/toastStore';
 
+// Helper function to get user-friendly adjustment type label
+const getAdjustmentTypeLabel = (adjustmentType: string | null | undefined): string => {
+  if (!adjustmentType) return 'Manual';
+  
+  const labels: Record<string, string> = {
+    manual_increase: '📈 Manual Increase',
+    manual_decrease: '📉 Manual Decrease',
+    correction: '✏️ Correction',
+    reconciliation: '📋 Reconciliation',
+    damaged: '💔 Damaged',
+    expired: '⏰ Expired',
+    lost: '❌ Lost',
+    returned: '↩️ Returned',
+    transfer_correction: '🔄 Transfer Correction',
+  };
+  
+  return labels[adjustmentType] || adjustmentType;
+};
+
 export default function MovementManager() {
   const {
     movements,
@@ -103,6 +122,11 @@ export default function MovementManager() {
       const importType = isSystemImport 
         ? movement.movedBy?.split(':')[1] 
         : null;
+      
+      // Check if this is a stock adjustment
+      const isAdjustment = (movement as any).movementType === 'adjustment';
+      const adjustmentType = isAdjustment ? (movement as any).adjustmentType : null;
+      
       const statusMeta = (() => {
         switch (movement.status) {
           case 'pending':
@@ -131,6 +155,8 @@ export default function MovementManager() {
         movedBy: movement.movedBy || 'System',
         isSystemImport,
         importType,
+        isAdjustment,
+        adjustmentType,
         statusLabel: statusMeta.label,
         statusBadgeClass: statusMeta.className,
         publicToken: movement.publicToken,
@@ -299,13 +325,11 @@ export default function MovementManager() {
         {/* Most Active Recipients */}
         {stats && stats.mostActiveRecipients.length > 0 && (
           <div className="mt-3">
-            <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
-              <div className="flex items-center mb-3">
-                <svg className="h-5 w-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <h3 className="text-sm font-semibold text-gray-800">Most Active Recipients</h3>
-              </div>
+        <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
+          <div className="flex items-center mb-3">
+            <MapPinIcon className="h-5 w-5 text-blue-600 mr-2" />
+            <h3 className="text-sm font-semibold text-gray-800">Most Active Areas</h3>
+          </div>
               <div className="space-y-2">
                 {stats.mostActiveRecipients.map((recipient) => (
                   <div key={recipient.recipientId} className="flex items-center justify-between text-sm bg-white px-3 py-2 rounded-md shadow-sm hover:shadow-md transition-shadow">
@@ -318,8 +342,13 @@ export default function MovementManager() {
                         <MapPinIcon className="h-4 w-4 text-blue-500 flex-shrink-0" />
                       )}
                       <div>
-                        <span className="text-gray-900 font-medium">{recipient.recipientName}</span>
-                        <span className="text-xs text-gray-500 ml-1.5">({recipient.recipientCode})</span>
+                        <div className="flex items-baseline space-x-1">
+                          <span className="text-gray-900 font-medium">{recipient.recipientName}</span>
+                          <span className="text-xs text-gray-500">({recipient.recipientCode})</span>
+                        </div>
+                        {recipient.recipientArea && (
+                          <p className="text-[11px] uppercase tracking-wide text-blue-500">{recipient.recipientArea}</p>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center space-x-1">
@@ -400,6 +429,10 @@ export default function MovementManager() {
                       ) : 'isSystemImport' in row && row.isSystemImport ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
                           {'importType' in row && row.importType === 'direct-import' ? '📦 Direct Import' : '📦 Bulk Import'}
+                        </span>
+                      ) : 'isAdjustment' in row && row.isAdjustment ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                          {getAdjustmentTypeLabel('adjustmentType' in row ? row.adjustmentType : null)}
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">Manual</span>

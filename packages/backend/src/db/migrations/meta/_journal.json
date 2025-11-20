@@ -267,6 +267,13 @@
       "when": 1763616484980,
       "tag": "0037_brief_skreet",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1763619794981,
+      "tag": "0038_charming_hex",
+      "breakpoints": true
     }
   ]
 }

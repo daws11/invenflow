@@ -15,3 +15,4 @@ export * from './transfer-log.js';
 export * from './user.js';
 export * from './stored-log.js';
 export * from './product-comment.js';
+export * from './stock-adjustment.js';

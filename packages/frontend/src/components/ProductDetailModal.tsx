@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { InventoryItem, UpdateProduct, DEFAULT_CATEGORIES, DEFAULT_PRIORITIES, DEFAULT_UNITS, ProductLocationDetail } from '@invenflow/shared';
 import { useLocationStore } from '../store/locationStore';
 import { usePersonStore } from '../store/personStore';
@@ -45,13 +45,18 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
   // Use the selectedItem from inventory store if available (always up-to-date),
   // otherwise fall back to the item prop
   // Ensure we always have the most up-to-date item data
-  const currentItem = selectedItem?.id === item.id ? selectedItem : item;
+  // Use useMemo to make it reactive to store updates
+  const currentItem = useMemo(() => {
+    return selectedItem?.id === item.id ? selectedItem : item;
+  }, [selectedItem, item]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMovementHistory, setShowMovementHistory] = useState(false);
   const [locationBreakdown, setLocationBreakdown] = useState<ProductLocationDetail[]>([]);
   const [loadingBreakdown, setLoadingBreakdown] = useState(false);
+  const [stockUpdatingLocationIds, setStockUpdatingLocationIds] = useState<Set<string>>(new Set());
+  const [movementHistoryRefreshToken, setMovementHistoryRefreshToken] = useState(0);
   const productId = currentItem.id;
   const currentUser = useAuthStore((state) => state.user);
   const comments = useCommentStore((state) => state.commentsByProduct[productId] ?? []);
@@ -64,7 +69,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
   const deletingCommentId = useCommentStore((state) => state.deletingCommentId);
   const connectStream = useCommentStore((state) => state.connectStream);
 
-  const fetchLocationBreakdown = async () => {
+  const fetchLocationBreakdown = useCallback(async () => {
     if (!currentItem.sku) return;
 
     setLoadingBreakdown(true);
@@ -84,13 +89,17 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
     } finally {
       setLoadingBreakdown(false);
     }
-  };
+  }, [currentItem.sku]);
 
   useEffect(() => {
     fetchLocations();
     fetchPersons({ activeOnly: true });
+  }, [fetchLocations, fetchPersons]);
+
+  // Refresh location breakdown when SKU, stock level, or location changes
+  useEffect(() => {
     fetchLocationBreakdown();
-  }, [fetchLocations, fetchPersons, currentItem.sku]);
+  }, [fetchLocationBreakdown, currentItem.stockLevel, currentItem.locationId]);
 
   useEffect(() => {
     connectStream();
@@ -117,6 +126,8 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
 
       // Update both kanban and inventory stores for optimistic updates
       // This ensures consistency across all views (kanban, inventory list, etc.)
+      // The stores will update optimistically, and the useEffect will automatically
+      // refresh locationBreakdown when stockLevel, locationId, or sku changes
       await Promise.all([
         inventoryUpdateProduct(currentItem.id, updateData),
         kanbanUpdateProduct(currentItem.id, updateData)
@@ -127,6 +138,64 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
       throw err; // Re-throw to let BasicInlineEdit handle the error state
     }
   };
+
+  const handleStockUpdate = useCallback(
+    async (productId: string, locationId: string, newStockLevel: number) => {
+      const locationKey = `${productId}-${locationId}`;
+      if (!locationId) {
+        throw new Error('Location is required');
+      }
+
+      setStockUpdatingLocationIds((prev) => {
+        const next = new Set(prev);
+        next.add(locationKey);
+        return next;
+      });
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/products/${productId}/locations/${locationId}/stock`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          },
+          body: JSON.stringify({ newStockLevel }),
+        });
+
+        if (!response.ok) {
+          const errorPayload = await response.json().catch(() => null);
+          throw new Error(errorPayload?.message || 'Failed to update stock');
+        }
+
+        await fetchLocationBreakdown();
+        await syncAfterMutation();
+        if (displayMode === 'grouped') {
+          await fetchGroupedInventory();
+        }
+        setMovementHistoryRefreshToken((prev) => prev + 1);
+        _success('Stock updated successfully');
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : 'Failed to update stock';
+        error(errorMessage);
+        throw err;
+      } finally {
+        setStockUpdatingLocationIds((prev) => {
+          const next = new Set(prev);
+          next.delete(locationKey);
+          return next;
+        });
+      }
+    },
+    [
+      _success,
+      displayMode,
+      fetchGroupedInventory,
+      fetchLocationBreakdown,
+      syncAfterMutation,
+      error,
+    ],
+  );
 
   const handleDelete = async () => {
     setIsSubmitting(true);
@@ -196,7 +265,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
       <Slider
         isOpen={true}
         onClose={onClose}
-        title="Product Name"
+        title={currentItem.productDetails || "Product Name"}
       >
         <div className="space-y-3 sm:space-y-4">
           {/* Compact Header with Badges */}
@@ -417,13 +486,49 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
                         </div>
                       </div>
 
-                      {/* Stock Level */}
-                      <div className="flex-shrink-0 text-right">
-                        <div className="text-lg font-bold text-gray-900">
-                          {item.stockLevel !== null ? item.stockLevel : '—'}
-                        </div>
-                        <div className="text-xs text-gray-500">Stock</div>
+                    {/* Stock Level */}
+                    <div className="flex-shrink-0 text-right min-w-[120px]">
+                      <div className="flex items-center justify-end space-x-2">
+                        {item.locationId ? (
+                          <BasicInlineEdit
+                            value={item.stockLevel ?? 0}
+                            onSave={(value) =>
+                              handleStockUpdate(
+                                item.primaryProductId || item.productIds?.[0] || productId,
+                                item.locationId || '',
+                                Number(value),
+                              )
+                            }
+                            type="number"
+                            placeholder="0"
+                            className="text-right"
+                            validation={(value) => {
+                              const numericValue = Number(value);
+                              if (Number.isNaN(numericValue) || numericValue < 0) {
+                                return 'Stock must be a non-negative integer';
+                              }
+                              if (!Number.isInteger(numericValue)) {
+                                return 'Stock must be an integer';
+                              }
+                              return null;
+                            }}
+                            displayValue={
+                              <div className="text-lg font-bold text-gray-900">
+                                {item.stockLevel !== null ? item.stockLevel : '—'}
+                              </div>
+                            }
+                          />
+                        ) : (
+                          <div className="text-lg font-bold text-gray-900">
+                            {item.stockLevel !== null ? item.stockLevel : '—'}
+                          </div>
+                        )}
+                        {stockUpdatingLocationIds.has(`${item.id}-${item.locationId || 'unknown'}`) && (
+                          <div className="w-4 h-4 border border-blue-200 border-t-transparent rounded-full animate-spin" />
+                        )}
                       </div>
+                      <div className="text-xs text-gray-500 mt-1">Stock</div>
+                    </div>
                     </div>
 
                     {/* Kanban Info */}
@@ -558,7 +663,10 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
             
             {showMovementHistory && (
               <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                <ProductMovementHistory productId={currentItem.id} />
+                <ProductMovementHistory
+                  productId={currentItem.id}
+                  refreshToken={movementHistoryRefreshToken}
+                />
               </div>
             )}
           </div>

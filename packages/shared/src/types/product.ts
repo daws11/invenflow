@@ -100,6 +100,10 @@ export const UpdateProductSchema = z.object({
   columnPosition: z.number().int().nullable().optional(),
 });
 
+export const UpdateStockLevelSchema = z.object({
+  newStockLevel: z.number().int().min(0, 'Stock level must be non-negative'),
+});
+
 export const MoveProductSchema = z.object({
   columnStatus: z.string(),
 });
@@ -126,6 +130,7 @@ export type UpdateProduct = z.infer<typeof UpdateProductSchema>;
 export type MoveProduct = z.infer<typeof MoveProductSchema>;
 export type TransferProduct = z.infer<typeof TransferProductSchema>;
 export type PublicFormSubmit = z.infer<typeof PublicFormSubmitSchema>;
+export type UpdateStockLevel = z.infer<typeof UpdateStockLevelSchema>;
 
 export const DEFAULT_PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'] as const;
 export type Priority = typeof DEFAULT_PRIORITIES[number];

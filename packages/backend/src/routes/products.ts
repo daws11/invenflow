@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { products, kanbans, transferLogs, locations, productValidations, kanbanLinks, skuAliases, productGroups } from '../db/schema';
-import { eq, and, desc, getTableColumns, sql, inArray, isNull } from 'drizzle-orm';
+import { products, kanbans, transferLogs, locations, productValidations, kanbanLinks, skuAliases, productGroups, movementLogs } from '../db/schema';
+import { eq, and, desc, getTableColumns, sql, inArray, isNull, ne } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import type { NewProduct } from '../db/schema';
 import { authenticateToken } from '../middleware/auth';
@@ -9,6 +9,7 @@ import { invalidateInventoryCaches, type CacheTagDescriptor } from '../utils/cac
 import { nanoid } from 'nanoid';
 import { generateStableSku, normalizeSku } from '../utils/sku';
 import { cacheMiddleware } from '../middleware/cache';
+import { UpdateStockLevelSchema } from '@invenflow/shared';
 
 type ProductRecord = typeof products.$inferSelect;
 
@@ -267,6 +268,116 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+// Adjust stock level at a specific location
+router.put('/:productId/locations/:locationId/stock', async (req, res, next) => {
+  try {
+    const { productId, locationId } = req.params;
+    const { newStockLevel } = UpdateStockLevelSchema.parse(req.body);
+
+    const [locationRow] = await db
+      .select()
+      .from(locations)
+      .where(eq(locations.id, locationId))
+      .limit(1);
+
+    if (!locationRow) {
+      throw createError('Location not found', 404);
+    }
+
+    const [product] = await db
+      .select()
+      .from(products)
+      .where(
+        and(
+          eq(products.id, productId),
+          eq(products.locationId, locationId),
+        ),
+      )
+      .limit(1);
+
+    if (!product) {
+      throw createError('Product not found at the specified location', 404);
+    }
+
+    const oldStock = product.stockLevel ?? 0;
+    const stockDiff = newStockLevel - oldStock;
+
+    if (stockDiff === 0) {
+      res.json({
+        message: 'Stock already matches the requested value',
+        stockLevel: oldStock,
+      });
+      return;
+    }
+
+    const movedBy = (req as any).user?.email || (req as any).user?.username || 'system';
+    const changeDirection = stockDiff > 0 ? 'increased' : 'decreased';
+    const notes = `Manual stock adjustment: ${changeDirection} by ${Math.abs(stockDiff)} units (from ${oldStock} to ${newStockLevel})`;
+
+    const [movementLog] = await db
+      .insert(movementLogs)
+      .values({
+        productId: product.id,
+        fromLocationId: product.locationId,
+        toLocationId: product.locationId,
+        fromArea: locationRow.area ?? null,
+        toArea: locationRow.area ?? null,
+        fromPersonId: product.assignedToPersonId,
+        toPersonId: product.assignedToPersonId,
+        fromStockLevel: oldStock,
+        toStockLevel: newStockLevel,
+        quantityMoved: Math.abs(stockDiff),
+        notes,
+        movedBy,
+        requiresConfirmation: false,
+        status: 'received',
+        confirmedBy: movedBy,
+        confirmedAt: new Date(),
+      })
+      .returning();
+
+    let updatedProduct = null;
+
+    if (newStockLevel === 0) {
+      await db
+        .delete(products)
+        .where(eq(products.id, product.id));
+    } else {
+      [updatedProduct] = await db
+        .update(products)
+        .set({
+          stockLevel: newStockLevel,
+          updatedAt: new Date(),
+        })
+        .where(eq(products.id, product.id))
+        .returning();
+    }
+
+    const cacheLocationIds = Array.from(
+      new Set(
+        [product.locationId, locationRow?.id].filter((id): id is string => Boolean(id)),
+      ),
+    );
+    const cacheSkuValues = product.sku ? [product.sku] : [];
+
+    await invalidateProductCaches({
+      productIds: [product.id],
+      kanbanIds: product.kanbanId ? [product.kanbanId] : [],
+      locationIds: cacheLocationIds,
+      skuValues: cacheSkuValues,
+    });
+
+    res.json({
+      movementLog,
+      product: updatedProduct,
+      deleted: newStockLevel === 0,
+      stockLevel: newStockLevel,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Update product details
 router.put('/:id', async (req, res, next) => {
   let locationIdInput: string | null | undefined = undefined;
@@ -305,16 +416,52 @@ router.put('/:id', async (req, res, next) => {
       throw createError('Product not found', 404);
     }
 
-    const updateData: Partial<NewProduct> & { updatedAt: Date } = {
+    // Separate fields into shared (update all products with same SKU) and location-specific (update only this product)
+    const sharedUpdateData: Partial<NewProduct> & { updatedAt: Date } = {
+      updatedAt: new Date(),
+    };
+    const locationSpecificUpdateData: Partial<NewProduct> & { updatedAt: Date } = {
       updatedAt: new Date(),
     };
 
-    if (productDetails !== undefined) updateData.productDetails = productDetails;
-    if (productLink !== undefined) updateData.productLink = productLink;
-    // Note: location is now handled via locationId, not as a separate field
-    if (priority !== undefined) updateData.priority = priority;
+    // Shared fields (update all products with same SKU)
+    if (productDetails !== undefined) sharedUpdateData.productDetails = productDetails;
+    if (productLink !== undefined) sharedUpdateData.productLink = productLink;
+    if (priority !== undefined) sharedUpdateData.priority = priority;
+    if (productImage !== undefined) sharedUpdateData.productImage = productImage;
+    if (category !== undefined) sharedUpdateData.category = category;
+    if (tags !== undefined) {
+      sharedUpdateData.tags = Array.isArray(tags)
+        ? tags.map((tag: unknown) => String(tag))
+        : null;
+    }
+    if (supplier !== undefined) sharedUpdateData.supplier = supplier;
+    if (dimensions !== undefined) sharedUpdateData.dimensions = dimensions;
+    if (weight !== undefined) sharedUpdateData.weight = coerceDecimal(weight);
+    if (unit !== undefined) sharedUpdateData.unit = unit;
+    if (unitPrice !== undefined) sharedUpdateData.unitPrice = coerceDecimal(unitPrice);
+    if (notes !== undefined) sharedUpdateData.notes = notes;
+
+    // Handle SKU update (special case - affects which products get updated)
+    let targetSku = currentProduct.sku;
+    if (sku !== undefined) {
+      const normalized = sku ? normalizeSku(sku) : null;
+      if (currentProduct.sku && normalized && normalized !== currentProduct.sku) {
+        try {
+          await db.insert(skuAliases).values({
+            productId: currentProduct.id,
+            legacySku: currentProduct.sku,
+            legacyId: null,
+          });
+        } catch {}
+      }
+      sharedUpdateData.sku = normalized;
+      targetSku = normalized; // Use new SKU for finding products to update
+    }
+
+    // Location-specific fields (update only this product)
     if (stockLevel !== undefined) {
-      updateData.stockLevel = coerceInteger(stockLevel);
+      locationSpecificUpdateData.stockLevel = coerceInteger(stockLevel);
     }
 
     // Handle locationId changes
@@ -331,41 +478,22 @@ router.put('/:id', async (req, res, next) => {
           throw createError('Invalid locationId', 400);
         }
       }
-      updateData.locationId = locationIdInput ?? null;
+      locationSpecificUpdateData.locationId = locationIdInput ?? null;
     }
-    // Enhanced fields
-    if (productImage !== undefined) updateData.productImage = productImage;
-    if (category !== undefined) updateData.category = category;
-    if (tags !== undefined) {
-      updateData.tags = Array.isArray(tags)
-        ? tags.map((tag: unknown) => String(tag))
-        : null;
-    }
-    if (supplier !== undefined) updateData.supplier = supplier;
-    if (sku !== undefined) {
-      const normalized = sku ? normalizeSku(sku) : null;
-      if (currentProduct.sku && normalized && normalized !== currentProduct.sku) {
-        try {
-          await db.insert(skuAliases).values({
-            productId: currentProduct.id,
-            legacySku: currentProduct.sku,
-            legacyId: null,
-          });
-        } catch {}
-      }
-      updateData.sku = normalized;
-    }
-    if (dimensions !== undefined) updateData.dimensions = dimensions;
-    if (weight !== undefined) updateData.weight = coerceDecimal(weight);
-    if (unit !== undefined) updateData.unit = unit;
-    if (unitPrice !== undefined) updateData.unitPrice = coerceDecimal(unitPrice);
-    if (notes !== undefined) updateData.notes = notes;
-    if (assignedToPersonId !== undefined) updateData.assignedToPersonId = assignedToPersonId;
-    if (preferredReceiveKanbanId !== undefined) updateData.preferredReceiveKanbanId = preferredReceiveKanbanId;
 
+    if (assignedToPersonId !== undefined) locationSpecificUpdateData.assignedToPersonId = assignedToPersonId;
+    if (preferredReceiveKanbanId !== undefined) locationSpecificUpdateData.preferredReceiveKanbanId = preferredReceiveKanbanId;
+
+    // Combine both update data for the specific product
+    const combinedUpdateData = {
+      ...sharedUpdateData,
+      ...locationSpecificUpdateData,
+    };
+
+    // Update the specific product first
     const [updatedProduct] = await db
       .update(products)
-      .set(updateData)
+      .set(combinedUpdateData)
       .where(eq(products.id, id))
       .returning();
 
@@ -373,11 +501,52 @@ router.put('/:id', async (req, res, next) => {
       throw createError('Product not found', 404);
     }
 
+    // Update all other products with the same SKU (if there are shared fields to update)
+    const hasSharedUpdates = Object.keys(sharedUpdateData).length > 1; // More than just updatedAt
+    let allUpdatedProductIds = [updatedProduct.id];
+    let allAffectedKanbanIds = [updatedProduct.kanbanId, currentProduct.kanbanId];
+    let allAffectedLocationIds = [updatedProduct.locationId, currentProduct.locationId];
+    let allAffectedSkus = [updatedProduct.sku, currentProduct.sku];
+
+    if (hasSharedUpdates && targetSku) {
+      // Find all products with the same SKU (excluding the one we just updated)
+      const productsWithSameSku = await db
+        .select({ id: products.id, kanbanId: products.kanbanId, locationId: products.locationId })
+        .from(products)
+        .where(
+          and(
+            eq(products.sku, targetSku),
+            ne(products.id, id)
+          )
+        );
+
+      if (productsWithSameSku.length > 0) {
+        // Update all products with the same SKU
+        const updatedProducts = await db
+          .update(products)
+          .set(sharedUpdateData)
+          .where(
+            and(
+              eq(products.sku, targetSku),
+              ne(products.id, id)
+            )
+          )
+          .returning();
+
+        // Collect all affected IDs for cache invalidation
+        allUpdatedProductIds.push(...updatedProducts.map(p => p.id));
+        allAffectedKanbanIds.push(...updatedProducts.map(p => p.kanbanId).filter(Boolean));
+        allAffectedLocationIds.push(...updatedProducts.map(p => p.locationId).filter(Boolean));
+        allAffectedSkus.push(...updatedProducts.map(p => p.sku).filter(Boolean));
+      }
+    }
+
+    // Invalidate caches for all affected products
     await invalidateProductCaches({
-      productIds: [updatedProduct.id],
-      kanbanIds: [updatedProduct.kanbanId, currentProduct.kanbanId],
-      locationIds: [updatedProduct.locationId, currentProduct.locationId],
-      skuValues: [updatedProduct.sku, currentProduct.sku],
+      productIds: allUpdatedProductIds,
+      kanbanIds: Array.from(new Set(allAffectedKanbanIds.filter(Boolean))),
+      locationIds: Array.from(new Set(allAffectedLocationIds.filter(Boolean))),
+      skuValues: Array.from(new Set(allAffectedSkus.filter(Boolean))),
     });
 
     res.json(updatedProduct);

@@ -34,6 +34,13 @@ export const movementLogs = pgTable(
     quantityMoved: integer('quantity_moved').notNull(),
     notes: text('notes'),
     movedBy: text('moved_by'), // user identifier (email or username)
+    // Stock adjustment fields
+    movementType: text('movement_type').notNull().default('transfer'), // 'transfer' or 'adjustment'
+    adjustmentType: text('adjustment_type'), // Stock adjustment type (if movementType is 'adjustment')
+    adjustmentReason: text('adjustment_reason'), // Reason for stock adjustment
+    referenceNumber: text('reference_number'), // Reference number for adjustment
+    approvedBy: text('approved_by'), // Who approved the adjustment
+    approvedAt: timestamp('approved_at'), // When approved
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
@@ -45,6 +52,7 @@ export const movementLogs = pgTable(
     createdAtIdx: index('movement_logs_created_at_idx').on(table.createdAt),
     publicTokenIdx: index('movement_logs_public_token_idx').on(table.publicToken),
     statusIdx: index('movement_logs_status_idx').on(table.status),
+    movementTypeIdx: index('movement_logs_movement_type_idx').on(table.movementType),
   })
 );
 

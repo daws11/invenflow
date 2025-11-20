@@ -8,9 +8,10 @@ import {
 
 interface ProductMovementHistoryProps {
   productId: string;
+  refreshToken?: number;
 }
 
-export function ProductMovementHistory({ productId }: ProductMovementHistoryProps) {
+export function ProductMovementHistory({ productId, refreshToken }: ProductMovementHistoryProps) {
   const { fetchMovementHistory } = useMovementStore();
   const [movements, setMovements] = useState<EnrichedMovementLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +31,7 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
     };
 
     loadMovements();
-  }, [productId, fetchMovementHistory]);
+  }, [productId, fetchMovementHistory, refreshToken]);
 
   const formatDate = (dateString: string | Date) => {
     const date = new Date(dateString);
@@ -84,6 +85,18 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
           {movements.map((movement, idx) => {
             const hasToPerson = !!movement.toPerson;
             const isPersonMovement = hasToPerson;
+            const isStockAdjustment =
+              Boolean(movement.fromLocationId) &&
+              Boolean(movement.toLocationId) &&
+              movement.fromLocationId === movement.toLocationId;
+            const stockAdjustmentLabel =
+              movement.toStockLevel !== null && movement.fromStockLevel !== null
+                ? movement.toStockLevel > movement.fromStockLevel
+                  ? 'Stock Increased'
+                  : movement.toStockLevel < movement.fromStockLevel
+                  ? 'Stock Decreased'
+                  : 'Stock Adjusted'
+                : 'Stock Adjustment';
             
             return (
             <li key={movement.id}>
@@ -119,7 +132,7 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
                         ? 'bg-purple-50 border-purple-500' 
                         : 'bg-blue-50 border-blue-500'
                     }`}>
-                      <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">
                           <div className="text-sm font-semibold text-gray-900 flex items-center">
                             {isPersonMovement ? (
@@ -140,7 +153,7 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
                             <CalendarIcon className="h-3 w-3 mr-1" />
                             {formatDate(movement.createdAt)}
                           </p>
-                        </div>
+                            </div>
                         <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
                           isPersonMovement 
                             ? 'bg-purple-200 text-purple-800' 
@@ -149,6 +162,13 @@ export function ProductMovementHistory({ productId }: ProductMovementHistoryProp
                           {isPersonMovement ? 'Person' : 'Location'}
                         </span>
                       </div>
+                          {isStockAdjustment && (
+                            <div className="mt-1 flex justify-end">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold text-amber-800 bg-amber-100 border border-amber-200">
+                                {stockAdjustmentLabel}
+                              </span>
+                            </div>
+                          )}
 
                       {/* Movement Details */}
                       <div className="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm">

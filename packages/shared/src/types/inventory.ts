@@ -187,6 +187,8 @@ export const ProductLocationDetailSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
   }).nullable(),
+  productIds: z.array(z.string().uuid()),
+  primaryProductId: z.string().uuid().nullable(),
 });
 
 export type ProductLocationDetail = z.infer<typeof ProductLocationDetailSchema>;

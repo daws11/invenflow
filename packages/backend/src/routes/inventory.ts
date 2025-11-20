@@ -1073,6 +1073,7 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
       stockLevel: item.totalStock,
       productCount: item.productIds.length,
       productIds: item.productIds,
+      primaryProductId: item.productIds[0] ?? null,
       locationId: item.locationId,
       assignedToPersonId: item.assignedToPersonId,
       updatedAt: item.lastUpdated,

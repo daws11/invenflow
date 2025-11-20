@@ -24,6 +24,13 @@ export const MovementLogSchema = z.object({
   quantityMoved: z.number().int().min(0),
   notes: z.string().nullable(),
   movedBy: z.string().nullable(),
+  // Stock adjustment fields
+  movementType: z.string().default('transfer'),
+  adjustmentType: z.string().nullable().optional(),
+  adjustmentReason: z.string().nullable().optional(),
+  referenceNumber: z.string().nullable().optional(),
+  approvedBy: z.string().nullable().optional(),
+  approvedAt: z.date().nullable().optional(),
   createdAt: z.date(),
 });
 
@@ -76,6 +83,7 @@ export const MovementStatsSchema = z.object({
     recipientId: z.string().uuid(),
     recipientName: z.string(),
     recipientCode: z.string(),
+    recipientArea: z.string().nullable(),
     recipientType: z.enum(['location', 'person']),
     movementCount: z.number().int().min(0),
   })),

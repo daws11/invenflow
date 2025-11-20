@@ -220,7 +220,7 @@ router.get('/stats', async (req, res, next) => {
       : sql`WHERE`;
 
     const mostActiveRecipientsResult = await db.execute(
-      sql<{ recipientId: string; recipientName: string; recipientCode: string; recipientType: string; movementCount: number }>`
+      sql<{ recipientId: string; recipientName: string; recipientCode: string; recipientArea: string | null; recipientType: string; movementCount: number }>`
         WITH movement_recipients AS (
           -- Movements to locations
           SELECT 
@@ -254,6 +254,7 @@ router.get('/stats', async (req, res, next) => {
           mr.recipient_id as "recipientId",
           COALESCE(loc.name, per.name) as "recipientName",
           COALESCE(loc.code, dep.name) as "recipientCode",
+          loc.area as "recipientArea",
           mr.recipient_type as "recipientType",
           count(*)::int as "movementCount"
         FROM movement_recipients mr
@@ -261,7 +262,7 @@ router.get('/stats', async (req, res, next) => {
         LEFT JOIN persons per ON mr.recipient_id = per.id AND mr.recipient_type = 'person'
         LEFT JOIN departments dep ON per.department_id = dep.id
         WHERE mr.recipient_id IS NOT NULL
-        GROUP BY mr.recipient_id, mr.recipient_type, loc.name, loc.code, per.name, dep.name
+        GROUP BY mr.recipient_id, mr.recipient_type, loc.name, loc.code, loc.area, per.name, dep.name
         ORDER BY "movementCount" DESC
         LIMIT 5
       `

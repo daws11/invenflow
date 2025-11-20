@@ -3,7 +3,7 @@ import { Kanban, LinkedReceiveKanban } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useLocationStore } from '../store/locationStore';
 import { useToast } from '../store/toastStore';
-import { locationApi } from '../utils/api';
+// import { locationApi } from '../utils/api';
 import { MapPinIcon, TrashIcon, PlusIcon } from '@heroicons/react/24/outline';
 
 interface KanbanLinkingSectionProps {
