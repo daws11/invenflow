@@ -10,6 +10,7 @@ import {
   performanceMiddleware,
   startPerformanceLogging,
 } from "./middleware/performance";
+import { queryMonitor } from "./middleware/queryMonitor";
 import { departmentsRouter } from "./routes/departments";
 import { healthRouter } from "./routes/health";
 import { inventoryRouter } from "./routes/inventory";
@@ -72,6 +73,7 @@ app.use(
 
 // Performance monitoring middleware (should be early)
 app.use(performanceMiddleware);
+app.use(queryMonitor(1000));
 
 // Request logging middleware for debugging
 app.use((req, res, next) => {

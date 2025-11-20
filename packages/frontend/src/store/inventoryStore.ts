@@ -511,6 +511,8 @@ export const useInventoryStore = create<InventoryState>((set, get) => {
   refreshInventory: () => Promise.all([get().fetchInventory(), get().fetchStats()]).then(() => {}),
 
   syncAfterMutation: async () => {
+    // Clear pending requests to force fresh fetch after mutations
+    globalRequestDeduplicator.clear();
     await runInventoryRefresh();
   },
   };

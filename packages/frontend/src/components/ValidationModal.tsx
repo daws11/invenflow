@@ -12,6 +12,7 @@ interface ValidationModalProps {
   columnStatus: ValidationStatus;
   onSubmit: (validationData: Omit<ProductValidation, 'id' | 'createdAt' | 'updatedAt'>) => void;
   isLoading?: boolean;
+  defaultLocationId?: string;
 }
 
 export default function ValidationModal({
@@ -20,7 +21,8 @@ export default function ValidationModal({
   productId,
   columnStatus,
   onSubmit,
-  isLoading = false
+  isLoading = false,
+  defaultLocationId
 }: ValidationModalProps) {
   const [formData, setFormData] = useState({
     recipientName: '',
@@ -38,14 +40,14 @@ export default function ValidationModal({
       // Reset form when modal opens
       setFormData({
         recipientName: '',
-        locationId: '',
+        locationId: defaultLocationId || '',
         notes: '',
       });
       setReceivedImage('');
       setStoragePhoto('');
       setErrors({});
     }
-  }, [isOpen]);
+  }, [isOpen, defaultLocationId]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -172,7 +174,7 @@ export default function ValidationModal({
                 <option value="">Select storage location</option>
                 {locations.map((location) => (
                   <option key={location.id} value={location.id}>
-                    {location.name}
+                    {location.name} - {location.area}
                   </option>
                 ))}
               </select>

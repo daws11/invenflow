@@ -136,7 +136,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
       icon: MapPin,
     },
     {
-      name: 'Personnel',
+      name: 'Team',
       path: '/persons',
       icon: UserCircle,
     },
@@ -236,7 +236,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-2 overflow-y-scroll max-h-[calc(100vh-120px)]">
+          <nav className="flex-1 p-4 space-y-2 overflow-y-auto max-h-[calc(100vh-120px)]">
             {/* Kanban Dropdown */}
             {!isCollapsed ? (
               <div className="space-y-1">

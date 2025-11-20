@@ -4,6 +4,7 @@ import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/solid';
 import type { Person } from '@invenflow/shared';
 import { usePersonStore } from '../store/personStore';
 import { useToastStore } from '../store/toastStore';
+import { useDepartmentStore } from '../store/departmentStore';
 
 interface PersonCardProps {
   person: Person;
@@ -13,6 +14,7 @@ interface PersonCardProps {
 export function PersonCard({ person, onEdit }: PersonCardProps) {
   const { deletePerson, fetchPersons } = usePersonStore();
   const { addSuccessToast, addErrorToast } = useToastStore();
+  const { departments } = useDepartmentStore();
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -29,6 +31,12 @@ export function PersonCard({ person, onEdit }: PersonCardProps) {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
     }
+  };
+
+  // Get department name by ID
+  const getDepartmentName = (departmentId: string) => {
+    const department = departments.find(d => d.id === departmentId);
+    return department ? department.name : 'Unknown Department';
   };
 
   return (
@@ -52,7 +60,7 @@ export function PersonCard({ person, onEdit }: PersonCardProps) {
               </h3>
               <div className="flex items-center mt-1 text-sm text-gray-600">
                 <BriefcaseIcon className="w-4 h-4 mr-1" />
-                {person.departmentId}
+                {getDepartmentName(person.departmentId)}
               </div>
             </div>
           </div>

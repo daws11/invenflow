@@ -8,6 +8,7 @@ import { useToast } from '../store/toastStore';
 import { useAuthStore } from '../store/authStore';
 import { useCommentStore } from '../store/commentStore';
 import { CommentForm, CommentList } from './comments';
+import { globalRequestDeduplicator } from '../utils/requestDeduplicator';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:3001";
 import {
@@ -38,7 +39,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
   const { fetchLocations } = useLocationStore();
   const { fetchPersons } = usePersonStore();
   const { deleteProduct, currentKanban, updateProduct: kanbanUpdateProduct } = useKanbanStore();
-  const { updateProduct: inventoryUpdateProduct, selectedItem, syncAfterMutation } = useInventoryStore();
+  const { updateProduct: inventoryUpdateProduct, selectedItem, syncAfterMutation, displayMode, fetchGroupedInventory } = useInventoryStore();
   const { success: _success, error } = useToast();
 
   // Use the selectedItem from inventory store if available (always up-to-date),
@@ -130,9 +131,21 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
   const handleDelete = async () => {
     setIsSubmitting(true);
     try {
+      // Delete from kanban store (optimistic update)
       await deleteProduct(currentItem.id);
       _success('Product deleted successfully');
+      
+      // Clear request deduplicator cache to force fresh fetch
+      globalRequestDeduplicator.clear();
+      
+      // Sync with inventory store to ensure table view is updated
       await syncAfterMutation();
+      
+      // If in grouped view, refresh grouped data as well
+      if (displayMode === 'grouped') {
+        await fetchGroupedInventory();
+      }
+      
       onClose();
     } catch (err) {
       console.error('Failed to delete product:', err);

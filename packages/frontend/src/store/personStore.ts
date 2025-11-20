@@ -66,9 +66,6 @@ export const usePersonStore = create<PersonStore>((set, get) => ({
       const response = await api.post('/api/persons', data);
       const newPerson = response.data;
 
-      // Re-fetch all persons to ensure cache invalidation works
-      await get().fetchPersons();
-
       set({ loading: false });
       return newPerson;
     } catch (error: any) {
@@ -84,9 +81,6 @@ export const usePersonStore = create<PersonStore>((set, get) => ({
       const response = await api.put(`/api/persons/${id}`, data);
       const updatedPerson = response.data;
 
-      // Re-fetch all persons to ensure cache invalidation works
-      await get().fetchPersons();
-
       set({ loading: false });
       return updatedPerson;
     } catch (error: any) {
@@ -100,9 +94,6 @@ export const usePersonStore = create<PersonStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await api.delete(`/api/persons/${id}`);
-
-      // Re-fetch all persons to ensure cache invalidation works
-      await get().fetchPersons();
 
       set({ loading: false });
     } catch (error: any) {

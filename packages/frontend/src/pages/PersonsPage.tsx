@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { PlusIcon, MagnifyingGlassIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import { usePersonStore } from '../store/personStore';
+import { useDepartmentStore } from '../store/departmentStore';
 import { PersonModal } from '../components/PersonModal';
 import { PersonCard } from '../components/PersonCard';
 import type { Person } from '@invenflow/shared';
 
 export default function PersonsPage() {
   const { persons, loading, fetchPersons } = usePersonStore();
+  const { departments, fetchDepartments } = useDepartmentStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -15,7 +17,8 @@ export default function PersonsPage() {
 
   useEffect(() => {
     fetchPersons({ activeOnly });
-  }, [fetchPersons, activeOnly]);
+    fetchDepartments();
+  }, [fetchPersons, fetchDepartments, activeOnly]);
 
   const handleSearch = () => {
     fetchPersons({
@@ -50,7 +53,7 @@ export default function PersonsPage() {
     All: persons,
   } as Record<string, Person[]>;
 
-  const departments = Object.keys(groupedPersons).sort();
+  const departmentGroups = Object.keys(groupedPersons).sort();
   const uniqueDepartments: string[] = [];
 
   return (
@@ -62,7 +65,7 @@ export default function PersonsPage() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900 flex items-center">
                 <UserGroupIcon className="w-8 h-8 mr-3 text-blue-600" />
-                Personnel Management
+                Team Management
               </h1>
               <p className="mt-2 text-sm text-gray-600">
                 Manage team members and product assignments
@@ -149,7 +152,7 @@ export default function PersonsPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Personnel</p>
+                <p className="text-sm font-medium text-gray-600">Total Team</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{persons.length}</p>
               </div>
               <div className="p-3 bg-blue-100 rounded-full">
@@ -162,7 +165,7 @@ export default function PersonsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Departments</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{departments.length}</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{departmentGroups.length}</p>
               </div>
               <div className="p-3 bg-green-100 rounded-full">
                 <UserGroupIcon className="w-6 h-6 text-green-600" />
@@ -196,7 +199,7 @@ export default function PersonsPage() {
         {!loading && persons.length === 0 && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
             <UserGroupIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Personnel Found</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Team Found</h3>
             <p className="text-sm text-gray-600 mb-4">
               Get started by adding your first team member
             </p>
@@ -213,7 +216,7 @@ export default function PersonsPage() {
         {/* Persons List - Grouped by Department */}
         {!loading && persons.length > 0 && (
           <div className="space-y-6">
-            {departments.map((department) => (
+            {departmentGroups.map((department) => (
               <div key={department}>
                 <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
                   <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm mr-3">

@@ -10,6 +10,7 @@ import { BasicInlineEdit } from './BasicInlineEdit';
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 import { publicApi, ProductSearchResult } from '../utils/api';
 import { generateStableSku } from '../utils/sku';
+import { globalRequestDeduplicator } from '../utils/requestDeduplicator';
 import {
   TagIcon,
   MapPinIcon,
@@ -34,7 +35,7 @@ interface ProductSidebarProps {
 
 export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: ProductSidebarProps) {
   const { updateProduct: kanbanUpdateProduct, deleteProduct, currentKanban } = useKanbanStore();
-  const { updateProduct: inventoryUpdateProduct } = useInventoryStore();
+  const { updateProduct: inventoryUpdateProduct, syncAfterMutation, displayMode, fetchGroupedInventory } = useInventoryStore();
   const { locations, fetchLocations } = useLocationStore();
   const { success, error } = useToast();
   const [isMobile, setIsMobile] = useState(false);
@@ -222,15 +223,28 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
   const handleDelete = async () => {
     if (!product) return;
 
-      setIsDeleting(true);
-      try {
-        await deleteProduct(product.id);
-        success('Product deleted successfully');
-        onClose();
-      } catch (err) {
-        error(`Failed to delete product: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      } finally {
-        setIsDeleting(false);
+    setIsDeleting(true);
+    try {
+      // Delete from kanban store (optimistic update)
+      await deleteProduct(product.id);
+      
+      // Clear request deduplicator cache to force fresh fetch
+      globalRequestDeduplicator.clear();
+      
+      // Sync with inventory store to ensure table view is updated
+      await syncAfterMutation();
+      
+      // If in grouped view, refresh grouped data as well
+      if (displayMode === 'grouped') {
+        await fetchGroupedInventory();
+      }
+      
+      success('Product deleted successfully');
+      onClose();
+    } catch (err) {
+      error(`Failed to delete product: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsDeleting(false);
       setShowDeleteConfirm(false);
     }
   };

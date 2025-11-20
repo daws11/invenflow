@@ -10,6 +10,12 @@ const DEFAULT_ENDPOINTS = [
   "/api/persons",
 ];
 
+const INVENTORY_FILTERS: Array<Record<string, string>> = [
+  { columnStatus: "Stored" },
+  { columnStatus: "Received" },
+  { category: "Electronics" },
+];
+
 const BASE_URL =
   process.env.CACHE_WARM_BASE_URL || `http://127.0.0.1:${env.PORT}`;
 
@@ -47,6 +53,17 @@ const warmEndpoints = async () => {
       const url = `${BASE_URL}${endpoint}`;
       try {
         await fetchWithTimeout(url, 10_000);
+        console.log(`[CacheWarming] warmed ${endpoint}`);
+      } catch (error) {
+        console.warn(`[CacheWarming] failed to warm ${endpoint}`, error);
+      }
+    }
+
+    for (const filter of INVENTORY_FILTERS) {
+      const queryString = new URLSearchParams(filter).toString();
+      const endpoint = `/api/inventory?${queryString}`;
+      try {
+        await fetchWithTimeout(`${BASE_URL}${endpoint}`, 10_000);
         console.log(`[CacheWarming] warmed ${endpoint}`);
       } catch (error) {
         console.warn(`[CacheWarming] failed to warm ${endpoint}`, error);

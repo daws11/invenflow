@@ -27,6 +27,29 @@ const serializeEvent = (event: InventoryEventPayload) =>
       : {}),
   });
 
+const CACHE_TTL_MS = 5000;
+const serializationCache = new Map<
+  string,
+  { payload: string; timeout: NodeJS.Timeout }
+>();
+
+const getSerializedPayload = (event: InventoryEventPayload): string => {
+  const productId =
+    'product' in event && event.product?.id ? event.product.id : 'bulk';
+  const cacheKey = `${event.type}-${productId}`;
+  const cached = serializationCache.get(cacheKey);
+  if (cached) {
+    clearTimeout(cached.timeout);
+    cached.timeout = setTimeout(() => serializationCache.delete(cacheKey), CACHE_TTL_MS);
+    return cached.payload;
+  }
+
+  const payload = serializeEvent(event);
+  const timeout = setTimeout(() => serializationCache.delete(cacheKey), CACHE_TTL_MS);
+  serializationCache.set(cacheKey, { payload, timeout });
+  return payload;
+};
+
 export const initializeInventoryWebSocket = (server: Server) => {
   if (isInitialized) {
     return;
@@ -36,7 +59,7 @@ export const initializeInventoryWebSocket = (server: Server) => {
   const wss = new WebSocketServer({ server, path: "/ws/inventory" });
 
   const broadcast = (event: InventoryEventPayload) => {
-    const payload = serializeEvent(event);
+    const payload = getSerializedPayload(event);
     wss.clients.forEach((client: WebSocketWithHeartbeat) => {
       if (client.readyState === client.OPEN) {
         client.send(payload);

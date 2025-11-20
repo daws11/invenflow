@@ -15,7 +15,6 @@ import {
   isNotNull,
   isNull,
   sql,
-  getTableColumns,
 } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
@@ -23,6 +22,7 @@ import { cacheMiddleware } from '../middleware/cache';
 import { z } from 'zod';
 import { generateStableSku, buildProductFingerprint } from '../utils/sku';
 import { invalidateInventoryCaches } from '../utils/cacheInvalidation';
+import { queryCacheService } from '../services/queryCacheService';
 
 const router = Router();
 
@@ -76,18 +76,65 @@ const combineConditions = (clauses: SQL<unknown>[]): SQL<unknown> => {
   return combined ?? sql`1 = 1`;
 };
 
-const SORTABLE_COLUMNS = {
-  updatedAt: products.updatedAt,
-  createdAt: products.createdAt,
-  productDetails: products.productDetails,
-  stockLevel: products.stockLevel,
-  category: products.category,
-  supplier: products.supplier,
+// Helper function to convert snake_case database columns to camelCase
+const snakeToCamel = (str: string): string => {
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+};
+
+const convertRowToCamelCase = (row: Record<string, unknown>): Record<string, unknown> => {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    const camelKey = snakeToCamel(key);
+    result[camelKey] = value;
+  }
+  return result;
+};
+
+const SORTABLE_COLUMN_SQL_NAMES = {
+  updatedAt: 'products.updated_at',
+  createdAt: 'products.created_at',
+  productDetails: 'products.product_details',
+  stockLevel: 'products.stock_level',
+  category: 'products.category',
+  supplier: 'products.supplier',
 } as const;
+
+const normalizeValidations = (value: unknown): Record<string, unknown>[] => {
+  if (!value) {
+    return [];
+  }
+
+  let parsed: unknown = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed.map((validation) => {
+    const entry = (validation ?? {}) as Record<string, unknown>;
+    const createdValue = entry.createdAt ?? entry.created_at;
+    return {
+      ...entry,
+      createdAt:
+        createdValue instanceof Date
+          ? createdValue
+          : createdValue
+          ? new Date(createdValue as string)
+          : new Date(),
+    };
+  });
+};
 
 // Get inventory items (products from receive kanbans with 'received' or 'stored' status)
 router.get('/', cacheMiddleware({
-  ttl: 60 * 1000,
+  ttl: 5 * 60 * 1000,
   sharedAcrossUsers: true,
   tags: [{ resource: 'inventory' }],
 }), async (req, res, next) => {
@@ -187,51 +234,82 @@ router.get('/', cacheMiddleware({
 
     const filterCondition = combineConditions(conditions);
 
-    const sortColumn =
-      SORTABLE_COLUMNS[sortByValue as keyof typeof SORTABLE_COLUMNS] ??
-      products.updatedAt;
-    const sortDirection = sortOrderValue === 'asc' ? asc : desc;
+    const sortColumnKey =
+      (sortByValue as keyof typeof SORTABLE_COLUMN_SQL_NAMES) ?? 'updatedAt';
+    const sortColumnSql =
+      SORTABLE_COLUMN_SQL_NAMES[sortColumnKey] ??
+      SORTABLE_COLUMN_SQL_NAMES.updatedAt;
+    const sortDirectionKeyword = sortOrderValue === 'asc' ? 'ASC' : 'DESC';
 
-    const productColumns = getTableColumns(products);
+    const inventoryRows = await db.execute(sql`
+      WITH inventory_products AS (
+        SELECT
+          products.*,
+          kanbans.id AS kanban_id,
+          kanbans.name AS kanban_name,
+          kanbans.type AS kanban_type,
+          kanbans.linked_kanban_id AS kanban_linked_kanban_id
+        FROM products
+        LEFT JOIN kanbans ON products.kanban_id = kanbans.id
+        WHERE ${filterCondition}
+        ORDER BY ${sql.raw(sortColumnSql)} ${sql.raw(sortDirectionKeyword)}
+        LIMIT ${pageSize}
+        OFFSET ${offset}
+      ),
+      product_validations_agg AS (
+        SELECT
+          pv.product_id,
+          json_agg(
+            json_build_object(
+              'id', pv.id,
+              'productId', pv.product_id,
+              'columnStatus', pv.column_status,
+              'createdAt', pv.created_at,
+              'receivedImage', pv.received_image,
+              'storagePhoto', pv.storage_photo,
+              'validatedBy', pv.validated_by
+            ) ORDER BY pv.created_at DESC
+          ) FILTER (WHERE pv.id IS NOT NULL) AS validations
+        FROM product_validations pv
+        WHERE pv.product_id IN (SELECT id FROM inventory_products)
+        GROUP BY pv.product_id
+      )
+      SELECT
+        ip.*,
+        COALESCE(pva.validations, '[]'::json) AS validations
+      FROM inventory_products ip
+      LEFT JOIN product_validations_agg pva ON ip.id = pva.product_id
+    `);
 
-    // Simplified approach: Get products first, then validations separately
-    // This avoids complex SQL subquery issues with Drizzle ORM
-    const inventoryItems = await db
-      .select({
-        ...productColumns,
-        kanban: {
-          id: kanbans.id,
-          name: kanbans.name,
-          type: kanbans.type,
-          linkedKanbanId: kanbans.linkedKanbanId,
-        },
-      })
-      .from(products)
-      .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
-      .where(filterCondition)
-      .orderBy(sortDirection(sortColumn))
-      .limit(pageSize)
-      .offset(offset);
-
-    // Get validations for these products in a separate query
-    const productIds = inventoryItems.map(item => item.id);
-    let validationsMap: Record<string, any[]> = {};
-    
-    if (productIds.length > 0) {
-      const allValidations = await db
-        .select()
-        .from(productValidations)
-        .where(inArray(productValidations.productId, productIds));
+    const inventoryItems = inventoryRows.map((row: Record<string, unknown>) => {
+      // Convert all snake_case keys to camelCase
+      const camelRow = convertRowToCamelCase(row);
       
-      // Group validations by productId for efficient lookup
-      validationsMap = allValidations.reduce((acc, validation) => {
-        if (!acc[validation.productId]) {
-          acc[validation.productId] = [];
-        }
-        acc[validation.productId].push(validation);
-        return acc;
-      }, {} as Record<string, any[]>);
-    }
+      const {
+        kanbanId,
+        kanbanName,
+        kanbanType,
+        kanbanLinkedKanbanId,
+        validations,
+        ...productFields
+      } = camelRow;
+
+      const kanbanPayload =
+        kanbanId && kanbanName
+          ? {
+              id: kanbanId as string,
+              name: kanbanName as string,
+              type: kanbanType as string,
+              linkedKanbanId: kanbanLinkedKanbanId as string | null,
+            }
+          : null;
+
+      return {
+        ...productFields,
+        kanban: kanbanPayload,
+        validations: normalizeValidations(validations),
+      } as any; // Type assertion to handle dynamic fields from raw SQL
+    });
 
     const totalResult = await db
       .select({ value: sql<number>`count(*)` })
@@ -309,7 +387,7 @@ router.get('/', cacheMiddleware({
       );
 
       // Get validations for this product from the map
-      const productValidations = validationsMap[item.id] || [];
+      const productValidations = item.validations ?? [];
 
       // Enhanced image priority logic for multiple validation records
       let displayImage = item.productImage; // Default fallback
@@ -321,7 +399,7 @@ router.get('/', cacheMiddleware({
 
       if (productValidations.length > 0) {
         // Build available images array with metadata
-        productValidations.forEach(validation => {
+        productValidations.forEach((validation: any) => {
           if (validation.columnStatus === 'Received' && validation.receivedImage) {
             availableImages.push({
               url: validation.receivedImage,
@@ -344,19 +422,19 @@ router.get('/', cacheMiddleware({
         // Find the most appropriate image based on current product status
         if (item.columnStatus === 'Stored') {
           // For Stored products: prioritize storagePhoto > receivedImage
-          const storedValidation = productValidations.find(v => v.columnStatus === 'Stored');
+          const storedValidation = productValidations.find((v: any) => v.columnStatus === 'Stored');
           if (storedValidation?.storagePhoto) {
             displayImage = storedValidation.storagePhoto;
           } else {
             // Fallback to Received image if no Stored image
-            const receivedValidation = productValidations.find(v => v.columnStatus === 'Received');
+            const receivedValidation = productValidations.find((v: any) => v.columnStatus === 'Received');
             if (receivedValidation?.receivedImage) {
               displayImage = receivedValidation.receivedImage;
             }
           }
         } else if (item.columnStatus === 'Received') {
           // For Received products: prioritize receivedImage
-          const receivedValidation = productValidations.find(v => v.columnStatus === 'Received');
+          const receivedValidation = productValidations.find((v: any) => v.columnStatus === 'Received');
           if (receivedValidation?.receivedImage) {
             displayImage = receivedValidation.receivedImage;
           }
@@ -621,98 +699,108 @@ router.get('/stats', cacheMiddleware({
   tags: [{ resource: 'inventoryStats' }],
 }), async (req, res, next) => {
   try {
-    // Get total inventory count
-    const [rawTotalStats] = await db
-      .select({
-        total: sql<number>`count(*)`,
-        purchased: sql<number>`sum(case when ${products.columnStatus} = 'Purchased' then 1 else 0 end)`,
-        received: sql<number>`sum(case when ${products.columnStatus} = 'Received' then 1 else 0 end)`,
-        stored: sql<number>`sum(case when ${products.columnStatus} = 'Stored' then 1 else 0 end)`,
-        lowStock: sql<number>`sum(case when ${products.stockLevel} is not null and ${products.stockLevel} <= 10 then 1 else 0 end)`,
-      })
-      .from(products)
-      .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
-      .where(
-        and(
-          eq(products.isDraft, false),
-          or(
-            eq(kanbans.type, 'receive'),
-            isNull(products.kanbanId) // Include direct import products
-          )
-        )
-      );
+    const stats = await queryCacheService.cacheAggregation(
+      'inventory:stats',
+      async () => {
+        const [rawTotalStats] = await db
+          .select({
+            total: sql<number>`count(*)`,
+            purchased: sql<number>`sum(case when ${products.columnStatus} = 'Purchased' then 1 else 0 end)`,
+            received: sql<number>`sum(case when ${products.columnStatus} = 'Received' then 1 else 0 end)`,
+            stored: sql<number>`sum(case when ${products.columnStatus} = 'Stored' then 1 else 0 end)`,
+            lowStock: sql<number>`sum(case when ${products.stockLevel} is not null and ${products.stockLevel} <= 10 then 1 else 0 end)`,
+          })
+          .from(products)
+          .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
+          .where(
+            and(
+              eq(products.isDraft, false),
+              or(
+                eq(kanbans.type, 'receive'),
+                isNull(products.kanbanId)
+              ),
+            ),
+          );
 
-    const totalsRow = rawTotalStats ?? {
-      total: 0,
-      purchased: 0,
-      received: 0,
-      stored: 0,
-      lowStock: 0,
-    };
+        const categoryStatsResult = await db.execute(
+          sql<{ category: string | null; count: number }>`
+            select ${products.category} as category, count(*)::int as count
+            from ${products}
+            left join ${kanbans} on ${products.kanbanId} = ${kanbans.id}
+            where ${products.isDraft} = false
+              and ${products.columnStatus} in ('Received', 'Stored')
+              and ${products.category} is not null
+              and (${kanbans.type} = 'receive' OR ${products.kanbanId} IS NULL)
+            group by ${products.category}
+            order by count desc
+          `,
+        );
 
-    const categoryStatsResult = await db.execute(
-      sql<{ category: string | null; count: number }>`
-        select ${products.category} as category, count(*)::int as count
-        from ${products}
-        left join ${kanbans} on ${products.kanbanId} = ${kanbans.id}
-        where ${products.isDraft} = false
-          and ${products.columnStatus} in ('Received', 'Stored')
-          and ${products.category} is not null
-          and (${kanbans.type} = 'receive' OR ${products.kanbanId} IS NULL)
-        group by ${products.category}
-        order by count desc
-      `
-    );
+        const supplierStatsResult = await db.execute(
+          sql<{ supplier: string | null; count: number }>`
+            select ${products.supplier} as supplier, count(*)::int as count
+            from ${products}
+            left join ${kanbans} on ${products.kanbanId} = ${kanbans.id}
+            where ${products.isDraft} = false
+              and ${products.columnStatus} in ('Received', 'Stored')
+              and ${products.supplier} is not null
+              and (${kanbans.type} = 'receive' OR ${products.kanbanId} IS NULL)
+            group by ${products.supplier}
+            order by count desc
+          `,
+        );
 
-    const supplierStatsResult = await db.execute(
-      sql<{ supplier: string | null; count: number }>`
-        select ${products.supplier} as supplier, count(*)::int as count
-        from ${products}
-        left join ${kanbans} on ${products.kanbanId} = ${kanbans.id}
-        where ${products.isDraft} = false
-          and ${products.columnStatus} in ('Received', 'Stored')
-          and ${products.supplier} is not null
-          and (${kanbans.type} = 'receive' OR ${products.kanbanId} IS NULL)
-        group by ${products.supplier}
-        order by count desc
-      `
-    );
+        const totalsRow = rawTotalStats ?? {
+          total: 0,
+          purchased: 0,
+          received: 0,
+          stored: 0,
+          lowStock: 0,
+        };
 
-    const categoryStatsRows = Array.from(categoryStatsResult) as Array<{
-      category: string | null;
-      count: number;
-    }>;
+        const categoryStatsRows = Array.from(categoryStatsResult) as Array<{
+          category: string | null;
+          count: number;
+        }>;
 
-    const supplierStatsRows = Array.from(supplierStatsResult) as Array<{
-      supplier: string | null;
-      count: number;
-    }>;
+        const supplierStatsRows = Array.from(supplierStatsResult) as Array<{
+          supplier: string | null;
+          count: number;
+        }>;
 
-    const normalizedCategoryStats = categoryStatsRows
-      .filter((row) => row.category)
-      .map((row) => ({
-        category: row.category as string,
-        count: Number(row.count ?? 0),
-      }));
+        const normalizedCategoryStats = categoryStatsRows
+          .filter((row) => row.category)
+          .map((row) => ({
+            category: row.category as string,
+            count: Number(row.count ?? 0),
+          }));
 
-    const normalizedSupplierStats = supplierStatsRows
-      .filter((row) => row.supplier)
-      .map((row) => ({
-        supplier: row.supplier as string,
-        count: Number(row.count ?? 0),
-      }));
+        const normalizedSupplierStats = supplierStatsRows
+          .filter((row) => row.supplier)
+          .map((row) => ({
+            supplier: row.supplier as string,
+            count: Number(row.count ?? 0),
+          }));
 
-    res.json({
-      totalStats: {
-        total: Number(totalsRow.total ?? 0),
-        purchased: Number(totalsRow.purchased ?? 0),
-        received: Number(totalsRow.received ?? 0),
-        stored: Number(totalsRow.stored ?? 0),
-        lowStock: Number(totalsRow.lowStock ?? 0),
+        return {
+          totalStats: {
+            total: Number(totalsRow.total ?? 0),
+            purchased: Number(totalsRow.purchased ?? 0),
+            received: Number(totalsRow.received ?? 0),
+            stored: Number(totalsRow.stored ?? 0),
+            lowStock: Number(totalsRow.lowStock ?? 0),
+          },
+          categoryStats: normalizedCategoryStats,
+          supplierStats: normalizedSupplierStats,
+        };
       },
-      categoryStats: normalizedCategoryStats,
-      supplierStats: normalizedSupplierStats,
-    });
+      {
+        ttlMs: 5 * 60 * 1000,
+        tags: ['inventoryStats'],
+      },
+    );
+
+    res.json(stats);
   } catch (error) {
     next(error);
   }
@@ -720,7 +808,7 @@ router.get('/stats', cacheMiddleware({
 
 // Get grouped inventory items (products grouped by SKU with status breakdown)
 router.get('/grouped', cacheMiddleware({
-  ttl: 2 * 60 * 1000,
+  ttl: 5 * 60 * 1000,
   sharedAcrossUsers: true,
   tags: [{ resource: 'inventory' }],
 }), async (req, res, next) => {

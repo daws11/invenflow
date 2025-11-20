@@ -59,7 +59,7 @@ const combineSqlClauses = (clauses: SQL<unknown>[]): SQL<unknown> => {
 router.get(
   '/',
   cacheMiddleware({
-    ttl: 5 * 60 * 1000,
+    ttl: 30 * 60 * 1000,
     sharedAcrossUsers: true,
     tags: [{ resource: 'location' }],
   }),

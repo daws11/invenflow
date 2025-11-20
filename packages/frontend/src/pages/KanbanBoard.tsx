@@ -1450,6 +1450,7 @@ export default function KanbanBoard() {
             columnStatus={pendingProductMove.targetColumn as ValidationStatus}
             onSubmit={handleValidationSubmit}
             isLoading={isValidationLoading}
+            defaultLocationId={currentKanban?.locationId || undefined}
           />
         )}
 

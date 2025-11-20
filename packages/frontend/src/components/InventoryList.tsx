@@ -28,6 +28,7 @@ import {
 import { formatCurrency, formatDateWithTime } from '../utils/formatters';
 import { InventoryTableActions } from './InventoryTableActions';
 import { BasicInlineEdit } from './BasicInlineEdit';
+import { globalRequestDeduplicator } from '../utils/requestDeduplicator';
 
 interface InventoryListProps {
   items?: InventoryItem[]; // Optional since we use store data primarily
@@ -60,7 +61,7 @@ export function InventoryList({
   const { locations, fetchLocations } = useLocationStore();
   const { persons, fetchPersons } = usePersonStore();
   const { deleteProduct } = useKanbanStore();
-  const { items: storeItems, updateProduct, updateProductStock } = useInventoryStore();
+  const { items: storeItems, updateProduct, updateProductStock, syncAfterMutation, displayMode, fetchGroupedInventory } = useInventoryStore();
   const { success, error, warning } = useToast();
 
   // Use store items for real-time updates, fallback to props for compatibility
@@ -113,7 +114,20 @@ export function InventoryList({
   const handleDeleteItem = async (item: InventoryItem) => {
     if (window.confirm(`Are you sure you want to delete "${item.productDetails}"? This action cannot be undone.`)) {
       try {
+        // Delete from kanban store (optimistic update)
         await deleteProduct(item.id);
+        
+        // Clear request deduplicator cache to force fresh fetch
+        globalRequestDeduplicator.clear();
+        
+        // Sync with inventory store to ensure table view is updated
+        await syncAfterMutation();
+        
+        // If in grouped view, refresh grouped data as well
+        if (displayMode === 'grouped') {
+          await fetchGroupedInventory();
+        }
+        
         success('Product deleted successfully');
       } catch (err) {
         error(`Failed to delete product: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -123,7 +137,20 @@ export function InventoryList({
 
   const handleBulkDelete = async (itemsToDelete: InventoryItem[]) => {
     try {
+      // Delete all products from kanban store (optimistic update)
       await Promise.all(itemsToDelete.map(item => deleteProduct(item.id)));
+      
+      // Clear request deduplicator cache to force fresh fetch
+      globalRequestDeduplicator.clear();
+      
+      // Sync with inventory store to ensure table view is updated
+      await syncAfterMutation();
+      
+      // If in grouped view, refresh grouped data as well
+      if (displayMode === 'grouped') {
+        await fetchGroupedInventory();
+      }
+      
       success(`${itemsToDelete.length} products deleted successfully`);
       setSelectedItems(new Set());
     } catch (err) {

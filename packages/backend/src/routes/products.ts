@@ -8,6 +8,7 @@ import { authenticateToken } from '../middleware/auth';
 import { invalidateInventoryCaches, type CacheTagDescriptor } from '../utils/cacheInvalidation';
 import { nanoid } from 'nanoid';
 import { generateStableSku, normalizeSku } from '../utils/sku';
+import { cacheMiddleware } from '../middleware/cache';
 
 type ProductRecord = typeof products.$inferSelect;
 
@@ -102,7 +103,14 @@ router.get('/rejected', async (req, res, next) => {
 });
 
 // Get product by ID
-router.get('/:id', async (req, res, next) => {
+router.get(
+  '/:id',
+  cacheMiddleware({
+    ttl: 3 * 60 * 1000,
+    tags: [{ resource: 'product' }],
+    buildTags: (req) => [{ resource: 'product', id: req.params.id }],
+  }),
+  async (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -752,38 +760,29 @@ router.post('/bulk-delete', async (req, res, next) => {
       throw createError('Product IDs array is required', 400);
     }
 
+    const uniqueIds = Array.from(new Set(productIds));
+
     const deletedProducts = await db
       .delete(products)
-      .where(eq(products.id, productIds[0])) // This would need to be updated to handle multiple IDs
+      .where(inArray(products.id, uniqueIds))
       .returning();
 
-    // For now, delete one by one (not optimal, but works)
-    const results = [];
-    for (const id of productIds) {
-      try {
-        const [deleted] = await db
-          .delete(products)
-          .where(eq(products.id, id))
-          .returning();
-        if (deleted) {
-          results.push(deleted);
-        }
-      } catch (err) {
-        console.error(`Failed to delete product ${id}:`, err);
-      }
-    }
+    const deletedIdSet = new Set(deletedProducts.map((product) => product.id));
+    const failedIds = productIds.filter((id) => !deletedIdSet.has(id));
 
     await invalidateProductCaches({
-      productIds: results.map((product) => product.id),
-      kanbanIds: results.map((product) => product.kanbanId),
-      locationIds: results.map((product) => product.locationId),
-      skuValues: results.map((product) => product.sku),
+      productIds: deletedProducts.map((product) => product.id),
+      kanbanIds: deletedProducts.map((product) => product.kanbanId),
+      locationIds: deletedProducts.map((product) => product.locationId),
+      skuValues: deletedProducts.map((product) => product.sku),
     });
 
-    res.json({ 
-      message: `${results.length} products deleted successfully`,
-      deletedCount: results.length,
-      requestedCount: productIds.length
+    res.json({
+      message: `${deletedProducts.length} products deleted successfully`,
+      deletedCount: deletedProducts.length,
+      requestedCount: productIds.length,
+      deletedProducts,
+      failedIds,
     });
   } catch (error) {
     next(error);
@@ -802,38 +801,42 @@ router.post('/bulk-update', async (req, res, next) => {
       throw createError('Update data is required', 400);
     }
 
-    // Update products one by one (not optimal, but works for now)
-    const results = [];
-    for (const id of productIds) {
-      try {
-        const [updated] = await db
-          .update(products)
-          .set({
-            ...updateData,
-            updatedAt: new Date(),
-          })
-          .where(eq(products.id, id))
-          .returning();
-        if (updated) {
-          results.push(updated);
-        }
-      } catch (err) {
-        console.error(`Failed to update product ${id}:`, err);
-      }
+    const sanitizedUpdateEntries = Object.entries(updateData).filter(
+      ([, value]) => value !== undefined,
+    );
+
+    if (sanitizedUpdateEntries.length === 0) {
+      throw createError('Update data is required', 400);
     }
 
+    const sanitizedUpdateData = Object.fromEntries(sanitizedUpdateEntries);
+    const uniqueIds = Array.from(new Set(productIds));
+
+    const updatedProducts = await db
+      .update(products)
+      .set({
+        ...sanitizedUpdateData,
+        updatedAt: new Date(),
+      })
+      .where(inArray(products.id, uniqueIds))
+      .returning();
+
+    const updatedIdSet = new Set(updatedProducts.map((product) => product.id));
+    const failedIds = productIds.filter((id) => !updatedIdSet.has(id));
+
     await invalidateProductCaches({
-      productIds: results.map((product) => product.id),
-      kanbanIds: results.map((product) => product.kanbanId),
-      locationIds: results.map((product) => product.locationId),
-      skuValues: results.map((product) => product.sku),
+      productIds: updatedProducts.map((product) => product.id),
+      kanbanIds: updatedProducts.map((product) => product.kanbanId),
+      locationIds: updatedProducts.map((product) => product.locationId),
+      skuValues: updatedProducts.map((product) => product.sku),
     });
 
-    res.json({ 
-      message: `${results.length} products updated successfully`,
-      updatedProducts: results,
-      updatedCount: results.length,
-      requestedCount: productIds.length
+    res.json({
+      message: `${updatedProducts.length} products updated successfully`,
+      updatedProducts,
+      updatedCount: updatedProducts.length,
+      requestedCount: productIds.length,
+      failedIds,
     });
   } catch (error) {
     next(error);
@@ -849,70 +852,55 @@ router.post('/bulk-reject', async (req, res, next) => {
       throw createError('Product IDs array is required', 400);
     }
 
-    // Fetch products to validate they're in valid columns for rejection
+    const uniqueIds = Array.from(new Set(productIds));
+
     const productsToReject = await db
       .select()
       .from(products)
-      .leftJoin(kanbans, eq(products.kanbanId, kanbans.id))
-      .where(eq(products.id, productIds[0]));
+      .where(inArray(products.id, uniqueIds));
 
-    // Check for valid product IDs and columns
     const validColumns = ['New Request', 'In Review'];
-    const results = [];
-    const failedIds: string[] = [];
+    const validIds = productsToReject
+      .filter((product) => validColumns.includes(product.columnStatus))
+      .map((product) => product.id);
 
-    for (const id of productIds) {
-      try {
-        const [productData] = await db
-          .select()
-          .from(products)
-          .where(eq(products.id, id));
-
-        if (!productData) {
-          failedIds.push(id);
-          continue;
-        }
-
-        // Validate column status
-        if (!validColumns.includes(productData.columnStatus)) {
-          console.warn(`Product ${id} is in ${productData.columnStatus}, cannot reject`);
-          failedIds.push(id);
-          continue;
-        }
-
-        const [updated] = await db
-          .update(products)
-          .set({
-            isRejected: true,
-            rejectedAt: new Date(),
-            rejectionReason: rejectionReason || null,
-            updatedAt: new Date(),
-          })
-          .where(eq(products.id, id))
-          .returning();
-
-        if (updated) {
-          results.push(updated);
-        }
-      } catch (err) {
-        console.error(`Failed to reject product ${id}:`, err);
-        failedIds.push(id);
-      }
+    if (validIds.length === 0) {
+      return res.json({
+        message: '0 products rejected successfully',
+        affectedCount: 0,
+        successIds: [],
+        failedIds: productIds,
+        rejectedProducts: [],
+      });
     }
 
+    const updatedProducts = await db
+      .update(products)
+      .set({
+        isRejected: true,
+        rejectedAt: new Date(),
+        rejectionReason: rejectionReason || null,
+        updatedAt: new Date(),
+      })
+      .where(inArray(products.id, validIds))
+      .returning();
+
+    const updatedIdSet = new Set(updatedProducts.map((product) => product.id));
+    const failedIds = productIds.filter((id) => !updatedIdSet.has(id));
+
     await invalidateProductCaches({
-      productIds: results.map((product) => product.id),
-      kanbanIds: results.map((product) => product.kanbanId),
-      locationIds: results.map((product) => product.locationId),
-      skuValues: results.map((product) => product.sku),
+      productIds: updatedProducts.map((product) => product.id),
+      kanbanIds: updatedProducts.map((product) => product.kanbanId),
+      locationIds: updatedProducts.map((product) => product.locationId),
+      skuValues: updatedProducts.map((product) => product.sku),
     });
 
     res.json({
-      message: `${results.length} products rejected successfully`,
-      affectedCount: results.length,
-      successIds: results.map(p => p.id),
+      message: `${updatedProducts.length} products rejected successfully`,
+      affectedCount: updatedProducts.length,
+      successIds: updatedProducts.map((product) => product.id),
       failedIds,
-      rejectedProducts: results,
+      rejectedProducts: updatedProducts,
     });
   } catch (error) {
     next(error);
@@ -974,82 +962,77 @@ router.post('/bulk-move', async (req, res, next) => {
       throw createError('Target column is required', 400);
     }
 
-    // Fetch all products to validate they're in the same column
+    if (targetColumn === 'Stored' && !locationId) {
+      throw createError('Location ID is required when moving to Stored', 400);
+    }
+
+    const uniqueIds = Array.from(new Set(productIds));
+
     const productsToMove = await db
       .select()
       .from(products)
-      .where(eq(products.id, productIds[0]));
+      .where(inArray(products.id, uniqueIds));
 
-    const results = [];
-    const failedIds: string[] = [];
-
-    // Get the source column from first product
-    let sourceColumn: string | null = null;
-
-    for (const id of productIds) {
-      try {
-        const [product] = await db
-          .select()
-          .from(products)
-          .where(eq(products.id, id));
-
-        if (!product) {
-          failedIds.push(id);
-          continue;
-        }
-
-        // Check if all products are in same column
-        if (sourceColumn === null) {
-          sourceColumn = product.columnStatus;
-        } else if (sourceColumn !== product.columnStatus) {
-          throw createError('All products must be in the same column for bulk move', 400);
-        }
-
-        const updateData: any = {
-          columnStatus: targetColumn,
-          columnEnteredAt: new Date(),
-          updatedAt: new Date(),
-        };
-
-        // If moving to Stored, location is required
-        if (targetColumn === 'Stored') {
-          if (!locationId) {
-            throw createError('Location ID is required when moving to Stored', 400);
-          }
-          updateData.locationId = locationId;
-        }
-
-        const [updated] = await db
-          .update(products)
-          .set(updateData)
-          .where(eq(products.id, id))
-          .returning();
-
-        if (updated) {
-          results.push(updated);
-        }
-      } catch (err) {
-        console.error(`Failed to move product ${id}:`, err);
-        failedIds.push(id);
-      }
+    if (productsToMove.length === 0) {
+      return res.json({
+        message: '0 products moved successfully',
+        affectedCount: 0,
+        successIds: [],
+        failedIds: productIds,
+        movedProducts: [],
+      });
     }
 
+    const columnStatuses = Array.from(
+      new Set(productsToMove.map((product) => product.columnStatus)),
+    );
+
+    if (columnStatuses.length > 1) {
+      throw createError('All products must be in the same column for bulk move', 400);
+    }
+
+    const sourceColumn = columnStatuses[0];
+
+    const updateData: any = {
+      columnStatus: targetColumn,
+      columnEnteredAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    if (targetColumn === 'Stored') {
+      updateData.locationId = locationId;
+    }
+
+    const updatedProducts = await db
+      .update(products)
+      .set(updateData)
+      .where(
+        and(
+          inArray(products.id, uniqueIds),
+          eq(products.columnStatus, sourceColumn),
+        ),
+      )
+      .returning();
+
+    const updatedIdSet = new Set(updatedProducts.map((product) => product.id));
+    const failedIds = productIds.filter((id) => !updatedIdSet.has(id));
+
     await invalidateProductCaches({
-      productIds: results.map((product) => product.id),
-      kanbanIds: results.map((product) => product.kanbanId),
+      productIds: updatedProducts.map((product) => product.id),
+      kanbanIds: updatedProducts.map((product) => product.kanbanId),
       locationIds: [
-        ...results.map((product) => product.locationId),
+        ...updatedProducts.map((product) => product.locationId),
         locationId,
       ],
-      skuValues: results.map((product) => product.sku),
+      skuValues: updatedProducts.map((product) => product.sku),
     });
 
     res.json({
-      message: `${results.length} products moved successfully`,
-      affectedCount: results.length,
-      successIds: results.map(p => p.id),
+      message: `${updatedProducts.length} products moved successfully`,
+      affectedCount: updatedProducts.length,
+      successIds: updatedProducts.map((product) => product.id),
       failedIds,
-      movedProducts: results,
+      movedProducts: updatedProducts,
     });
   } catch (error) {
     next(error);
