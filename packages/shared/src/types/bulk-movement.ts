@@ -25,6 +25,7 @@ export const BulkMovementSchema = z.object({
   fromLocationId: z.string().uuid(),
   toLocationId: z.string().uuid(),
   status: BulkMovementStatusSchema,
+  requiresConfirmation: z.boolean().default(false),
   publicToken: z.string(),
   tokenExpiresAt: z.coerce.date(),
   createdBy: z.string(),
@@ -75,6 +76,7 @@ export const CreateBulkMovementSchema = z.object({
   toLocationId: z.string().uuid().nullable().optional(),
   items: z.array(CreateBulkMovementItemSchema).min(1, 'At least one item is required'),
   notes: z.string().max(1000).nullable().optional(),
+  requiresConfirmation: z.boolean().optional().default(false),
 })
   // Ensure we have at least a source area or a concrete source location
   .refine(
@@ -170,6 +172,7 @@ export const PublicBulkMovementResponseSchema = z.object({
     area: z.string(),
   }),
   status: BulkMovementStatusSchema,
+  requiresConfirmation: z.boolean(),
   items: z.array(BulkMovementItemSchema),
   notes: z.string().nullable(),
   createdAt: z.coerce.date(),

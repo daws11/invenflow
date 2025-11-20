@@ -70,6 +70,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       toLocationId,
       items,
       notes,
+      requiresConfirmation = false,
     } = validatedData;
 
     // Get user from auth token
@@ -218,11 +219,12 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         .values({
           fromLocationId: effectiveFromLocationId,
           toLocationId: effectiveToLocationId!,
-          status: 'in_transit',
+          status: requiresConfirmation ? 'pending' : 'in_transit',
           publicToken,
           tokenExpiresAt,
           createdBy,
           notes: notes || null,
+          requiresConfirmation,
         })
         .returning();
 
@@ -244,24 +246,26 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         .values(bulkMovementItemsData)
         .returning();
 
-      // 7. Update product stock and status (only change status if ALL stock is moved)
-      for (const item of items) {
-        const product = productsMap.get(item.productId)!;
-        const newStockLevel = (product.stockLevel || 0) - item.quantitySent;
+      // 7. Update product stock and status (only if confirmation is not required)
+      if (!requiresConfirmation) {
+        for (const item of items) {
+          const product = productsMap.get(item.productId)!;
+          const newStockLevel = (product.stockLevel || 0) - item.quantitySent;
 
-        // Only change status to 'In Transit' if ALL stock is being moved (newStockLevel becomes 0)
-        // If partial movement, keep status as 'Stored' since there's still stock at source location
-        const shouldChangeStatus = newStockLevel === 0;
+          // Only change status to 'In Transit' if ALL stock is being moved (newStockLevel becomes 0)
+          // If partial movement, keep status as 'Stored' since there's still stock at source location
+          const shouldChangeStatus = newStockLevel === 0;
 
-        await tx
-          .update(products)
-          .set({
-            // Only change status if moving all stock
-            ...(shouldChangeStatus && { columnStatus: 'In Transit' }),
-            stockLevel: newStockLevel,
-            updatedAt: new Date(),
-          })
-          .where(eq(products.id, item.productId));
+          await tx
+            .update(products)
+            .set({
+              // Only change status if moving all stock
+              ...(shouldChangeStatus && { columnStatus: 'In Transit' }),
+              stockLevel: newStockLevel,
+              updatedAt: new Date(),
+            })
+            .where(eq(products.id, item.productId));
+        }
       }
 
       return {
@@ -269,7 +273,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         items: createdItems,
         fromLocation: fromLocationRow!,
         toLocation: toLocationRow!,
-        affectedProductIds: items.map((item) => item.productId),
+        affectedProductIds: requiresConfirmation ? [] : items.map((item) => item.productId),
         affectedLocationIds: [
           fromLocationRow?.id ?? null,
           toLocationRow?.id ?? null,

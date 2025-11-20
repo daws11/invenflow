@@ -162,11 +162,19 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
   const totalQuantity = selectedProducts.reduce((sum, item) => sum + item.quantity, 0);
   const isBulkMovement = selectedProducts.length > 1;
 
+  const confirmationTitle = isBulkMovement
+    ? 'Require Receiver Confirmation for all selected items'
+    : 'Require Receiver Confirmation';
+
+  const confirmationDescription = isBulkMovement
+    ? 'Enable this to generate a single confirmation link for the receiver. Stock changes will be applied only after the link is confirmed for every selected item.'
+    : 'Enable this to generate a confirmation link for the recipient. Stock changes will be applied only after they confirm the transfer.';
+
   useEffect(() => {
-    if ((isBulkMovement || selectedProducts.length !== 1) && requiresConfirmation) {
+    if (selectedProducts.length === 0 && requiresConfirmation) {
       setRequiresConfirmation(false);
     }
-  }, [isBulkMovement, selectedProducts.length, requiresConfirmation]);
+  }, [selectedProducts.length, requiresConfirmation]);
 
   // Handler for destination type change
   const handleDestinationTypeChange = (type: 'location' | 'person') => {
@@ -235,40 +243,43 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
             quantitySent: item.quantity,
           })),
           notes: notes || null,
+          requiresConfirmation,
         });
-        
-        const publicUrl = `${window.location.origin}/bulk-movement/confirm/${result.publicToken}`;
-        const fromLocationResolved = fromLocation;
-        const toLocationResolved = toLocationId
-          ? toLocation
-          : locations.find(
-              (l) => l.area === (toArea || toLocation?.area) && l.name === 'General'
-            ) || toLocation;
-        
-        // Show success modal instead of alert
-        setBulkMovementResult({
-          id: result.id,
-          publicToken: result.publicToken,
-          publicUrl,
-          totalItems,
-          totalQuantity,
-          fromLocationName: fromLocationResolved
-            ? `${fromLocationResolved.name}${
-                fromLocationResolved.area ? ` - ${fromLocationResolved.area}` : ''
-              }`
-            : 'Unknown',
-          toLocationName: toLocationResolved
-            ? `${toLocationResolved.name}${
-                toLocationResolved.area ? ` - ${toLocationResolved.area}` : ''
-              }`
-            : toArea || 'Unknown',
-        });
-        
-        // Auto copy to clipboard
-        navigator.clipboard.writeText(publicUrl).then(() => {
-          setLinkCopied(true);
-          setTimeout(() => setLinkCopied(false), 3000);
-        }).catch(() => console.log('Could not copy'));
+        if (requiresConfirmation) {
+          const publicUrl = `${window.location.origin}/bulk-movement/confirm/${result.publicToken}`;
+          const fromLocationResolved = fromLocation;
+          const toLocationResolved = toLocationId
+            ? toLocation
+            : locations.find(
+                (l) => l.area === (toArea || toLocation?.area) && l.name === 'General'
+              ) || toLocation;
+
+          setBulkMovementResult({
+            id: result.id,
+            publicToken: result.publicToken,
+            publicUrl,
+            totalItems,
+            totalQuantity,
+            fromLocationName: fromLocationResolved
+              ? `${fromLocationResolved.name}${
+                  fromLocationResolved.area ? ` - ${fromLocationResolved.area}` : ''
+                }`
+              : 'Unknown',
+            toLocationName: toLocationResolved
+              ? `${toLocationResolved.name}${
+                  toLocationResolved.area ? ` - ${toLocationResolved.area}` : ''
+                }`
+              : toArea || 'Unknown',
+          });
+
+          navigator.clipboard.writeText(publicUrl).then(() => {
+            setLinkCopied(true);
+            setTimeout(() => setLinkCopied(false), 3000);
+          }).catch(() => console.log('Could not copy'));
+        } else {
+          onSuccess?.();
+          handleReset();
+        }
       } else {
         const product = selectedProducts[0];
         const fromLocation = fromLocationId
@@ -681,15 +692,15 @@ export function MovementModal({ isOpen, onClose, preselectedProduct, onSuccess }
                 </div>
 
                 {/* 3. CONFIRMATION TOGGLE */}
-                {!isBulkMovement && selectedProducts.length === 1 && (
+                {selectedProducts.length > 0 && (
                   <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm flex items-start justify-between space-x-4">
                     <div>
                       <p className="text-sm font-semibold text-gray-900 flex items-center">
                         <CheckIcon className="w-4 h-4 text-blue-600 mr-2" />
-                        Require Receiver Confirmation
+                        {confirmationTitle}
                       </p>
                       <p className="text-xs text-gray-600 mt-1 max-w-md">
-                        Enable this to generate a confirmation link for the recipient. Stock changes will be applied only after they confirm the transfer.
+                        {confirmationDescription}
                       </p>
                       {requiresConfirmation ? (
                         <p className="mt-2 text-xs text-blue-700">

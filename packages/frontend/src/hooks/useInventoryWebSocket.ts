@@ -30,10 +30,26 @@ const getWebSocketUrl = (): string | null => {
   const apiUrl =
     import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? 'http://localhost:3001/api';
   const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
-  const url = new URL(baseUrl);
+
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch (error) {
+    console.error('[useInventoryWebSocket] Invalid API URL', { baseUrl, error });
+    return null;
+  }
+
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
   url.pathname = '/ws/inventory';
   url.searchParams.set('token', token);
+
+  if (!url.host) {
+    console.error('[useInventoryWebSocket] WebSocket URL missing host', { baseUrl });
+    return null;
+  }
+
+  const connectionDetails = `${url.protocol}//${url.host}${url.pathname}`;
+  console.debug('[useInventoryWebSocket] Prepared WebSocket URL', connectionDetails);
   return url.toString();
 };
 
@@ -106,14 +122,30 @@ export const useInventoryWebSocket = (options: UseInventoryWebSocketOptions = {}
       }
     };
 
-    socket.onerror = () => {
+    const sanitisedUrl = url.replace(/(\?.*)$/, '');
+
+    socket.onerror = (event) => {
+      console.error('[useInventoryWebSocket] WebSocket error', {
+        url: sanitisedUrl,
+        readyState: socket.readyState,
+        event,
+      });
       socket.close();
     };
 
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       socketRef.current = null;
       setStatus('disconnected');
-      if (!manualDisconnectRef.current) {
+      console.warn('[useInventoryWebSocket] WebSocket closed', {
+        url: sanitisedUrl,
+        code: event.code,
+        reason: event.reason,
+        wasClean: event.wasClean,
+      });
+      if (
+        !manualDisconnectRef.current &&
+        event.code !== 1008
+      ) {
         scheduleReconnect();
       }
     };

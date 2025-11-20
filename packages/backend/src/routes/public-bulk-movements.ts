@@ -71,6 +71,7 @@ router.get('/:token', async (req: Request, res: Response, next: NextFunction) =>
         area: bulkMovementData.toLocation!.area,
       },
       status: bulkMovementData.bulkMovement.status as any,
+      requiresConfirmation: bulkMovementData.bulkMovement.requiresConfirmation,
       items,
       notes: bulkMovementData.bulkMovement.notes,
       createdAt: bulkMovementData.bulkMovement.createdAt,
@@ -157,6 +158,8 @@ router.post('/:token/confirm', async (req: Request, res: Response, next: NextFun
       // Create a map for quick lookup
       const itemsMap = new Map(allItems.map(item => [item.id, item]));
 
+      const affectedSourceProductIds = new Set<string>();
+
       // Validate all confirmed items exist
       for (const confirmedItem of confirmedItems) {
         const item = itemsMap.get(confirmedItem.itemId);
@@ -174,6 +177,47 @@ router.post('/:token/confirm', async (req: Request, res: Response, next: NextFun
           .update(bulkMovementItems)
           .set({ quantityReceived: confirmedItem.quantityReceived })
           .where(eq(bulkMovementItems.id, confirmedItem.itemId));
+      }
+
+      // 6. If confirmation was required, deduct stock from the original products
+      if (bulkMovement.requiresConfirmation) {
+        for (const confirmedItem of confirmedItems) {
+          if (confirmedItem.quantityReceived <= 0) {
+            continue;
+          }
+
+          const item = itemsMap.get(confirmedItem.itemId)!;
+          const [originalProduct] = await tx
+            .select()
+            .from(products)
+            .where(eq(products.id, item.productId))
+            .limit(1);
+
+          if (!originalProduct) {
+            throw new Error(`Original product ${item.productId} not found`);
+          }
+
+          const availableStock = originalProduct.stockLevel ?? 0;
+          if (confirmedItem.quantityReceived > availableStock) {
+            throw new Error(
+              `Insufficient stock for ${originalProduct.productDetails}. Available: ${availableStock}, Requested: ${confirmedItem.quantityReceived}`,
+            );
+          }
+
+          const newStockLevel = availableStock - confirmedItem.quantityReceived;
+          const shouldChangeStatus = newStockLevel === 0;
+
+          await tx
+            .update(products)
+            .set({
+              ...(shouldChangeStatus && { columnStatus: 'In Transit' }),
+              stockLevel: newStockLevel,
+              updatedAt: new Date(),
+            })
+            .where(eq(products.id, originalProduct.id));
+
+          affectedSourceProductIds.add(originalProduct.id);
+        }
       }
 
       // 6. For each item with quantityReceived > 0, create new products at destination
@@ -294,10 +338,6 @@ router.post('/:token/confirm', async (req: Request, res: Response, next: NextFun
         }
       }
 
-      // 7. Update original products' status back to Stored if not all quantity was sent
-      // (In this implementation, we already reduced stock when creating bulk movement)
-      // The original product remains in 'In Transit' status with reduced stock
-      
       // 8. Update bulk movement status to 'received'
       await tx
         .update(bulkMovements)
@@ -313,7 +353,10 @@ router.post('/:token/confirm', async (req: Request, res: Response, next: NextFun
         bulkMovementId: bulkMovement.id,
         createdProductsCount: createdProducts.length,
         confirmedItemsCount: confirmedItems.filter(i => i.quantityReceived > 0).length,
-        affectedProductIds: createdProducts.map(product => product.id),
+        affectedProductIds: [
+          ...affectedSourceProductIds,
+          ...createdProducts.map(product => product.id),
+        ],
         affectedLocationIds: [
           bulkMovement.fromLocationId,
           bulkMovement.toLocationId,

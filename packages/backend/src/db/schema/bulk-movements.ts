@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, timestamp, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, timestamp, index, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { locations } from './locations';
 import { products } from './products';
@@ -14,6 +14,7 @@ export const bulkMovements = pgTable(
       .notNull()
       .references(() => locations.id, { onDelete: 'restrict' }),
     status: text('status').notNull().default('pending'), // pending, in_transit, received, expired
+    requiresConfirmation: boolean('requires_confirmation').notNull().default(false),
     publicToken: text('public_token').notNull().unique(),
     tokenExpiresAt: timestamp('token_expires_at').notNull(),
     createdBy: text('created_by').notNull(), // user email/username

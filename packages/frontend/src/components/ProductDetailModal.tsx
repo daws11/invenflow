@@ -153,18 +153,25 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
       });
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/products/${productId}/locations/${locationId}/stock`, {
-          method: 'PUT',
+        // Use inline stock adjustment API
+        const response = await fetch(`${API_BASE_URL}/api/stock-adjustments/inline`, {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
           },
-          body: JSON.stringify({ newStockLevel }),
+          body: JSON.stringify({
+            productId,
+            locationId,
+            newQuantity: newStockLevel,
+            reason: 'Manual stock adjustment from inventory management',
+            notes: null,
+          }),
         });
 
         if (!response.ok) {
           const errorPayload = await response.json().catch(() => null);
-          throw new Error(errorPayload?.message || 'Failed to update stock');
+          throw new Error(errorPayload?.message || errorPayload?.error?.message || 'Failed to update stock');
         }
 
         await fetchLocationBreakdown();
@@ -173,7 +180,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
           await fetchGroupedInventory();
         }
         setMovementHistoryRefreshToken((prev) => prev + 1);
-        _success('Stock updated successfully');
+        _success('Stock adjusted successfully');
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : 'Failed to update stock';

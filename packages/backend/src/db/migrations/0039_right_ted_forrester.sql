@@ -1,0 +1,1 @@
+ALTER TABLE "bulk_movements" ADD COLUMN "requires_confirmation" boolean DEFAULT false NOT NULL;

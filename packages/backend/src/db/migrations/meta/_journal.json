@@ -274,6 +274,13 @@
       "when": 1763619794981,
       "tag": "0038_charming_hex",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1763622920015,
+      "tag": "0039_right_ted_forrester",
+      "breakpoints": true
     }
   ]
 }

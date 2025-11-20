@@ -952,7 +952,7 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
     
     console.log('Fetching location details for SKU:', sku);
     
-    // First get products with basic info
+    // First get products with basic info (exclude products with 0 stock)
     const productsList = await db
       .select({
         id: products.id,
@@ -974,7 +974,8 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
             isNull(products.kanbanId) // Include direct import items
           ),
           inArray(products.columnStatus, ['Received', 'Stored']),
-          eq(products.isDraft, false)
+          eq(products.isDraft, false),
+          sql`${products.stockLevel} > 0` // Only include products with stock > 0
         )
       )
       .orderBy(desc(products.updatedAt));
@@ -1066,21 +1067,23 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
       }
     }
 
-    // Convert map to array
-    const items = Array.from(aggregatedMap.values()).map(item => ({
-      productDetails: item.productDetails,
-      columnStatus: item.columnStatus,
-      stockLevel: item.totalStock,
-      productCount: item.productIds.length,
-      productIds: item.productIds,
-      primaryProductId: item.productIds[0] ?? null,
-      locationId: item.locationId,
-      assignedToPersonId: item.assignedToPersonId,
-      updatedAt: item.lastUpdated,
-      location: item.location,
-      person: item.person,
-      kanban: item.kanban,
-    }));
+    // Convert map to array and filter out entries with 0 total stock
+    const items = Array.from(aggregatedMap.values())
+      .filter(item => item.totalStock > 0) // Filter out locations with 0 total stock
+      .map(item => ({
+        productDetails: item.productDetails,
+        columnStatus: item.columnStatus,
+        stockLevel: item.totalStock,
+        productCount: item.productIds.length,
+        productIds: item.productIds,
+        primaryProductId: item.productIds[0] ?? null,
+        locationId: item.locationId,
+        assignedToPersonId: item.assignedToPersonId,
+        updatedAt: item.lastUpdated,
+        location: item.location,
+        person: item.person,
+        kanban: item.kanban,
+      }));
 
     res.json({ items });
   } catch (error) {

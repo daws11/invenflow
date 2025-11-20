@@ -700,6 +700,7 @@ export const bulkMovementApi = {
 
 export const publicMovementApi = {
   getByToken: async (token: string): Promise<PublicMovementResponse> => {
+    // Use plain axios (not 'api' instance) to avoid auth interceptor for public endpoints
     const response = await axios.get(
       `${API_BASE_URL}/api/public/movements/${token}`,
     );
@@ -714,6 +715,7 @@ export const publicMovementApi = {
     movementLogId: string;
     quantityProcessed: number;
   }> => {
+    // Use plain axios (not 'api' instance) to avoid auth interceptor for public endpoints
     const response = await axios.post(
       `${API_BASE_URL}/api/public/movements/${token}/confirm`,
       data,

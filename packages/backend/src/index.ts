@@ -140,6 +140,13 @@ app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/inventory", inventoryRouter);
 
+// Public routes (no authentication required)
+// IMPORTANT: Mount public routes BEFORE protected routes to prevent middleware leakage
+// Mount specific public routes BEFORE generic /api/public to avoid route conflicts
+app.use("/api/public/bulk-movements", publicBulkMovementsRouter);
+app.use("/api/public/movements", publicMovementsRouter);
+app.use("/api/public", publicRouter);
+
 // Protected routes (require authentication)
 app.use("/api/bulk-movements", bulkMovementsRouter);
 app.use("/api/kanbans", kanbansRouter);
@@ -155,11 +162,6 @@ app.use("/api/stored-logs", storedLogsRouter);
 app.use("/api/stock-adjustments", stockAdjustmentsRouter);
 app.use("/api/upload", uploadRouter);
 app.use("/api/validations", validationsRouter);
-
-// Public routes (no authentication required)
-app.use("/api/public", publicRouter);
-app.use("/api/public/bulk-movements", publicBulkMovementsRouter);
-app.use("/api/public/movements", publicMovementsRouter);
 
 // Health check endpoint
 app.get("/", (req, res) => {
@@ -186,8 +188,12 @@ if (process.env.NODE_ENV === "production") {
   if (existsSync(indexPath)) {
     // Catch-all handler for SPA routing
     app.get("*", (req, res, next) => {
-      // Don't intercept API routes or static file requests
-      if (req.path.startsWith("/api") || req.path.startsWith("/uploads")) {
+      // Don't intercept API routes, WebSocket routes, or static file requests
+      if (
+        req.path.startsWith("/api") ||
+        req.path.startsWith("/uploads") ||
+        req.path.startsWith("/ws")
+      ) {
         return next();
       }
 
@@ -239,10 +245,11 @@ const server = app.listen(env.PORT, "0.0.0.0", () => {
     console.log(`📡 API endpoints: http://localhost:${env.PORT}/api/`);
     console.log(`📁 File uploads: http://localhost:${env.PORT}/uploads/`);
   }
-});
 
-initializeCommentWebSocket(server);
-initializeInventoryWebSocket(server);
+  // Initialize WebSocket servers after HTTP server is ready
+  initializeCommentWebSocket(server);
+  initializeInventoryWebSocket(server);
+});
 
 const gracefulShutdown = async (signal: string) => {
   console.log(`\nReceived ${signal}, shutting down gracefully...`);

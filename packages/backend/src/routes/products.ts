@@ -313,29 +313,12 @@ router.put('/:productId/locations/:locationId/stock', async (req, res, next) => 
     const movedBy = (req as any).user?.email || (req as any).user?.username || 'system';
     const changeDirection = stockDiff > 0 ? 'increased' : 'decreased';
     const notes = `Manual stock adjustment: ${changeDirection} by ${Math.abs(stockDiff)} units (from ${oldStock} to ${newStockLevel})`;
+    
+    // Determine adjustment type based on change direction
+    const adjustmentType = stockDiff > 0 ? 'manual_increase' : 'manual_decrease';
+    const adjustmentReason = `Manual adjustment from inline edit: ${changeDirection} by ${Math.abs(stockDiff)} units`;
 
-    const [movementLog] = await db
-      .insert(movementLogs)
-      .values({
-        productId: product.id,
-        fromLocationId: product.locationId,
-        toLocationId: product.locationId,
-        fromArea: locationRow.area ?? null,
-        toArea: locationRow.area ?? null,
-        fromPersonId: product.assignedToPersonId,
-        toPersonId: product.assignedToPersonId,
-        fromStockLevel: oldStock,
-        toStockLevel: newStockLevel,
-        quantityMoved: Math.abs(stockDiff),
-        notes,
-        movedBy,
-        requiresConfirmation: false,
-        status: 'received',
-        confirmedBy: movedBy,
-        confirmedAt: new Date(),
-      })
-      .returning();
-
+    // Update product first to calculate correct toStockLevel
     let updatedProduct = null;
 
     if (newStockLevel === 0) {
@@ -352,6 +335,54 @@ router.put('/:productId/locations/:locationId/stock', async (req, res, next) => 
         .where(eq(products.id, product.id))
         .returning();
     }
+
+    // Calculate total stock at location for this SKU (after update)
+    let toStockLevel: number | null = null;
+    if (locationId && product.sku) {
+      const [row] = await db
+        .select({
+          total: sql<number>`coalesce(sum(${products.stockLevel}), 0)`,
+        })
+        .from(products)
+        .where(
+          and(
+            eq(products.locationId, locationId),
+            eq(products.sku, product.sku)
+          )
+        );
+      toStockLevel = Number(row?.total ?? 0);
+    } else {
+      // If no SKU, use the new stock level directly
+      toStockLevel = newStockLevel;
+    }
+
+    const [movementLog] = await db
+      .insert(movementLogs)
+      .values({
+        productId: product.id,
+        fromLocationId: product.locationId,
+        toLocationId: product.locationId,
+        fromArea: locationRow.area ?? null,
+        toArea: locationRow.area ?? null,
+        fromPersonId: product.assignedToPersonId,
+        toPersonId: product.assignedToPersonId,
+        fromStockLevel: oldStock,
+        toStockLevel,
+        quantityMoved: Math.abs(stockDiff),
+        notes,
+        movedBy,
+        requiresConfirmation: false,
+        status: 'received', // Use 'received' for inline adjustments (stock already updated)
+        confirmedBy: movedBy,
+        confirmedAt: new Date(),
+        // Stock adjustment fields
+        movementType: 'adjustment',
+        adjustmentType,
+        adjustmentReason,
+        approvedBy: movedBy,
+        approvedAt: new Date(),
+      })
+      .returning();
 
     const cacheLocationIds = Array.from(
       new Set(
@@ -1463,3 +1494,4 @@ router.get('/by-location/:locationId', async (req, res, next) => {
 });
 
 export { router as productsRouter };
+

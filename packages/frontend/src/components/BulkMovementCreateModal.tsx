@@ -100,6 +100,7 @@ export function BulkMovementCreateModal({ isOpen, onClose }: BulkMovementCreateM
         toLocationId: toLocationId || null,
         items: selectedItems.map(({ productId, quantitySent }) => ({ productId, quantitySent })),
         notes: notes || null,
+        requiresConfirmation: false, // This modal doesn't support confirmation mode
       });
 
       setCreatedBulkMovement(result);
