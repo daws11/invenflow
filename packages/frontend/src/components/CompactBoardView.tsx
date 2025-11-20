@@ -11,7 +11,7 @@ import {
   DragEndEvent,
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { Product, Kanban, ORDER_COLUMNS, RECEIVE_COLUMNS, Location, ProductGroupWithDetails, ColumnStatus } from '@invenflow/shared';
+import { Product, Kanban, ORDER_COLUMNS, RECEIVE_COLUMNS, INVESTMENT_COLUMNS, Location, ProductGroupWithDetails, ColumnStatus } from '@invenflow/shared';
 import CompactKanbanColumn from './CompactKanbanColumn';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
 import { useKanbanStore } from '../store/kanbanStore';
@@ -59,7 +59,16 @@ export default function CompactBoardView({
   );
 
   const getColumns = () => {
-    return kanban.type === 'order' ? ORDER_COLUMNS : RECEIVE_COLUMNS;
+    switch (kanban.type) {
+      case 'order':
+        return ORDER_COLUMNS;
+      case 'receive':
+        return RECEIVE_COLUMNS;
+      case 'investment':
+        return INVESTMENT_COLUMNS;
+      default:
+        return ORDER_COLUMNS;
+    }
   };
 
   const getColumnDisplayName = (column: string) => {

@@ -182,6 +182,16 @@ export function KanbanSettingsModal({
 
   if (!isOpen || !kanban) return null;
 
+  const kanbanTypeBadgeStyles: Record<
+    'order' | 'receive' | 'investment',
+    { badge: string; short: string; className: string }
+  > = {
+    order: { badge: 'Order Kanban', short: 'Order', className: 'bg-blue-100 text-blue-800' },
+    receive: { badge: 'Receive Kanban', short: 'Receive', className: 'bg-green-100 text-green-800' },
+    investment: { badge: 'Investment Kanban', short: 'Investment', className: 'bg-yellow-100 text-yellow-800' },
+  };
+  const currentTypeBadge = kanbanTypeBadgeStyles[kanban.type];
+
   const handleCopyUrl = () => {
     if (!kanban?.publicFormToken) return;
     const url = `${window.location.origin}/form/${kanban.publicFormToken}`;
@@ -413,12 +423,10 @@ export function KanbanSettingsModal({
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <div className="flex items-center justify-between mb-2">
           <h4 className="font-medium text-gray-900">{kanban.name}</h4>
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-            kanban.type === 'order'
-              ? 'bg-blue-100 text-blue-800'
-              : 'bg-green-100 text-green-800'
-          }`}>
-            {kanban.type === 'order' ? 'Order' : 'Receive'}
+          <span
+            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${currentTypeBadge.className}`}
+          >
+            {currentTypeBadge.badge}
           </span>
         </div>
         <p className="text-sm text-gray-600 mb-2">
@@ -728,13 +736,13 @@ export function KanbanSettingsModal({
             <div>
               <p className="font-medium text-gray-900">{kanban.name}</p>
               <p className="text-sm text-gray-600">
-                {kanban.type === 'order' ? 'Order Board' : 'Receive Board'}
+                {`${currentTypeBadge.short} Board`}
               </p>
             </div>
             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-              kanban.type === 'order' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+              currentTypeBadge.className
             }`}>
-              {kanban.type === 'order' ? 'Order' : 'Receive'}
+              {currentTypeBadge.short}
             </span>
           </div>
         </div>
@@ -1045,6 +1053,13 @@ export function KanbanSettingsModal({
     </div>
   );
 
+  const linkingTab: SliderTab = {
+    id: 'linking',
+    label: 'Linking',
+    content: linkingContent,
+    icon: <LinkIcon className="h-4 w-4" />,
+  };
+
   const tabs: SliderTab[] = [
     {
       id: 'overview',
@@ -1058,12 +1073,7 @@ export function KanbanSettingsModal({
       content: editContent,
       icon: <PencilIcon className="h-4 w-4" />,
     },
-    {
-      id: 'linking',
-      label: 'Linking',
-      content: linkingContent,
-      icon: <LinkIcon className="h-4 w-4" />,
-    },
+    ...(kanban.type !== 'investment' ? [linkingTab] : []),
     ...(kanban.type === 'receive'
       ? [
           {

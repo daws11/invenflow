@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
-import { Kanban, CreateKanban } from '@invenflow/shared';
+import { Kanban, CreateKanban, KanbanType } from '@invenflow/shared';
 import { CreateKanbanModal } from '../components/CreateKanbanModal';
 import { KanbanSettingsModal } from '../components/KanbanSettingsModal';
 import CompactKanbanListRow from '../components/CompactKanbanListRow';
@@ -81,7 +81,10 @@ export default function KanbanReceivingPage() {
     return kanban.description?.trim() || 'No description';
   };
 
-  const handleCreateKanban = async (name: string, _type: 'order' | 'receive', description?: string | null, locationId?: string) => {
+  const handleCreateKanban = async (name: string, type: KanbanType, description?: string | null, locationId?: string) => {
+    if (type !== 'receive') {
+      throw new Error('Unexpected kanban type for receiving page');
+    }
     try {
       const payload: CreateKanban = {
         name,

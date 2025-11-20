@@ -64,6 +64,13 @@ export function CreateKanbanModal({ isOpen, onClose, type, onCreate }: CreateKan
     return true;
   };
 
+  const kanbanTypeConfig: Record<KanbanType, { label: string; buttonClasses: string }> = {
+    order: { label: 'Order', buttonClasses: 'bg-blue-600 text-white hover:bg-blue-700' },
+    receive: { label: 'Receive', buttonClasses: 'bg-green-600 text-white hover:bg-green-700' },
+    investment: { label: 'Investment', buttonClasses: 'bg-yellow-600 text-white hover:bg-yellow-700' },
+  };
+  const currentTypeConfig = kanbanTypeConfig[type];
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -104,9 +111,7 @@ export function CreateKanbanModal({ isOpen, onClose, type, onCreate }: CreateKan
         onClick={handleSubmit}
         disabled={isSubmitting}
         className={`px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center ${
-          type === 'order'
-            ? 'bg-blue-600 text-white hover:bg-blue-700'
-            : 'bg-green-600 text-white hover:bg-green-700'
+          currentTypeConfig.buttonClasses
         }`}
       >
         {isSubmitting ? (
@@ -118,7 +123,7 @@ export function CreateKanbanModal({ isOpen, onClose, type, onCreate }: CreateKan
             Creating...
           </>
         ) : (
-          'Create Kanban'
+          `Create ${currentTypeConfig.label} Kanban`
         )}
       </button>
     </div>
@@ -189,7 +194,7 @@ export function CreateKanbanModal({ isOpen, onClose, type, onCreate }: CreateKan
     <Slider
       isOpen={isOpen}
       onClose={onClose}
-      title={`Create ${type === 'order' ? 'Order' : 'Receive'} Kanban`}
+      title={`Create ${currentTypeConfig.label} Kanban`}
       footer={footer}
     >
       <form onSubmit={handleSubmit}>

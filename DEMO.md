@@ -110,6 +110,11 @@ pnpm dev
 3. Open **Inventory Manager**, adjust a product (edit, move, or delete) or run a stock import.
 4. Ensure list view, grouped view, and inventory stats all refresh automatically after the mutation completes.
 
+### **Scenario 8: Master Data Freshness**
+1. Navigate to the Departments or Locations page in the app.
+2. Create, update, or delete a department/location and observe that the list and any dropdowns (such as form selectors) update immediately without requiring a manual browser refresh.
+3. This works because `GET /api/departments`, `GET /api/departments/active`, and `GET /api/locations` now bypass the HTTP cache layer while other resources keep benefiting from Redis-backed caching.
+
 ## 🔧 **API Testing (Optional)**
 
 Test the API directly with curl commands:

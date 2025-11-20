@@ -24,19 +24,36 @@ export function KanbanGridCard({
       return {
         isLinked: linkedCount > 0,
         count: linkedCount,
-        type: 'order' as const
+        type: 'order' as const,
       };
-    } else {
-      // For receive kanbans, check if it has a location (indicates it can receive links)
+    }
+
+    if (kanban.type === 'receive') {
       return {
         isLinked: !!kanban.locationId,
         count: 0,
-        type: 'receive' as const
+        type: 'receive' as const,
       };
     }
+
+    return {
+      isLinked: false,
+      count: 0,
+      type: 'investment' as const,
+    };
   };
 
   const linkedStatus = getLinkedStatus();
+
+  const typeBadgeStyles: Record<
+    'order' | 'receive' | 'investment',
+    { label: string; className: string }
+  > = {
+    order: { label: 'Order', className: 'bg-blue-100 text-blue-800' },
+    receive: { label: 'Receive', className: 'bg-green-100 text-green-800' },
+    investment: { label: 'Investment', className: 'bg-yellow-100 text-yellow-800' },
+  };
+  const currentTypeBadge = typeBadgeStyles[kanban.type];
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all duration-200 transform hover:-translate-y-1 animate-fade-in">
@@ -44,12 +61,10 @@ export function KanbanGridCard({
         <div className="flex-1">
           <h3 className="text-lg font-semibold mb-1">{kanban.name}</h3>
           <div className="flex items-center space-x-2 mb-2 flex-wrap gap-1">
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-              kanban.type === 'order'
-                ? 'bg-blue-100 text-blue-800'
-                : 'bg-green-100 text-green-800'
-            }`}>
-              {kanban.type === 'order' ? 'Order' : 'Receive'}
+            <span
+              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${currentTypeBadge.className}`}
+            >
+              {currentTypeBadge.label}
             </span>
             
             {/* Linked Badge */}

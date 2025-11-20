@@ -56,14 +56,7 @@ const combineSqlClauses = (clauses: SQL<unknown>[]): SQL<unknown> => {
 };
 
 // Get all locations (with optional search and area filter)
-router.get(
-  '/',
-  cacheMiddleware({
-    ttl: 30 * 60 * 1000,
-    sharedAcrossUsers: true,
-    tags: [{ resource: 'location' }],
-  }),
-  async (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const { search, area, sortBy = 'name', sortOrder = 'asc', activeOnly = 'true' } = req.query;
 

@@ -29,6 +29,7 @@ import { useProductGroupStore } from "../store/productGroupStore";
 import {
   ORDER_COLUMNS,
   RECEIVE_COLUMNS,
+  INVESTMENT_COLUMNS,
   Product,
   ValidationStatus,
   ProductGroupWithDetails,
@@ -232,7 +233,16 @@ export default function KanbanBoard() {
 
   const getColumns = () => {
     if (!currentKanban) return [];
-    return currentKanban.type === "order" ? ORDER_COLUMNS : RECEIVE_COLUMNS;
+    switch (currentKanban.type) {
+      case "order":
+        return ORDER_COLUMNS;
+      case "receive":
+        return RECEIVE_COLUMNS;
+      case "investment":
+        return INVESTMENT_COLUMNS;
+      default:
+        return ORDER_COLUMNS;
+    }
   };
 
   const getColumnDisplayName = (column: string) => {
@@ -1019,6 +1029,16 @@ export default function KanbanBoard() {
     );
   }
 
+  const kanbanTypeBadgeStyles: Record<
+    "order" | "receive" | "investment",
+    { label: string; className: string }
+  > = {
+    order: { label: "Order Kanban", className: "bg-blue-100 text-blue-800" },
+    receive: { label: "Receive Kanban", className: "bg-green-100 text-green-800" },
+    investment: { label: "Investment Kanban", className: "bg-yellow-100 text-yellow-800" },
+  };
+  const currentTypeBadge = kanbanTypeBadgeStyles[currentKanban.type];
+
   return (
     <DndContext
       sensors={sensors}
@@ -1061,15 +1081,9 @@ export default function KanbanBoard() {
                 <div className="mb-3 space-y-2 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
                   <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:items-center">
                     <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                        currentKanban.type === "order"
-                          ? "bg-blue-100 text-blue-800"
-                          : "bg-green-100 text-green-800"
-                      }`}
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${currentTypeBadge.className}`}
                     >
-                      {currentKanban.type === "order"
-                        ? "Order Kanban"
-                        : "Receive Kanban"}
+                      {currentTypeBadge.label}
                     </span>
 
                     {currentKanban.type === "order" &&

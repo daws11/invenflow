@@ -74,7 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
 
   // Auto-open kanban dropdown if current route is in kanban section
   useEffect(() => {
-    const kanbanPaths = ['/', '/kanbans/receiving', '/kanbans/purchasing', '/stored-log', '/rejection-log'];
+    const kanbanPaths = ['/', '/kanbans/receiving', '/kanbans/purchasing', '/kanbans/investment', '/stored-log', '/rejection-log'];
     if (kanbanPaths.includes(location.pathname)) {
       setIsKanbanOpen(true);
     }
@@ -110,6 +110,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
     {
       name: 'Kanban Receiving',
       path: '/kanbans/receiving',
+      icon: Layout,
+    },
+    {
+      name: 'Kanban Investment',
+      path: '/kanbans/investment',
       icon: Layout,
     },
     {

@@ -10,6 +10,7 @@ import { useAuthStore } from './store/authStore';
 // Lazy load components for better performance
 const KanbanPurchasingPage = lazy(() => import('./pages/KanbanPurchasingPage'));
 const KanbanReceivingPage = lazy(() => import('./pages/KanbanReceivingPage'));
+const KanbanInvestmentPage = lazy(() => import('./pages/KanbanInvestmentPage'));
 const KanbanBoard = lazy(() => import('./pages/KanbanBoard'));
 const StoredLogPage = lazy(() => import('./pages/StoredLogPage'));
 const RejectionLogPage = lazy(() => import('./pages/RejectionLogPage'));
@@ -114,6 +115,15 @@ function App() {
                 <ProtectedRoute>
                   <Suspense fallback={<PageLoader />}>
                     <KanbanReceivingPage />
+                  </Suspense>
+                </ProtectedRoute>
+              </Layout>
+            } />
+            <Route path="/kanbans/investment" element={
+              <Layout>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <KanbanInvestmentPage />
                   </Suspense>
                 </ProtectedRoute>
               </Layout>

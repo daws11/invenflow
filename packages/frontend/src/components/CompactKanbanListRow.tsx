@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Kanban, ORDER_COLUMNS, RECEIVE_COLUMNS, LinkedReceiveKanban } from '@invenflow/shared';
+import { Kanban, ORDER_COLUMNS, RECEIVE_COLUMNS, INVESTMENT_COLUMNS, LinkedReceiveKanban } from '@invenflow/shared';
 import { ChevronDownIcon, ChevronRightIcon, Cog6ToothIcon, DocumentDuplicateIcon, LinkIcon } from '@heroicons/react/24/outline';
 import { useViewPreferencesStore } from '../store/viewPreferencesStore';
 
@@ -29,26 +29,52 @@ export default function CompactKanbanListRow({
       return {
         isLinked: linkedCount > 0,
         count: linkedCount,
-        type: 'order' as const
+        type: 'order' as const,
       };
-    } else {
-      // For receive kanbans, check if it has a location (indicates it can receive links)
+    }
+
+    if (kanban.type === 'receive') {
       return {
         isLinked: !!kanban.locationId,
         count: 0,
-        type: 'receive' as const
+        type: 'receive' as const,
       };
     }
+
+    return {
+      isLinked: false,
+      count: 0,
+      type: 'investment' as const,
+    };
   };
 
   const linkedStatus = getLinkedStatus();
+
+  const typeBadgeStyles: Record<
+    'order' | 'receive' | 'investment',
+    { label: string; className: string }
+  > = {
+    order: { label: 'Order', className: 'bg-blue-100 text-blue-800' },
+    receive: { label: 'Receive', className: 'bg-green-100 text-green-800' },
+    investment: { label: 'Investment', className: 'bg-yellow-100 text-yellow-800' },
+  };
+  const currentTypeBadge = typeBadgeStyles[kanban.type];
 
   const getKanbanDescription = () => {
     return kanban.description?.trim() || 'No description';
   };
 
   const getColumns = () => {
-    return kanban.type === 'order' ? ORDER_COLUMNS : RECEIVE_COLUMNS;
+    switch (kanban.type) {
+      case 'order':
+        return ORDER_COLUMNS;
+      case 'receive':
+        return RECEIVE_COLUMNS;
+      case 'investment':
+        return INVESTMENT_COLUMNS;
+      default:
+        return ORDER_COLUMNS;
+    }
   };
 
   const getProductsByColumn = (column: string) => {
@@ -98,12 +124,10 @@ export default function CompactKanbanListRow({
           </div>
 
           {/* Type Badge */}
-          <span className={`hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-            kanban.type === 'order'
-              ? 'bg-blue-100 text-blue-800'
-              : 'bg-green-100 text-green-800'
-          }`}>
-            {kanban.type === 'order' ? 'Order' : 'Receive'}
+          <span
+            className={`hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${currentTypeBadge.className}`}
+          >
+            {currentTypeBadge.label}
           </span>
 
           {/* Linked Badge */}

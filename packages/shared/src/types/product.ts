@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { KanbanType, ColumnStatus, ORDER_COLUMNS, RECEIVE_COLUMNS } from './kanban.js';
+import { KanbanType, ColumnStatus, ORDER_COLUMNS, RECEIVE_COLUMNS, INVESTMENT_COLUMNS } from './kanban.js';
 
 export const ProductSchema = z.object({
   id: z.string().uuid(),
@@ -179,7 +179,16 @@ export const DEFAULT_UNITS = [
 export type Unit = typeof DEFAULT_UNITS[number];
 
 export function getValidColumns(kanbanType: KanbanType): readonly string[] {
-  return kanbanType === 'order' ? ORDER_COLUMNS : RECEIVE_COLUMNS;
+  switch (kanbanType) {
+    case 'order':
+      return ORDER_COLUMNS;
+    case 'receive':
+      return RECEIVE_COLUMNS;
+    case 'investment':
+      return INVESTMENT_COLUMNS;
+    default:
+      return ORDER_COLUMNS;
+  }
 }
 
 export function isValidColumn(column: string, kanbanType: KanbanType): boolean {

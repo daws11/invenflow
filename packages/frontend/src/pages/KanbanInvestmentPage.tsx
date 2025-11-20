@@ -18,7 +18,7 @@ import {
 type SortField = 'name' | 'createdAt';
 type SortOrder = 'asc' | 'desc';
 
-export default function KanbanPurchasingPage() {
+export default function KanbanInvestmentPage() {
   const { kanbans, loading, error, fetchKanbans, createKanban, deleteKanban } = useKanbanStore();
   const { kanbanListViewMode, setKanbanListViewMode } = useViewPreferencesStore();
   const toast = useToast();
@@ -38,9 +38,9 @@ export default function KanbanPurchasingPage() {
     fetchKanbans();
   }, [fetchKanbans]);
 
-  // Filter and sort kanbans - only show 'order' type
+  // Filter and sort kanbans - only show 'investment' type
   const filteredAndSortedKanbans = useMemo(() => {
-    let filtered = kanbans.filter(kanban => kanban.type === 'order');
+    let filtered = kanbans.filter(kanban => kanban.type === 'investment');
 
     // Filter by search term
     if (searchTerm) {
@@ -75,33 +75,28 @@ export default function KanbanPurchasingPage() {
     return filtered;
   }, [kanbans, searchTerm, sortField, sortOrder]);
 
-  // Use centralized product count utility
-
   const getKanbanDescription = (kanban: Kanban) => {
     return kanban.description?.trim() || 'No description';
   };
 
-  const handleCreateKanban = async (name: string, type: KanbanType, description?: string | null, _locationId?: string) => {
-    if (type !== 'order') {
-      throw new Error('Unexpected kanban type for purchasing page');
+  const handleCreateKanban = async (name: string, type: KanbanType, description?: string | null) => {
+    if (type !== 'investment') {
+      throw new Error('Investment page only supports the investment kanban type');
     }
     try {
       const payload: CreateKanban = {
         name,
-        type: 'order',
-        ...(description !== undefined && description !== null
-          ? { description: description }
-          : {}),
+        type: 'investment',
+        ...(description ? { description } : {}),
       };
       await createKanban(payload);
-      toast.success('Purchasing kanban created successfully');
+      toast.success('Investment kanban created successfully');
       setIsCreateModalOpen(false);
     } catch (error) {
       toast.error('Failed to create kanban. Please try again.');
       throw error;
     }
   };
-
 
   const handleDeleteKanban = async (id: string) => {
     try {
@@ -131,12 +126,6 @@ export default function KanbanPurchasingPage() {
     setIsSettingsModalOpen(true);
   };
 
-  const getLinkedKanbanName = (kanban: Kanban) => {
-    if (!kanban.linkedKanbanId) return null;
-    const linkedKanban = kanbans.find(k => k.id === kanban.linkedKanbanId);
-    return linkedKanban ? linkedKanban.name : null;
-  };
-
   const clearFilters = () => {
     setSearchTerm('');
     setSortField('createdAt');
@@ -148,7 +137,7 @@ export default function KanbanPurchasingPage() {
       <div className="flex justify-center items-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading kanbans...</p>
+          <p className="mt-4 text-gray-600">Loading investment kanbans...</p>
         </div>
       </div>
     );
@@ -158,7 +147,7 @@ export default function KanbanPurchasingPage() {
     <div>
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 gap-4">
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Purchasing Kanbans</h2>
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Investment Kanbans</h2>
         <div className="flex flex-wrap gap-2">
           {/* View Toggle */}
           <button
@@ -184,7 +173,7 @@ export default function KanbanPurchasingPage() {
             className="btn-primary"
             onClick={openCreateModal}
           >
-            Create Purchasing Kanban
+            Create Investment Kanban
           </button>
         </div>
       </div>
@@ -200,7 +189,7 @@ export default function KanbanPurchasingPage() {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search purchasing kanbans by name..."
+                placeholder="Search investment kanbans by name..."
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -275,13 +264,13 @@ export default function KanbanPurchasingPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Purchasing Kanbans</h3>
-            <p className="text-gray-500 mb-6">Get started by creating your first purchasing kanban board.</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Investment Kanbans</h3>
+            <p className="text-gray-500 mb-6">Get started by creating your first investment kanban board.</p>
             <button
               onClick={openCreateModal}
               className="btn-primary"
             >
-              Create Purchasing Kanban
+              Create Investment Kanban
             </button>
           </div>
         </div>
@@ -306,33 +295,33 @@ export default function KanbanPurchasingPage() {
               kanban={kanban}
               onSettings={openSettingsModal}
               onCopyUrl={handleCopyUrl}
-              linkedKanbanName={getLinkedKanbanName(kanban)}
+              linkedKanbanName={null}
             />
           ))}
         </div>
       )}
 
-
       {/* Modals */}
       <CreateKanbanModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        type="order"
+        type="investment"
         onCreate={handleCreateKanban}
       />
 
       {selectedKanban && (
         <KanbanSettingsModal
-            isOpen={isSettingsModalOpen}
-            onClose={() => {
-              setIsSettingsModalOpen(false);
-              setSelectedKanban(null);
-            }}
-            kanban={selectedKanban}
-            onDelete={handleDeleteKanban}
-            productCount={selectedKanban ? getProductCount(selectedKanban) : 0}
+          isOpen={isSettingsModalOpen}
+          onClose={() => {
+            setIsSettingsModalOpen(false);
+            setSelectedKanban(null);
+          }}
+          kanban={selectedKanban}
+          onDelete={handleDeleteKanban}
+          productCount={selectedKanban ? getProductCount(selectedKanban) : 0}
         />
       )}
     </div>
   );
 }
+

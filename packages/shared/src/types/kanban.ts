@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const KanbanTypeSchema = z.enum(['order', 'receive']);
+export const KanbanTypeSchema = z.enum(['order', 'receive', 'investment']);
 export type KanbanType = z.infer<typeof KanbanTypeSchema>;
 
 // Threshold configuration types
@@ -107,7 +107,9 @@ export type UpdateKanban = z.infer<typeof UpdateKanbanSchema>;
 
 export const ORDER_COLUMNS = ['New Request', 'In Review', 'Purchased'] as const;
 export const RECEIVE_COLUMNS = ['Purchased', 'Received', 'Stored'] as const;
+export const INVESTMENT_COLUMNS = ['New', 'Review', 'Approved'] as const;
 
 export type OrderColumn = typeof ORDER_COLUMNS[number];
 export type ReceiveColumn = typeof RECEIVE_COLUMNS[number];
-export type ColumnStatus = OrderColumn | ReceiveColumn;
+export type InvestmentColumn = typeof INVESTMENT_COLUMNS[number];
+export type ColumnStatus = OrderColumn | ReceiveColumn | InvestmentColumn;

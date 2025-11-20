@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { InventoryItem, UpdateProduct, DEFAULT_CATEGORIES, DEFAULT_PRIORITIES, DEFAULT_UNITS, ProductLocationDetail } from '@invenflow/shared';
 import { useLocationStore } from '../store/locationStore';
 import { usePersonStore } from '../store/personStore';
@@ -69,12 +69,34 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
   const deletingCommentId = useCommentStore((state) => state.deletingCommentId);
   const connectStream = useCommentStore((state) => state.connectStream);
 
-  const fetchLocationBreakdown = useCallback(async () => {
-    if (!currentItem.sku) return;
+  // Use a ref to track the last fetched values to prevent unnecessary refetches
+  const lastFetchedRef = useRef<{ sku: string | null; stockLevel: number | null; locationId: string | null }>({
+    sku: null,
+    stockLevel: null,
+    locationId: null,
+  });
+
+  const fetchLocationBreakdown = useCallback(async (force = false) => {
+    const currentSku = currentItem.sku;
+    const currentStock = currentItem.stockLevel;
+    const currentLocation = currentItem.locationId;
+
+    // Skip fetch if values haven't changed (unless forced)
+    if (!force &&
+      lastFetchedRef.current.sku === currentSku &&
+      lastFetchedRef.current.stockLevel === currentStock &&
+      lastFetchedRef.current.locationId === currentLocation) {
+      return;
+    }
+
+    if (!currentSku) {
+      setLocationBreakdown([]);
+      return;
+    }
 
     setLoadingBreakdown(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/inventory/sku/${encodeURIComponent(currentItem.sku)}/locations`, {
+      const response = await fetch(`${API_BASE_URL}/api/inventory/sku/${encodeURIComponent(currentSku)}/locations`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
           'Cache-Control': 'no-cache'
@@ -83,13 +105,19 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
       if (response.ok) {
         const data = await response.json();
         setLocationBreakdown(data.items || []);
+        // Update the ref to track what we just fetched
+        lastFetchedRef.current = {
+          sku: currentSku,
+          stockLevel: currentStock,
+          locationId: currentLocation,
+        };
       }
     } catch (error) {
       console.error('Failed to fetch location breakdown:', error);
     } finally {
       setLoadingBreakdown(false);
     }
-  }, [currentItem.sku]);
+  }, [currentItem.sku, currentItem.stockLevel, currentItem.locationId]);
 
   useEffect(() => {
     fetchLocations();
@@ -174,7 +202,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
           throw new Error(errorPayload?.message || errorPayload?.error?.message || 'Failed to update stock');
         }
 
-        await fetchLocationBreakdown();
+        await fetchLocationBreakdown(true); // Force refresh after stock update
         await syncAfterMutation();
         if (displayMode === 'grouped') {
           await fetchGroupedInventory();
@@ -210,18 +238,18 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
       // Delete from kanban store (optimistic update)
       await deleteProduct(currentItem.id);
       _success('Product deleted successfully');
-      
+
       // Clear request deduplicator cache to force fresh fetch
       globalRequestDeduplicator.clear();
-      
+
       // Sync with inventory store to ensure table view is updated
       await syncAfterMutation();
-      
+
       // If in grouped view, refresh grouped data as well
       if (displayMode === 'grouped') {
         await fetchGroupedInventory();
       }
-      
+
       onClose();
     } catch (err) {
       console.error('Failed to delete product:', err);
@@ -279,27 +307,27 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
           <div className="-mx-1">
             <div className="flex items-start justify-between mb-2">
               <div className="flex flex-wrap gap-1.5">
-            {currentItem.isDraft && (
+                {currentItem.isDraft && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-300">
-                DRAFT
-              </span>
-            )}
+                    DRAFT
+                  </span>
+                )}
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(currentItem.columnStatus)}`}>
-              {currentItem.columnStatus}
-            </span>
-            {currentItem.priority && (
+                  {currentItem.columnStatus}
+                </span>
+                {currentItem.priority && (
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(currentItem.priority)}`}>
-                {currentItem.priority}
-              </span>
-            )}
-            {currentItem.stockLevel !== null && currentItem.columnStatus === 'Stored' && (
+                    {currentItem.priority}
+                  </span>
+                )}
+                {currentItem.stockLevel !== null && currentItem.columnStatus === 'Stored' && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                Stock: {currentItem.stockLevel}
-              </span>
-            )}
+                    Stock: {currentItem.stockLevel}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-gray-500 shrink-0 ml-2">{currentItem.kanban?.name || 'Unknown Kanban'}</p>
-          </div>
+            </div>
 
             {/* Product Name - Compact */}
             <div className="mb-3">
@@ -319,7 +347,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
                 }}
               />
             </div>
-            </div>
+          </div>
 
           {/* Compact Basic Info Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -381,40 +409,40 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
 
           {/* Compact Physical Properties */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
+            <div>
               <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Weight</h4>
-                <BasicInlineEdit
-                  value={currentItem.weight || ''}
-                  onSave={(value) => handleFieldUpdate('weight', value)}
-                  type="number"
-                  placeholder="0.00"
-                  displayValue={currentItem.weight !== null ? (
+              <BasicInlineEdit
+                value={currentItem.weight || ''}
+                onSave={(value) => handleFieldUpdate('weight', value)}
+                type="number"
+                placeholder="0.00"
+                displayValue={currentItem.weight !== null ? (
                   <div className="flex items-center">
                     <CubeIcon className="h-3 w-3 text-gray-400 mr-1" />
                     <span className="text-xs text-gray-600">{currentItem.weight} {currentItem.unit || 'kg'}</span>
-                    </div>
-                  ) : undefined}
-                  validation={(value) => {
-                    if (value && (isNaN(Number(value)) || Number(value) <= 0)) {
-                      return 'Weight must be a positive number';
-                    }
-                    return null;
-                  }}
-                />
-              </div>
+                  </div>
+                ) : undefined}
+                validation={(value) => {
+                  if (value && (isNaN(Number(value)) || Number(value) <= 0)) {
+                    return 'Weight must be a positive number';
+                  }
+                  return null;
+                }}
+              />
+            </div>
 
-              <div>
+            <div>
               <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Unit</h4>
-                <BasicInlineEdit
-                  value={currentItem.unit || ''}
-                  onSave={(value) => handleFieldUpdate('unit', value)}
-                  type="select"
-                  options={unitOptions}
-                  allowCustom={true}
+              <BasicInlineEdit
+                value={currentItem.unit || ''}
+                onSave={(value) => handleFieldUpdate('unit', value)}
+                type="select"
+                options={unitOptions}
+                allowCustom={true}
                 customPlaceholder="Custom unit"
-                  placeholder="Select unit"
-                  maxLength={20}
-                />
+                placeholder="Select unit"
+                maxLength={20}
+              />
             </div>
 
             <div>
@@ -438,7 +466,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
                 }}
               />
             </div>
-            </div>
+          </div>
 
           {/* Stock Level & Location Breakdown */}
           <div className="bg-gradient-to-br from-slate-50 to-gray-50 rounded-lg border border-gray-200 p-4">
@@ -461,7 +489,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
 
                 {locationBreakdown.filter(item => item).map((item, index) => (
                   <div key={`${item.locationId || item.assignedToPersonId}-${index}`}
-                       className="bg-white rounded-md p-3 shadow-sm border border-gray-100">
+                    className="bg-white rounded-md p-3 shadow-sm border border-gray-100">
                     <div className="flex items-center justify-between">
                       {/* Location/Person Info */}
                       <div className="flex items-center space-x-3 flex-1">
@@ -493,49 +521,49 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
                         </div>
                       </div>
 
-                    {/* Stock Level */}
-                    <div className="flex-shrink-0 text-right min-w-[120px]">
-                      <div className="flex items-center justify-end space-x-2">
-                        {item.locationId ? (
-                          <BasicInlineEdit
-                            value={item.stockLevel ?? 0}
-                            onSave={(value) =>
-                              handleStockUpdate(
-                                item.primaryProductId || item.productIds?.[0] || productId,
-                                item.locationId || '',
-                                Number(value),
-                              )
-                            }
-                            type="number"
-                            placeholder="0"
-                            className="text-right"
-                            validation={(value) => {
-                              const numericValue = Number(value);
-                              if (Number.isNaN(numericValue) || numericValue < 0) {
-                                return 'Stock must be a non-negative integer';
+                      {/* Stock Level */}
+                      <div className="flex-shrink-0 text-right min-w-[120px]">
+                        <div className="flex items-center justify-end space-x-2">
+                          {item.locationId ? (
+                            <BasicInlineEdit
+                              value={item.stockLevel ?? 0}
+                              onSave={(value) =>
+                                handleStockUpdate(
+                                  item.primaryProductId || item.productIds?.[0] || productId,
+                                  item.locationId || '',
+                                  Number(value),
+                                )
                               }
-                              if (!Number.isInteger(numericValue)) {
-                                return 'Stock must be an integer';
+                              type="number"
+                              placeholder="0"
+                              className="text-right"
+                              validation={(value) => {
+                                const numericValue = Number(value);
+                                if (Number.isNaN(numericValue) || numericValue < 0) {
+                                  return 'Stock must be a non-negative integer';
+                                }
+                                if (!Number.isInteger(numericValue)) {
+                                  return 'Stock must be an integer';
+                                }
+                                return null;
+                              }}
+                              displayValue={
+                                <div className="text-lg font-bold text-gray-900">
+                                  {item.stockLevel !== null ? item.stockLevel : '—'}
+                                </div>
                               }
-                              return null;
-                            }}
-                            displayValue={
-                              <div className="text-lg font-bold text-gray-900">
-                                {item.stockLevel !== null ? item.stockLevel : '—'}
-                              </div>
-                            }
-                          />
-                        ) : (
-                          <div className="text-lg font-bold text-gray-900">
-                            {item.stockLevel !== null ? item.stockLevel : '—'}
-                          </div>
-                        )}
-                        {stockUpdatingLocationIds.has(`${item.id}-${item.locationId || 'unknown'}`) && (
-                          <div className="w-4 h-4 border border-blue-200 border-t-transparent rounded-full animate-spin" />
-                        )}
+                            />
+                          ) : (
+                            <div className="text-lg font-bold text-gray-900">
+                              {item.stockLevel !== null ? item.stockLevel : '—'}
+                            </div>
+                          )}
+                          {stockUpdatingLocationIds.has(`${item.id}-${item.locationId || 'unknown'}`) && (
+                            <div className="w-4 h-4 border border-blue-200 border-t-transparent rounded-full animate-spin" />
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">Stock</div>
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">Stock</div>
-                    </div>
                     </div>
 
                     {/* Kanban Info */}
@@ -603,7 +631,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
                 placeholder="Use kanban default setting"
               />
               <p className="mt-1 text-xs text-gray-500">
-                When this product moves to "Purchased", it will transfer to the selected receive kanban. 
+                When this product moves to "Purchased", it will transfer to the selected receive kanban.
                 If not set, the kanban's default setting will be used.
               </p>
             </div>
@@ -667,7 +695,7 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
                 <ChevronRightIcon className="h-4 w-4 text-gray-500" />
               )}
             </button>
-            
+
             {showMovementHistory && (
               <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                 <ProductMovementHistory
@@ -684,15 +712,15 @@ export function ProductDetailModal({ item, onClose }: ProductDetailModalProps) {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-3 text-xs text-gray-500">
                 <div className="flex items-center">
-              <CalendarIcon className="h-3 w-3 mr-1" />
+                  <CalendarIcon className="h-3 w-3 mr-1" />
                   {formatDateWithTime(currentItem.createdAt)}
-            </div>
+                </div>
                 <div className="flex items-center">
-              <ClockIcon className="h-3 w-3 mr-1" />
+                  <ClockIcon className="h-3 w-3 mr-1" />
                   {new Date(currentItem.updatedAt).toLocaleDateString()}
                 </div>
+              </div>
             </div>
-          </div>
 
             {/* Compact Delete Button */}
             <button

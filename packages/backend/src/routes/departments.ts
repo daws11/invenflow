@@ -50,14 +50,7 @@ const combineSqlClauses = (clauses: SQL<unknown>[]): SQL<unknown> => {
 };
 
 // Get all departments (with optional search and active filter)
-router.get(
-  '/',
-  cacheMiddleware({
-    ttl: 30 * 60 * 1000, // Static department cache (30 minutes)
-    sharedAcrossUsers: true,
-    tags: [{ resource: 'department' }],
-  }),
-  async (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const { search, activeOnly = 'false', sortBy = 'name', sortOrder = 'asc' } = req.query;
 
@@ -126,14 +119,7 @@ router.get(
 });
 
 // Get active departments only (for dropdowns)
-router.get(
-  '/active',
-  cacheMiddleware({
-    ttl: 30 * 60 * 1000, // Static department cache (30 minutes)
-    sharedAcrossUsers: true,
-    tags: [{ resource: 'department' }],
-  }),
-  async (req, res, next) => {
+router.get('/active', async (req, res, next) => {
   try {
     const activeDepartments = await db
       .select()
