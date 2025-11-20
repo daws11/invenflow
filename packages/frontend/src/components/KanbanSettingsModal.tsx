@@ -44,6 +44,29 @@ export function KanbanSettingsModal({
   const toast = useToast();
   const { togglePublicForm, currentKanban, fetchKanbanById, updateKanban } = useKanbanStore();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  
+  // Handle tab change - ensure data is loaded when switching to linking tab
+  const handleTabChange = async (tabId: TabType) => {
+    setActiveTab(tabId);
+    
+    // If switching to linking tab and kanban is order type, ensure we have linkedKanbans data
+    if (tabId === 'linking' && kanban?.type === 'order') {
+      const currentKanbanData = useKanbanStore.getState().currentKanban;
+      // Check if currentKanban has linkedKanbans or if the passed kanban has it
+      const hasLinkedKanbans = (currentKanbanData?.id === kanban.id && currentKanbanData.linkedKanbans !== undefined) ||
+                                (kanban as any).linkedKanbans !== undefined;
+      
+      if (!hasLinkedKanbans) {
+        // Fetch fresh data
+        try {
+          await fetchKanbanById(kanban.id);
+        } catch (error: any) {
+          console.error('Failed to fetch kanban linking data:', error);
+          // Don't show error toast here - let KanbanLinkingSection handle it
+        }
+      }
+    }
+  };
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDataSyncing, setIsDataSyncing] = useState(false);
   const [dataSyncError, setDataSyncError] = useState<string | null>(null);
@@ -79,13 +102,27 @@ export function KanbanSettingsModal({
   const [locations, setLocations] = useState<Array<{ id: string; name: string; area?: string; code?: string }>>([]);
   const [editLocationId, setEditLocationId] = useState<string | null>(kanban?.locationId ?? null);
 
-  // Reset sync states when modal opens - data is already fresh from parent
+  // Reset sync states and fetch fresh data when modal opens
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && kanban) {
       setIsDataSyncing(false);
       setDataSyncError(null);
+      
+      // For order kanbans, ensure we have linkedKanbans data
+      // Check if currentKanban in store has the data, or if the passed kanban has it
+      const currentKanbanData = useKanbanStore.getState().currentKanban;
+      const hasLinkedKanbans = (currentKanbanData?.id === kanban.id && currentKanbanData.linkedKanbans !== undefined) ||
+                                (kanban as any).linkedKanbans !== undefined;
+      
+      if (kanban.type === 'order' && !hasLinkedKanbans) {
+        // Fetch fresh kanban data to ensure linkedKanbans is available
+        fetchKanbanById(kanban.id).catch((error: any) => {
+          console.error('Failed to fetch kanban data:', error);
+          setDataSyncError(error?.message || 'Failed to load linking data');
+        });
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, kanban, fetchKanbanById]);
 
   // Retry data sync function
   const retryDataSync = async () => {
@@ -126,9 +163,22 @@ export function KanbanSettingsModal({
   useEffect(() => {
     if (!isOpen || !kanban || kanban.type !== 'receive') return;
     locationApi.getAll().then(res => {
-      setLocations(res.locations || []);
-    }).catch(() => setLocations([]));
-  }, [isOpen, kanban]);
+      const loadedLocations = res.locations || [];
+      setLocations(loadedLocations);
+
+      // Validate that current editLocationId (if any) is still valid
+      if (editLocationId && !loadedLocations.find(loc => loc.id === editLocationId)) {
+        console.warn('Current location ID is no longer valid, resetting to null');
+        setEditLocationId(null);
+      }
+    }).catch((error) => {
+      console.error('Failed to load locations:', error);
+      setLocations([]);
+      // Reset location selection if locations can't be loaded
+      setEditLocationId(null);
+      toast.error('Failed to load locations. Please refresh the page.');
+    });
+  }, [isOpen, kanban, editLocationId, toast]);
 
   if (!isOpen || !kanban) return null;
 
@@ -209,6 +259,19 @@ export function KanbanSettingsModal({
       setEditError('Kanban name must be less than 255 characters');
       return false;
     }
+    // Validate location for receive kanbans
+    if (kanban.type === 'receive') {
+      if (!editLocationId || editLocationId.trim() === '') {
+        setEditError('Location is required for receive kanbans');
+        return false;
+      }
+      // Validate that the selected location exists in the loaded locations
+      const selectedLocation = locations.find(loc => loc.id === editLocationId);
+      if (!selectedLocation) {
+        setEditError('Selected location is not valid. Please select a location from the list.');
+        return false;
+      }
+    }
     setEditError(null);
     return true;
   };
@@ -227,7 +290,12 @@ export function KanbanSettingsModal({
 
       // Add locationId for receive kanbans
       if (kanban.type === 'receive') {
-        updatePayload.locationId = editLocationId || null;
+        // Only send locationId if it's a valid non-empty string
+        // Ensure we never send empty string - use null instead
+        const locationIdValue = editLocationId && typeof editLocationId === 'string' && editLocationId.trim() !== ''
+          ? editLocationId.trim()
+          : null;
+        updatePayload.locationId = locationIdValue;
       }
 
       // Use kanbanStore.updateKanban so both backend and store stay in sync
@@ -235,9 +303,11 @@ export function KanbanSettingsModal({
 
       toast.success('Kanban updated successfully!');
       setActiveTab('overview');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update kanban:', error);
-      toast.error('Failed to update kanban');
+      const errorMessage = error?.response?.data?.error?.message || error?.message || 'Failed to update kanban';
+      toast.error(errorMessage);
+      setEditError(errorMessage);
     } finally {
       setIsSubmittingEdit(false);
     }
@@ -1050,7 +1120,7 @@ export function KanbanSettingsModal({
           <SliderTabs
             tabs={tabs}
             activeTab={activeTab}
-            onTabChange={(tabId) => setActiveTab(tabId as TabType)}
+            onTabChange={(tabId) => handleTabChange(tabId as TabType)}
           />
         </div>
       </Slider>

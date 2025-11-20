@@ -128,6 +128,22 @@ router.get(
   }
 });
 
+// Get unique areas (MUST be before /:id route to avoid route conflict)
+router.get('/areas/list', async (req, res, next) => {
+  try {
+    const allLocations = await db
+      .select({ area: locations.area })
+      .from(locations)
+      .orderBy(asc(locations.area));
+
+    const areas = [...new Set(allLocations.map(loc => loc.area))];
+
+    res.json(areas);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get location by ID
 router.get('/:id', async (req, res, next) => {
   try {
@@ -336,22 +352,6 @@ router.delete('/:id', async (req, res, next) => {
     await invalidateLocationCaches([id]);
 
     res.json({ message: 'Location deleted successfully' });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Get unique areas
-router.get('/areas/list', async (req, res, next) => {
-  try {
-    const allLocations = await db
-      .select({ area: locations.area })
-      .from(locations)
-      .orderBy(asc(locations.area));
-
-    const areas = [...new Set(allLocations.map(loc => loc.area))];
-
-    res.json(areas);
   } catch (error) {
     next(error);
   }

@@ -80,6 +80,10 @@ export const useDepartmentStore = create<DepartmentStore>((set, get) => ({
       const response = await api.post('/api/departments', data);
       const newDepartment = response.data;
 
+      // Re-fetch all departments to ensure cache invalidation works
+      await get().fetchDepartments();
+      await get().fetchActiveDepartments();
+
       set({ loading: false });
       return newDepartment;
     } catch (error: any) {
@@ -95,6 +99,10 @@ export const useDepartmentStore = create<DepartmentStore>((set, get) => ({
       const response = await api.put(`/api/departments/${id}`, data);
       const updatedDepartment = response.data;
 
+      // Re-fetch all departments to ensure cache invalidation works
+      await get().fetchDepartments();
+      await get().fetchActiveDepartments();
+
       set({ loading: false });
       return updatedDepartment;
     } catch (error: any) {
@@ -108,6 +116,10 @@ export const useDepartmentStore = create<DepartmentStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await api.delete(`/api/departments/${id}`);
+
+      // Re-fetch all departments to ensure cache invalidation works
+      await get().fetchDepartments();
+      await get().fetchActiveDepartments();
 
       set({ loading: false });
     } catch (error: any) {

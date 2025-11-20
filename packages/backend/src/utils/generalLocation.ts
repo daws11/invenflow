@@ -9,66 +9,119 @@ type DbExecutor = typeof db | any;
 /**
  * Ensure a \"General\" location exists for the given area and return its ID.
  * Uses the provided executor (db or transaction) for all queries.
+ * 
+ * This function is now safe against race conditions thanks to the unique constraint
+ * on (area, name) in the locations table. It uses an INSERT ... ON CONFLICT pattern
+ * to handle concurrent requests gracefully.
  */
 export async function getOrCreateGeneralLocation(
   executor: DbExecutor,
   area: string
 ): Promise<string> {
   const normalizedArea = area.trim();
+  const code = `${normalizedArea.toUpperCase().replace(/\s+/g, '-')}-GENERAL`;
 
-  // 1. Try to find existing \"General\" location for this area
-  const existing = await executor
-    .select()
-    .from(locations)
-    .where(
-      and(
-        eq(locations.area, normalizedArea),
-        eq(locations.name, 'General')
-      )
-    )
-    .limit(1);
+  try {
+    // Use INSERT ... ON CONFLICT DO NOTHING pattern
+    // This is atomic and safe against race conditions
+    const inserted = await executor
+      .insert(locations)
+      .values({
+        name: 'General',
+        area: normalizedArea,
+        code,
+        isActive: true,
+        description: `Default general location for area ${normalizedArea}`,
+      })
+      .onConflictDoNothing({
+        target: [locations.area, locations.name],
+      })
+      .returning();
 
-  if (existing.length > 0) {
-    return existing[0]!.id;
-  }
-
-  // 2. Generate a unique code for the general location
-  const baseCode =
-    `${normalizedArea.toUpperCase().replace(/\s+/g, '-')}-GENERAL`;
-
-  let code = baseCode;
-  let suffix = 1;
-
-  // Ensure code uniqueness (defensive against concurrent usage / legacy data)
-  // Loop is expected to be very small since collisions are unlikely
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const [conflict] = await executor
-      .select()
-      .from(locations)
-      .where(eq(locations.code, code))
-      .limit(1);
-
-    if (!conflict) {
-      break;
+    // If we successfully inserted, return the new ID
+    if (inserted.length > 0) {
+      return inserted[0]!.id;
     }
 
-    code = `${baseCode}-${suffix++}`;
+    // If insert was skipped due to conflict, fetch the existing location
+    const [existing] = await executor
+      .select()
+      .from(locations)
+      .where(
+        and(
+          eq(locations.area, normalizedArea),
+          eq(locations.name, 'General')
+        )
+      )
+      .limit(1);
+
+    if (!existing) {
+      throw new Error(
+        `Failed to create or find General location for area: ${normalizedArea}`
+      );
+    }
+
+    return existing.id;
+  } catch (error: any) {
+    // Handle unique constraint violation on code (different area with conflicting code)
+    if (error.code === '23505' && error.constraint === 'locations_code_unique') {
+      // Code conflict - try with suffix
+      let suffix = 1;
+      let alternateCode = `${code}-${suffix}`;
+      
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        try {
+          const inserted = await executor
+            .insert(locations)
+            .values({
+              name: 'General',
+              area: normalizedArea,
+              code: alternateCode,
+              isActive: true,
+              description: `Default general location for area ${normalizedArea}`,
+            })
+            .onConflictDoNothing({
+              target: [locations.area, locations.name],
+            })
+            .returning();
+
+          if (inserted.length > 0) {
+            return inserted[0]!.id;
+          }
+
+          // If still conflict on (area, name), fetch existing
+          const [existing] = await executor
+            .select()
+            .from(locations)
+            .where(
+              and(
+                eq(locations.area, normalizedArea),
+                eq(locations.name, 'General')
+              )
+            )
+            .limit(1);
+
+          if (existing) {
+            return existing.id;
+          }
+
+          throw new Error(
+            `Failed to create or find General location for area: ${normalizedArea}`
+          );
+        } catch (innerError: any) {
+          if (innerError.code === '23505' && innerError.constraint === 'locations_code_unique') {
+            suffix++;
+            alternateCode = `${code}-${suffix}`;
+            continue;
+          }
+          throw innerError;
+        }
+      }
+    }
+    
+    throw error;
   }
-
-  // 3. Create the general location
-  const [created] = await executor
-    .insert(locations)
-    .values({
-      name: 'General',
-      area: normalizedArea,
-      code,
-      isActive: true,
-      description: `Default general location for area ${normalizedArea}`,
-    })
-    .returning();
-
-  return created.id;
 }
 
 /**

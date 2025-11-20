@@ -945,7 +945,7 @@ router.get('/grouped', cacheMiddleware({
   }
 });
 
-// Get product location breakdown by SKU
+// Get product location breakdown by SKU (aggregated by location)
 router.get('/sku/:sku/locations', async (req, res, next) => {
   try {
     const { sku } = req.params;
@@ -1007,39 +1007,79 @@ router.get('/sku/:sku/locations', async (req, res, next) => {
         : Promise.resolve([])
     ]);
 
-    // Map to create the response structure
-    const items = productsList.map(product => {
+    // Aggregate products by location/person combination
+    const aggregatedMap = new Map<string, {
+      productDetails: string;
+      columnStatus: string;
+      totalStock: number;
+      productIds: string[];
+      locationId: string | null;
+      assignedToPersonId: string | null;
+      location: any;
+      person: any;
+      kanban: any;
+      lastUpdated: Date;
+    }>();
+
+    for (const product of productsList) {
       const location = locationsList.find(l => l.id === product.locationId) || null;
       const person = personsWithDepts.find(p => p.id === product.assignedToPersonId) || null;
       const kanban = kanbansList.find(k => k.id === product.kanbanId);
 
-      return {
-        id: product.id,
-        productDetails: product.productDetails,
-        columnStatus: product.columnStatus,
-        stockLevel: product.stockLevel,
-        locationId: product.locationId,
-        assignedToPersonId: product.assignedToPersonId,
-        kanbanId: product.kanbanId,
-        updatedAt: product.updatedAt,
-        location: location ? {
-          id: location.id,
-          name: location.name,
-          code: location.code,
-          area: location.area,
-          building: location.building,
-        } : null,
-        person: person ? {
-          id: person.id,
-          name: person.name,
-          department: person.departmentName || null,
-        } : null,
-        kanban: kanban ? {
-          id: kanban.id,
-          name: kanban.name,
-        } : null,
-      };
-    });
+      // Create unique key based on location + person combination
+      const key = `${product.locationId || 'null'}_${product.assignedToPersonId || 'null'}`;
+
+      if (aggregatedMap.has(key)) {
+        const existing = aggregatedMap.get(key)!;
+        existing.totalStock += product.stockLevel || 0;
+        existing.productIds.push(product.id);
+        // Keep the most recent update
+        if (product.updatedAt > existing.lastUpdated) {
+          existing.lastUpdated = product.updatedAt;
+        }
+      } else {
+        aggregatedMap.set(key, {
+          productDetails: product.productDetails,
+          columnStatus: product.columnStatus,
+          totalStock: product.stockLevel || 0,
+          productIds: [product.id],
+          locationId: product.locationId,
+          assignedToPersonId: product.assignedToPersonId,
+          location: location ? {
+            id: location.id,
+            name: location.name,
+            code: location.code,
+            area: location.area,
+            building: location.building,
+          } : null,
+          person: person ? {
+            id: person.id,
+            name: person.name,
+            department: person.departmentName || null,
+          } : null,
+          kanban: kanban ? {
+            id: kanban.id,
+            name: kanban.name,
+          } : null,
+          lastUpdated: product.updatedAt,
+        });
+      }
+    }
+
+    // Convert map to array
+    const items = Array.from(aggregatedMap.values()).map(item => ({
+      productDetails: item.productDetails,
+      columnStatus: item.columnStatus,
+      stockLevel: item.totalStock,
+      productCount: item.productIds.length,
+      productIds: item.productIds,
+      locationId: item.locationId,
+      assignedToPersonId: item.assignedToPersonId,
+      updatedAt: item.lastUpdated,
+      location: item.location,
+      person: item.person,
+      kanban: item.kanban,
+    }));
 
     res.json({ items });
   } catch (error) {
@@ -1193,9 +1233,29 @@ const resolveOrCreateLocation = async (item: any): Promise<string | null> => {
     if (location) {
       return location.id;
     }
+    
+    // If locationCode not found but area and locationName are provided, create location with the given code
+    if (item.area && item.locationName) {
+      const [newLocation] = await db
+        .insert(locations)
+        .values({
+          name: item.locationName,
+          area: item.area,
+          code: item.locationCode, // Use the provided locationCode
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+      
+      return newLocation.id;
+    }
+    
+    // If only locationCode provided without area+name, cannot create (schema requires name and area)
+    return null;
   }
   
-  // Try area + locationName combination
+  // Try area + locationName combination (when locationCode is not provided)
   if (item.area && item.locationName) {
     const [location] = await db
       .select()
@@ -1210,7 +1270,7 @@ const resolveOrCreateLocation = async (item: any): Promise<string | null> => {
       return location.id;
     }
     
-    // Auto-create location
+    // Auto-create location with generated code
     const generatedCode = await generateLocationCode(item.area, item.locationName);
     const [newLocation] = await db
       .insert(locations)

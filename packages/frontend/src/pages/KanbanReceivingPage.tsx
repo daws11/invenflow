@@ -89,7 +89,7 @@ export default function KanbanReceivingPage() {
         ...(description !== undefined && description !== null
           ? { description: description }
           : {}),
-        ...(locationId ? { locationId } : {}),
+        locationId, // Always include for receive kanbans since it's required
       };
       await createKanban(payload);
       toast.success('Receive kanban created successfully');

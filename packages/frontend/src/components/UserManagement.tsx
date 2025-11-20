@@ -46,6 +46,7 @@ export default function UserManagement() {
       await userApi.create(formData);
       setShowCreateModal(false);
       setFormData({ email: '', password: '', name: '', role: 'user' });
+      fetchUsers();
     } catch (err: any) {
       setError(err.message || 'Failed to create user');
     } finally {
@@ -63,6 +64,7 @@ export default function UserManagement() {
       setShowEditModal(false);
       setSelectedUser(null);
       setFormData({ email: '', password: '', name: '', role: 'user' });
+      fetchUsers();
     } catch (err: any) {
       setError(err.message || 'Failed to update user');
     } finally {
@@ -75,6 +77,7 @@ export default function UserManagement() {
 
     try {
       await userApi.delete(userId);
+      fetchUsers();
     } catch (err: any) {
       setError(err.message || 'Failed to delete user');
     }

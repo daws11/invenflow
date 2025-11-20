@@ -78,7 +78,7 @@ export function CreateKanbanModal({ isOpen, onClose, type, onCreate }: CreateKan
         name.trim(),
         type,
         normalizedDescription.length > 0 ? normalizedDescription : null,
-        locationId || undefined
+        type === 'receive' ? locationId : undefined
       );
       onClose();
     } catch (error) {

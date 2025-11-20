@@ -3,6 +3,7 @@ import { Kanban, LinkedReceiveKanban } from '@invenflow/shared';
 import { useKanbanStore } from '../store/kanbanStore';
 import { useLocationStore } from '../store/locationStore';
 import { useToast } from '../store/toastStore';
+import { locationApi } from '../utils/api';
 import { MapPinIcon, TrashIcon, PlusIcon } from '@heroicons/react/24/outline';
 
 interface KanbanLinkingSectionProps {
@@ -15,34 +16,99 @@ export function KanbanLinkingSection({ kanban }: KanbanLinkingSectionProps) {
   const { locations, fetchLocations } = useLocationStore();
   
   const [selectedReceiveKanbanId, setSelectedReceiveKanbanId] = useState('');
-  const [selectedLocationId, setSelectedLocationId] = useState(kanban.locationId || '');
+  const [selectedLocationId, setSelectedLocationId] = useState<string>(kanban.locationId || '');
   const [isAdding, setIsAdding] = useState(false);
   const [removingLinkId, setRemovingLinkId] = useState<string | null>(null);
   const [isSavingLocation, setIsSavingLocation] = useState(false);
   const [defaultLinkedKanbanId, setDefaultLinkedKanbanId] = useState<string>(kanban.defaultLinkedKanbanId || '');
   const [isSavingDefault, setIsSavingDefault] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isFetchingKanbanData, setIsFetchingKanbanData] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+    
     const loadData = async () => {
       setIsInitialLoading(true);
       try {
-        // Only fetch locations - parent modal ensures fresh kanban data
+        // For order kanbans, check if we need to fetch linkedKanbans data
+        if (kanban.type === 'order') {
+          const currentKanbanData = useKanbanStore.getState().currentKanban;
+          const hasLinkedKanbans = (currentKanbanData?.id === kanban.id && currentKanbanData.linkedKanbans !== undefined) ||
+                                    (kanban as any).linkedKanbans !== undefined;
+          
+          if (!hasLinkedKanbans) {
+            setIsFetchingKanbanData(true);
+            try {
+              const { fetchKanbanById } = useKanbanStore.getState();
+              await fetchKanbanById(kanban.id);
+            } catch (error) {
+              console.error('Failed to fetch kanban linking data:', error);
+            } finally {
+              if (isMounted) {
+                setIsFetchingKanbanData(false);
+              }
+            }
+          }
+        }
+        
+        // Fetch locations using store
         await fetchLocations();
+        
+        // Wait a bit for state to update, then validate
+        setTimeout(() => {
+          if (!isMounted) return;
+          
+          const currentLocations = useLocationStore.getState().locations;
+          
+          // After locations are loaded, validate kanban's locationId
+          if (kanban.locationId && currentLocations.length > 0) {
+            const locationExists = currentLocations.some(loc => loc.id === kanban.locationId);
+            if (!locationExists) {
+              // Location no longer exists - clear it from kanban
+              console.warn('Kanban locationId no longer exists, clearing it:', kanban.locationId);
+              const { updateKanban } = useKanbanStore.getState();
+              updateKanban(kanban.id, { locationId: null }).catch((error) => {
+                console.error('Failed to clear invalid locationId:', error);
+              });
+              setSelectedLocationId('');
+            }
+          }
+        }, 100);
       } finally {
-        setIsInitialLoading(false);
+        if (isMounted) {
+          setIsInitialLoading(false);
+        }
       }
     };
     
     loadData();
-  }, [fetchLocations]);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchLocations, kanban.id, kanban.locationId, kanban.type]);
 
   useEffect(() => {
-    setSelectedLocationId(kanban.locationId || '');
-  }, [kanban.locationId]);
+    // Ensure we use empty string for select value, but will convert to null when sending
+    // Also validate that the location still exists in the loaded locations
+    if (kanban.locationId) {
+      // Check if location exists in loaded locations
+      const locationExists = locations.some(loc => loc.id === kanban.locationId);
+      if (locationExists) {
+        setSelectedLocationId(kanban.locationId);
+      } else {
+        // Location no longer exists, reset to empty
+        console.warn('Kanban locationId no longer exists in database:', kanban.locationId);
+        setSelectedLocationId('');
+      }
+    } else {
+      setSelectedLocationId('');
+    }
+  }, [kanban.locationId, locations]);
 
   // Show loading state while fetching data
-  if (isInitialLoading) {
+  if (isInitialLoading || isFetchingKanbanData) {
     return (
       <div className="flex items-center justify-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -52,15 +118,21 @@ export function KanbanLinkingSection({ kanban }: KanbanLinkingSectionProps) {
   }
 
   // Get linked kanbans - prioritize currentKanban from store if it matches and has linkedKanbans data
-  const activeKanban = (currentKanban?.id === kanban.id && currentKanban.linkedKanbans) 
+  const activeKanban = (currentKanban?.id === kanban.id && currentKanban.linkedKanbans !== undefined) 
     ? currentKanban 
     : kanban;
-  const linkedKanbans = (activeKanban as any).linkedKanbans as LinkedReceiveKanban[] || [];
+  
+  // Handle linkedKanbans - if undefined, treat as empty array (valid state for order kanbans with no links)
+  const linkedKanbans = (activeKanban as any).linkedKanbans !== undefined
+    ? ((activeKanban as any).linkedKanbans as LinkedReceiveKanban[] || [])
+    : [];
 
   // Data validation - check if we have the expected data structure
+  // For order kanbans: linkedKanbans can be undefined (we'll treat as empty) or an array (both are valid)
+  // For receive kanbans: locationId should be defined (can be null, but property should exist)
   const hasValidData = kanban.type === 'order' 
-    ? (activeKanban as any).linkedKanbans !== undefined // Order kanbans should have linkedKanbans array
-    : kanban.locationId !== undefined; // Receive kanbans should have locationId
+    ? true // Order kanbans are always valid - linkedKanbans can be empty array or undefined
+    : 'locationId' in kanban; // Receive kanbans should have locationId property (can be null)
 
   // Show fallback UI if data is incomplete
   if (!hasValidData && !isInitialLoading) {
@@ -281,17 +353,64 @@ export function KanbanLinkingSection({ kanban }: KanbanLinkingSectionProps) {
   // For RECEIVE kanbans: show location management
   if (kanban.type === 'receive') {
     const handleSaveLocation = async () => {
-      if (!selectedLocationId) {
+      // Validate that a location is selected
+      if (!selectedLocationId || selectedLocationId.trim() === '') {
         toast.error('Please select a location');
+        return;
+      }
+
+      const trimmedLocationId = selectedLocationId.trim();
+
+      // Validate UUID format (basic check)
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(trimmedLocationId)) {
+        toast.error('Invalid location selected. Please try again.');
+        console.error('Invalid UUID format:', trimmedLocationId);
+        return;
+      }
+
+      // Validate that the selected location exists in the loaded locations list
+      const selectedLocation = locations.find(loc => loc.id === trimmedLocationId);
+      if (!selectedLocation) {
+        toast.error('Selected location is not available. Please refresh and try again.');
+        console.error('Location not found in loaded locations:', trimmedLocationId);
+        console.error('Available locations:', locations.map(l => l.id));
         return;
       }
 
       setIsSavingLocation(true);
       try {
-        await updateKanban(kanban.id, { locationId: selectedLocationId });
+        // Send only valid UUID string (never empty string or null)
+        await updateKanban(kanban.id, { locationId: trimmedLocationId });
         toast.success('Location updated successfully');
       } catch (error: any) {
-        toast.error('Failed to update location');
+        const errorMessage = error?.response?.data?.error?.message || error?.message || 'Failed to update location';
+        
+        // Check if error is because location not found
+        if (errorMessage.includes('not found') || errorMessage.includes('Invalid locationId')) {
+          // Location no longer exists - clear it from kanban
+          console.warn('Location no longer exists, clearing locationId from kanban');
+          try {
+            await updateKanban(kanban.id, { locationId: null });
+            setSelectedLocationId('');
+            toast.error('Selected location no longer exists. Location has been cleared.');
+          } catch (clearError) {
+            console.error('Failed to clear invalid locationId:', clearError);
+            toast.error('Location not found. Please select a different location.');
+          }
+        } else {
+          toast.error(errorMessage);
+        }
+        
+        console.error('Failed to update location:', error);
+        // Log full error details for debugging
+        if (error?.response?.data) {
+          console.error('Error response data:', error.response.data);
+        }
+        if (error?.response) {
+          console.error('Error response status:', error.response.status);
+          console.error('Error response headers:', error.response.headers);
+        }
       } finally {
         setIsSavingLocation(false);
       }

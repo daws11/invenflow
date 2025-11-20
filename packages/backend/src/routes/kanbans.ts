@@ -6,7 +6,7 @@ import { eq, and, asc, sql, isNull } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
 // import { emitInventoryEvent } from '../services/inventoryEvents'; // Temporarily disabled due to TypeScript issues
-import { UpdateKanbanSchema, FormFieldSettingsSchema, DEFAULT_FORM_FIELD_SETTINGS } from '@invenflow/shared';
+import { UpdateKanbanSchema, FormFieldSettingsSchema, DEFAULT_FORM_FIELD_SETTINGS, CreateKanbanSchema } from '@invenflow/shared';
 
 const router = Router();
 
@@ -185,19 +185,16 @@ router.get('/:id', async (req, res, next) => {
 // Create kanban
 router.post('/', async (req, res, next) => {
   try {
-    const { name, type, description, thresholdRules, locationId } = req.body;
-
-    if (!name || !type || !['order', 'receive'].includes(type)) {
-      throw createError('Invalid kanban data', 400);
+    // Validate request body against schema
+    const validationResult = CreateKanbanSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      throw createError('Invalid kanban data: ' + validationResult.error.message, 400);
     }
 
-    // Validate locationId is required for receive kanbans
-    if (type === 'receive') {
-      if (!locationId) {
-        throw createError('Location is required for receive kanbans', 400);
-      }
+    const { name, type, description, locationId } = validationResult.data;
 
-      // Verify location exists
+    // Verify location exists if locationId is provided
+    if (locationId) {
       const [locationExists] = await db
         .select()
         .from(locations)
@@ -219,11 +216,6 @@ router.post('/', async (req, res, next) => {
       formFieldSettings: type === 'order' ? DEFAULT_FORM_FIELD_SETTINGS : null,
     };
 
-    // Add thresholdRules if provided
-    if (thresholdRules !== undefined) {
-      newKanban.thresholdRules = thresholdRules;
-    }
-
     const [createdKanban] = await db
       .insert(kanbans)
       .values(newKanban)
@@ -241,8 +233,23 @@ router.put('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
     
+    // Normalize empty strings to null before validation
+    // This prevents Zod validation errors when empty strings are sent
+    const normalizedBody = {
+      ...req.body,
+      locationId: req.body.locationId === '' || req.body.locationId === undefined 
+        ? null 
+        : req.body.locationId,
+      linkedKanbanId: req.body.linkedKanbanId === '' || req.body.linkedKanbanId === undefined 
+        ? null 
+        : req.body.linkedKanbanId,
+      defaultLinkedKanbanId: req.body.defaultLinkedKanbanId === '' || req.body.defaultLinkedKanbanId === undefined 
+        ? null 
+        : req.body.defaultLinkedKanbanId,
+    };
+    
     // Validate request body against schema
-    const validationResult = UpdateKanbanSchema.safeParse(req.body);
+    const validationResult = UpdateKanbanSchema.safeParse(normalizedBody);
     if (!validationResult.success) {
       throw createError('Invalid kanban data: ' + validationResult.error.message, 400);
     }
@@ -295,7 +302,15 @@ router.put('/:id', async (req, res, next) => {
     }
 
     // Validate locationId if provided
-    if (locationId !== undefined && locationId !== null) {
+    // locationId is already normalized to null if empty string was sent
+    if (locationId !== null && locationId !== undefined) {
+      // Validate UUID format first
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(locationId)) {
+        console.error('Invalid UUID format for locationId:', locationId);
+        throw createError('Invalid locationId format', 400);
+      }
+
       const [locationExists] = await db
         .select()
         .from(locations)
@@ -303,7 +318,8 @@ router.put('/:id', async (req, res, next) => {
         .limit(1);
 
       if (!locationExists) {
-        throw createError('Invalid locationId', 400);
+        console.error('Location not found in database:', locationId);
+        throw createError(`Location with ID ${locationId} not found`, 400);
       }
     }
 

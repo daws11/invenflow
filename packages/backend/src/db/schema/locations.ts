@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, index, integer, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, index, integer, boolean, unique } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { products } from './products';
 
@@ -23,7 +23,8 @@ export const locations = pgTable(
     nameIdx: index('locations_name_idx').on(table.name),
     buildingIdx: index('locations_building_idx').on(table.building),
     isActiveIdx: index('locations_is_active_idx').on(table.isActive),
-    uniqueAreaName: index('locations_area_name_idx').on(table.area, table.name),
+    // Changed from index to unique constraint to prevent duplicate General locations per area
+    uniqueAreaName: unique('locations_area_name_unique').on(table.area, table.name),
   })
 );
 

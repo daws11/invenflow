@@ -273,7 +273,12 @@ export const locationApi = {
     groupedByArea: Record<string, Location[]>;
     areas: string[];
   }> => {
-    const response = await api.get("/api/locations", { params });
+    // Add cache busting to ensure fresh data after import
+    const cacheBustParams = { ...params, _t: Date.now() };
+    const response = await api.get("/api/locations", { 
+      params: cacheBustParams,
+      headers: { 'Cache-Control': 'no-cache' }
+    });
     return response.data;
   },
 
@@ -603,8 +608,13 @@ export const inventoryApi = {
     category?: string[];
     supplier?: string[];
     status?: string;
+    bypassCache?: boolean;
   }): Promise<GroupedInventoryResponse> => {
-    const response = await api.get("/api/inventory/grouped", { params });
+    const { bypassCache, ...restParams } = params || {};
+    const response = await api.get("/api/inventory/grouped", { 
+      params: restParams,
+      headers: bypassCache ? { 'Cache-Control': 'no-cache' } : {}
+    });
     return response.data;
   },
 

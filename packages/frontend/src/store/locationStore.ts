@@ -68,7 +68,29 @@ export const useLocationStore = create<LocationState>((set, get) => ({
     try {
       const newLocation = await locationApi.create(data);
 
-      set({ loading: false });
+      // Update state optimistically
+      const { locations, groupedLocations, areas } = get();
+      const updatedLocations = [...locations, newLocation];
+
+      // Update grouped locations
+      const updatedGroupedLocations = { ...groupedLocations };
+      if (!updatedGroupedLocations[newLocation.area]) {
+        updatedGroupedLocations[newLocation.area] = [];
+      }
+      updatedGroupedLocations[newLocation.area].push(newLocation);
+
+      // Update areas if new
+      const updatedAreas = areas.includes(newLocation.area)
+        ? areas
+        : [...areas, newLocation.area].sort();
+
+      set({
+        locations: updatedLocations,
+        groupedLocations: updatedGroupedLocations,
+        areas: updatedAreas,
+        loading: false
+      });
+
       return newLocation;
     } catch (error) {
       set({
@@ -84,8 +106,40 @@ export const useLocationStore = create<LocationState>((set, get) => ({
     try {
       const updatedLocation = await locationApi.update(id, data);
 
-      set({ loading: false });
-      return updatedLocation;
+      // Update state
+      const { locations, groupedLocations } = get();
+
+      // Update locations array
+      const updatedLocations = locations.map(loc =>
+        loc.id === id ? updatedLocation : loc
+      );
+
+      // Update grouped locations
+      const updatedGroupedLocations = { ...groupedLocations };
+
+      // Remove from old area if area changed
+      const oldLocation = locations.find(loc => loc.id === id);
+      if (oldLocation && oldLocation.area !== updatedLocation.area) {
+        updatedGroupedLocations[oldLocation.area] = updatedGroupedLocations[oldLocation.area]
+          .filter(loc => loc.id !== id);
+
+        // Add to new area
+        if (!updatedGroupedLocations[updatedLocation.area]) {
+          updatedGroupedLocations[updatedLocation.area] = [];
+        }
+        updatedGroupedLocations[updatedLocation.area].push(updatedLocation);
+      } else {
+        // Update in same area
+        updatedGroupedLocations[updatedLocation.area] = updatedGroupedLocations[updatedLocation.area]
+          .map(loc => loc.id === id ? updatedLocation : loc);
+      }
+
+      set({
+        locations: updatedLocations,
+        groupedLocations: updatedGroupedLocations,
+        currentLocation: updatedLocation,
+        loading: false
+      });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to update location',
@@ -100,7 +154,35 @@ export const useLocationStore = create<LocationState>((set, get) => ({
     try {
       await locationApi.delete(id);
 
-      set({ loading: false });
+      // Update state
+      const { locations, groupedLocations, currentLocation } = get();
+      const locationToDelete = locations.find(loc => loc.id === id);
+
+      if (locationToDelete) {
+        // Remove from locations array
+        const updatedLocations = locations.filter(loc => loc.id !== id);
+
+        // Remove from grouped locations
+        const updatedGroupedLocations = { ...groupedLocations };
+        updatedGroupedLocations[locationToDelete.area] = updatedGroupedLocations[locationToDelete.area]
+          .filter(loc => loc.id !== id);
+
+        // Clean up empty areas
+        if (updatedGroupedLocations[locationToDelete.area].length === 0) {
+          delete updatedGroupedLocations[locationToDelete.area];
+        }
+
+        // Update areas list
+        const remainingAreas = Object.keys(updatedGroupedLocations).sort();
+
+        set({
+          locations: updatedLocations,
+          groupedLocations: updatedGroupedLocations,
+          areas: remainingAreas,
+          currentLocation: currentLocation?.id === id ? null : currentLocation,
+          loading: false
+        });
+      }
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to delete location',

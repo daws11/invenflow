@@ -275,10 +275,14 @@ export const useInventoryStore = create<InventoryState>((set, get) => {
     set({ loading: true, error: null, lastGroupedParams: { ...params } });
 
     try {
-      const response: GroupedInventoryResponse = await globalRequestDeduplicator.run(
-        `inventory:grouped:${JSON.stringify(params)}`,
-        () => inventoryApi.getGroupedInventory(params),
-      );
+      // Clear frontend request deduplicator to ensure fresh request
+      globalRequestDeduplicator.clear();
+      
+      // Always bypass backend cache for grouped inventory to ensure fresh data
+      const response: GroupedInventoryResponse = await inventoryApi.getGroupedInventory({
+        ...params,
+        bypassCache: true,
+      });
 
       set({
         groupedItems: response.items,

@@ -745,6 +745,18 @@ router.delete('/:id', async (req, res, next) => {
       skuValues: [deletedProduct.sku],
     });
 
+    // Also explicitly invalidate grouped inventory HTTP cache
+    // This ensures grouped view updates immediately after delete
+    try {
+      const { cacheService } = await import("../services/cacheService");
+      const deletedCount = await cacheService.deleteByPattern("http:GET:/api/inventory/grouped");
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[ProductDelete] Invalidated ${deletedCount} grouped inventory cache entries`);
+      }
+    } catch (error) {
+      console.error('[ProductDelete] Failed to invalidate grouped cache:', error);
+    }
+
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {
     next(error);
@@ -776,6 +788,17 @@ router.post('/bulk-delete', async (req, res, next) => {
       locationIds: deletedProducts.map((product) => product.locationId),
       skuValues: deletedProducts.map((product) => product.sku),
     });
+
+    // Also explicitly invalidate grouped inventory HTTP cache for bulk delete
+    try {
+      const { cacheService } = await import("../services/cacheService");
+      const deletedCount = await cacheService.deleteByPattern("http:GET:/api/inventory/grouped");
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[BulkProductDelete] Invalidated ${deletedCount} grouped inventory cache entries`);
+      }
+    } catch (error) {
+      console.error('[BulkProductDelete] Failed to invalidate grouped cache:', error);
+    }
 
     res.json({
       message: `${deletedProducts.length} products deleted successfully`,
