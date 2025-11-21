@@ -121,9 +121,8 @@ export const executeSingleMovement = async ({
 
       toStockLevel = Number(row?.total ?? 0);
     } else {
-      const kanbanIdCondition = destinationProduct.kanbanId
-        ? eq(products.kanbanId, destinationProduct.kanbanId)
-        : isNull(products.kanbanId);
+      // Calculate total stock for products without SKU based on productDetails match
+      // We ignore kanbanId here because we want the total physical count of this item type in the location
       
       const [row] = await tx
         .select({
@@ -133,7 +132,6 @@ export const executeSingleMovement = async ({
         .where(
           and(
             eq(products.locationId, toLocationId),
-            kanbanIdCondition,
             eq(products.productDetails, destinationProduct.productDetails)
           )
         );

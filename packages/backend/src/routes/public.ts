@@ -227,6 +227,7 @@ router.post('/form/:token', async (req, res, next) => {
       productDetails: itemName.trim(),
       productLink: itemUrl?.trim() || null,
       requesterName: requesterName.trim(),
+      requesterDepartment: department.name,
       priority: priority,
       category: category || null,
       supplier: supplier || null,

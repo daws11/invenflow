@@ -535,18 +535,42 @@ export default function MovementManager() {
 
                           const fromStock = movement.fromStockLevel ?? 0;
                           const quantityMoved = movement.quantityMoved ?? 0;
-                          const remainingFrom = Math.max(0, fromStock - quantityMoved);
                           const toStockLevel = movement.toStockLevel ?? null;
 
+                          // PERBAIKAN: Tampilan khusus untuk Stock Adjustment (Manual Increase/Decrease)
+                          if ('isAdjustment' in row && row.isAdjustment) {
+                            const isIncrease = quantityMoved > 0;
+                            const changeLabel = isIncrease ? `+${quantityMoved}` : `${quantityMoved}`;
+                            const changeColor = isIncrease ? 'text-green-600' : 'text-red-600';
+                            
+                            // Hitung stok akhir manual jika toStockLevel belum tersedia dari backend
+                            const finalStock = toStockLevel !== null ? toStockLevel : (fromStock + quantityMoved);
+
+                            return (
+                              <div className="flex items-center justify-start space-x-2">
+                                <div className="font-medium text-gray-900">{fromStock}</div>
+                                <ArrowRightIcon className="h-3 w-3 text-gray-400" />
+                                <div className="font-medium text-gray-900">{finalStock}</div>
+                                <span className={`text-xs font-medium ${changeColor} bg-gray-50 px-1.5 py-0.5 rounded ml-1`}>
+                                  {changeLabel}
+                                </span>
+                              </div>
+                            );
+                          }
+
+                          // LOGIKA LAMA (Hanya untuk Transfer antar lokasi)
+                          // Menggunakan Math.abs agar quantity selalu positif untuk logika pengurangan/penambahan
+                          const absQty = Math.abs(quantityMoved);
+                          
                           return (
                             <div className="flex items-center space-x-3">
-                              {/* FROM location: remaining stock and negative delta */}
+                              {/* FROM location: initial stock and negative delta */}
                               <div className="text-center">
                                 <div className="font-medium text-gray-900 text-sm">
-                                  {remainingFrom}
+                                  {fromStock}
                                 </div>
                                 <div className="text-red-600 text-xs">
-                                  (-{quantityMoved})
+                                  (-{absQty})
                                 </div>
                               </div>
 
@@ -559,7 +583,7 @@ export default function MovementManager() {
                                   {toStockLevel !== null ? toStockLevel : '—'}
                                 </div>
                                 <div className="text-green-600 text-xs">
-                                  (+{quantityMoved})
+                                  (+{absQty})
                                 </div>
                               </div>
                             </div>

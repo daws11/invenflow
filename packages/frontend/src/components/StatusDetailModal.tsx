@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, MouseEvent } from 'react';
 import { InventoryItem } from '@invenflow/shared';
 import { useInventoryStore } from '../store/inventoryStore';
 import { useLocationStore } from '../store/locationStore';
 import { usePersonStore } from '../store/personStore';
 import { calculateProductStatus, getStatusLabel, getStatusColor } from '../utils/productStatus';
+import { useNavigate } from 'react-router-dom';
 
 interface StatusDetailModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const StatusDetailModal = ({
   status,
   productName,
 }: StatusDetailModalProps) => {
+  const navigate = useNavigate();
   const [products, setProducts] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const fetchProductsBySku = useInventoryStore((state) => state.fetchProductsBySku);
@@ -54,6 +56,27 @@ export const StatusDetailModal = ({
     setSelectedItem(product);
     setShowDetailModal(true);
     onClose();
+  };
+
+  const canNavigateToKanban = (product: InventoryItem) => {
+    const columnMatchesStatus =
+      (status === 'incoming' && product.columnStatus === 'Purchased') ||
+      (status === 'received' && product.columnStatus === 'Received');
+
+    const hasRealKanbanId =
+      Boolean(product.kanban?.id) && product.kanban.id !== 'direct-import';
+
+    return columnMatchesStatus && hasRealKanbanId;
+  };
+
+  const handleKanbanClick = (product: InventoryItem, event: MouseEvent) => {
+    if (!canNavigateToKanban(product)) {
+      return;
+    }
+
+    event.stopPropagation();
+    onClose();
+    navigate(`/kanban/${product.kanban.id}`);
   };
 
   if (!isOpen) return null;
@@ -157,7 +180,16 @@ export const StatusDetailModal = ({
                             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                               <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3.293 1.293a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L7.586 10 5.293 7.707a1 1 0 010-1.414zM11 12a1 1 0 100 2h3a1 1 0 100-2h-3z" />
                             </svg>
-                            {product.kanban.name}
+                            <span
+                              className={`flex items-center gap-1 ${
+                                canNavigateToKanban(product)
+                                  ? 'cursor-pointer text-blue-600 hover:text-blue-800 hover:underline'
+                                  : 'text-gray-600'
+                              }`}
+                              onClick={(event) => handleKanbanClick(product, event)}
+                            >
+                              {product.kanban.name}
+                            </span>
                           </span>
 
                           {/* Location or Person Assignment */}

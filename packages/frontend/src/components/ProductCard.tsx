@@ -260,9 +260,13 @@ export default function ProductCard({ product, onView, location, kanban, isDragg
             <h4 className={`font-medium ${product.isDraft ? 'text-gray-600 italic' : 'text-gray-900'}`}>
               {product.productDetails}
             </h4>
-            {product.requesterName && (
+            {(product.requesterName || product.requesterDepartment) && (
               <div className="text-xs text-gray-600">
-                Requested by: <span className="font-medium text-gray-800">{product.requesterName}</span>
+                Requested by: <span className="font-medium text-gray-800">
+                  {product.requesterName}
+                  {product.requesterName && product.requesterDepartment && ' - '}
+                  {product.requesterDepartment}
+                </span>
               </div>
             )}
             {/* Time in Column - shown regardless of location to support order kanban */}

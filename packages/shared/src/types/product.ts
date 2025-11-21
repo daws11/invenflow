@@ -8,6 +8,7 @@ export const ProductSchema = z.object({
   productDetails: z.string().min(1).max(1000),
   productLink: z.string().url().nullable(),
   requesterName: z.string().max(255).nullable(),
+  requesterDepartment: z.string().max(255).nullable(),
   locationId: z.string().uuid().nullable(),
   assignedToPersonId: z.string().uuid().nullable(),
   preferredReceiveKanbanId: z.string().uuid().nullable(), // Per-product preferred receive kanban
@@ -76,6 +77,7 @@ export const UpdateProductSchema = z.object({
   productDetails: z.string().min(1).max(1000).optional(),
   productLink: z.string().url().nullable().optional(),
   requesterName: z.string().max(255).nullable().optional(),
+  requesterDepartment: z.string().max(255).nullable().optional(),
   locationId: z.string().uuid().nullable().optional(),
   assignedToPersonId: z.string().uuid().nullable().optional(),
   preferredReceiveKanbanId: z.string().uuid().nullable().optional(), // Per-product preferred receive kanban

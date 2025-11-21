@@ -19,6 +19,9 @@ const INVENTORY_FILTERS: Array<Record<string, string>> = [
 const BASE_URL =
   process.env.CACHE_WARM_BASE_URL || `http://127.0.0.1:${env.PORT}`;
 
+// Optional JWT token used for warming protected endpoints that require auth
+const CACHE_WARM_JWT = process.env.CACHE_WARM_JWT;
+
 let warmTimer: NodeJS.Timeout | null = null;
 let isRunning = false;
 
@@ -26,11 +29,18 @@ const fetchWithTimeout = async (url: string, timeoutMs: number) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+    };
+
+    // Attach Authorization header if a cache warm token is configured
+    if (CACHE_WARM_JWT) {
+      headers.Authorization = `Bearer ${CACHE_WARM_JWT}`;
+    }
+
     const response = await fetch(url, {
       signal: controller.signal,
-      headers: {
-        Accept: "application/json",
-      },
+      headers,
     });
     if (!response.ok) {
       throw new Error(`Unexpected status ${response.status}`);

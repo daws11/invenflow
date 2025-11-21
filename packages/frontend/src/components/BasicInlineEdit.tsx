@@ -15,6 +15,7 @@ interface BasicInlineEditProps {
   validation?: (value: any) => string | null;
   allowCustom?: boolean;
   customPlaceholder?: string;
+  renderValue?: (value: string | number | null) => React.ReactNode;
 }
 
 export function BasicInlineEdit({
@@ -30,6 +31,7 @@ export function BasicInlineEdit({
   validation,
   allowCustom: _allowCustom,
   customPlaceholder: _customPlaceholder,
+  renderValue,
 }: BasicInlineEditProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -144,39 +146,23 @@ export function BasicInlineEdit({
     saveValue();
   };
 
-  if (isEditing) {
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newValue = e.target.value;
+    setEditValue(newValue);
+    setOptimisticValue(newValue);
+    
+    onSave(newValue).catch((error) => {
+      console.error('Save failed:', error);
+      setOptimisticValue(null);
+      setHasError(true);
+      setTimeout(() => setHasError(false), 3000);
+    });
+  };
+
+  if (isEditing && type !== 'select') {
     return (
       <div className="relative">
-        {type === 'select' ? (
-          <select
-            ref={inputRef as React.RefObject<HTMLSelectElement>}
-            value={editValue}
-            onChange={(e) => {
-              const newValue = e.target.value;
-              setEditValue(newValue);
-              // For select, save immediately with optimistic update
-              setOptimisticValue(newValue);
-              setIsEditing(false);
-              
-              // Save in background
-              onSave(newValue).catch((error) => {
-                console.error('Save failed:', error);
-                setOptimisticValue(null);
-                setHasError(true);
-                setTimeout(() => setHasError(false), 3000);
-              });
-            }}
-            onKeyDown={handleKeyPress}
-            className="w-full px-3 py-2 bg-white border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm"
-          >
-            <option value="">Select...</option>
-            {options.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        ) : type === 'textarea' ? (
+        {type === 'textarea' ? (
           <textarea
             ref={inputRef as React.RefObject<HTMLTextAreaElement>}
             value={editValue}
@@ -251,18 +237,21 @@ export function BasicInlineEdit({
   // For custom displayValue, we need to check if we should show optimistic or custom display
   const shouldShowOptimistic = optimisticValue !== null && !displayValue;
   const optimisticDisplayValue = getOptimisticDisplayValue();
+  const hasValue = displayedValue !== null && displayedValue !== '' && displayedValue !== undefined;
 
   return (
     <div className="relative">
       <div 
-        className={`group cursor-pointer rounded-md px-3 py-2 border border-transparent hover:border-blue-200 hover:bg-blue-50/50 transition-all duration-200 ease-out ${
+        className={`group cursor-pointer rounded-md px-3 py-2 border border-transparent hover:border-blue-200 hover:bg-blue-50/50 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 focus-within:bg-white transition-all duration-200 ease-out ${
           hasError ? 'bg-red-50 border-red-200' : 'hover:shadow-sm'
-        } ${className}`}
-        onClick={startEdit}
+        } ${className} relative`}
+        onClick={type !== 'select' ? startEdit : undefined}
       >
         <div className="flex items-center justify-between min-h-[2rem]">
           <div className="flex-1 min-w-0">
-            {optimisticDisplayValue ? (
+            {renderValue && hasValue ? (
+              renderValue(displayedValue)
+            ) : optimisticDisplayValue ? (
               optimisticDisplayValue
             ) : displayValue && !shouldShowOptimistic ? (
               displayValue
@@ -282,6 +271,23 @@ export function BasicInlineEdit({
             <PencilIcon className="h-3.5 w-3.5 text-gray-400 opacity-0 group-hover:opacity-100 transition-all duration-200 group-hover:scale-110" />
           </div>
         </div>
+
+        {/* Select Overlay for One-Click Dropdown */}
+        {type === 'select' && (
+          <select
+            value={editValue}
+            onChange={handleSelectChange}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+             <option value="">{placeholder}</option>
+             {options.map((option) => (
+               <option key={option.value} value={option.value}>
+                 {option.label}
+               </option>
+             ))}
+          </select>
+        )}
       </div>
       
       {/* Enhanced error indicator */}

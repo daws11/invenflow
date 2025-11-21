@@ -32,6 +32,7 @@ export const products = pgTable(
     unitPrice: decimal('unit_price', { precision: 12, scale: 2 }),
     notes: text('notes'),
     requesterName: text('requester_name'),
+    requesterDepartment: text('requester_department'),
     // Import metadata
     importSource: text('import_source'), // 'bulk-import' | 'kanban-flow' | 'manual' (kept as free text)
     importBatchId: uuid('import_batch_id'),

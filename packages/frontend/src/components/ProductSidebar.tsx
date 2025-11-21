@@ -386,16 +386,28 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
           )}
         </div>
 
-        {/* Requester Name */}
-        <div>
-          <h4 className="text-xs font-medium text-gray-600 mb-1">Requester</h4>
-          <BasicInlineEdit
-            value={product.requesterName || ''}
-            onSave={(value) => handleFieldUpdate('requesterName', value)}
-            placeholder="Enter requester name"
-            maxLength={255}
-            className="text-sm text-gray-700"
-          />
+        {/* Requester Info */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <h4 className="text-xs font-medium text-gray-600 mb-1">Requester</h4>
+            <BasicInlineEdit
+              value={product.requesterName || ''}
+              onSave={(value) => handleFieldUpdate('requesterName', value)}
+              placeholder="Enter requester name"
+              maxLength={255}
+              className="text-sm text-gray-700"
+            />
+          </div>
+          <div>
+            <h4 className="text-xs font-medium text-gray-600 mb-1">Department</h4>
+            <BasicInlineEdit
+              value={product.requesterDepartment || ''}
+              onSave={(value) => handleFieldUpdate('requesterDepartment', value)}
+              placeholder="Enter department"
+              maxLength={255}
+              className="text-sm text-gray-700"
+            />
+          </div>
         </div>
 
         {/* Compact SKU and Supplier row */}
@@ -433,12 +445,12 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
             type="select"
             options={categoryOptions}
             placeholder="Select category"
-            displayValue={product.category ? (
-              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getCategoryColor(product.category)}`}>
+            renderValue={(val) => val ? (
+              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getCategoryColor(val as string)}`}>
                 <TagIcon className="h-3 w-3 mr-1" />
-                {product.category}
+                {val}
               </span>
-            ) : undefined}
+            ) : null}
           />
         </div>
 
@@ -450,11 +462,11 @@ export default function ProductSidebar({ product, isOpen, onClose, onUpdate }: P
             type="select"
             options={priorityOptions}
             placeholder="Select priority"
-            displayValue={product.priority ? (
-              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(product.priority)}`}>
-                {product.priority}
+            renderValue={(val) => val ? (
+              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(val as string)}`}>
+                {val}
               </span>
-            ) : undefined}
+            ) : null}
           />
         </div>
       </div>
