@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import { AssignKanbanUser, KanbanUserRole, KanbanUserRoleRecord, User } from "@invenflow/shared";
+import { KanbanUserRole, User } from "@invenflow/shared";
 import { kanbanAccessApi, KanbanUserAssignment, userApi } from "../utils/api";
 import { useToast } from "../store/toastStore";
 

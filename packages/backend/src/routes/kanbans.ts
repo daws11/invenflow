@@ -68,13 +68,9 @@ router.get('/', async (req: AuthenticatedRequest, res, next) => {
         ),
       );
 
-    let kanbanQuery = baseQuery;
-
-    if (!isAdmin) {
-      kanbanQuery = kanbanQuery.where(eq(kanbanUserRoles.userId, userId));
-    }
-
-    const allKanbans = await kanbanQuery
+    const allKanbans = await (isAdmin
+      ? baseQuery
+      : baseQuery.where(eq(kanbanUserRoles.userId, userId)))
       .groupBy(kanbans.id)
       .orderBy(asc(kanbans.createdAt));
 
@@ -85,7 +81,7 @@ router.get('/', async (req: AuthenticatedRequest, res, next) => {
 });
 
 // Get kanban with products
-router.get('/:id', requireKanbanAccess(), async (req, res, next) => {
+router.get('/:id', requireKanbanAccess(), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { id } = req.params;
 

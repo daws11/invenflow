@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { AssignKanbanUser, KanbanUserRole, User } from "@invenflow/shared";
-import { kanbanAccessApi, KanbanUserAssignment, userApi } from "../utils/api";
+import { KanbanUserRole, User } from "@invenflow/shared";
+import { kanbanAccessApi, KanbanUserAssignment, KanbanAccessPayload, userApi } from "../utils/api";
 import { useToast } from "../store/toastStore";
 
 interface KanbanAccessSectionProps {
@@ -48,7 +48,7 @@ export function KanbanAccessSection({ kanbanId }: KanbanAccessSectionProps) {
     if (!selectedUserId) return;
     setIsSubmitting(true);
     try {
-      const payload: AssignKanbanUser = {
+      const payload: KanbanAccessPayload = {
         userId: selectedUserId,
         role: selectedRole,
       };

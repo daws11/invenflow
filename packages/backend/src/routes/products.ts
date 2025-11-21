@@ -29,7 +29,7 @@ const resolveProductKanbanId =
       .from(products)
       .where(eq(products.id, productId))
       .limit(1);
-    return productRow?.kanbanId;
+    return productRow?.kanbanId ?? undefined;
   };
 
 type ProductInvalidationContext = {

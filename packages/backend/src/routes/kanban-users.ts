@@ -51,7 +51,7 @@ const fetchAssignmentWithUser = async (kanbanId: string, userId: string) => {
 
 router.get('/', async (req, res, next) => {
   try {
-    const { kanbanId } = req.params;
+    const { kanbanId } = req.params as { kanbanId: string };
     if (!kanbanId) {
       throw createError('Kanban ID is required', 400);
     }
@@ -84,7 +84,7 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { kanbanId } = req.params;
+    const { kanbanId } = req.params as { kanbanId: string };
     if (!kanbanId) {
       throw createError('Kanban ID is required', 400);
     }
@@ -119,7 +119,7 @@ router.post('/', async (req, res, next) => {
     if (existingAssignment) {
       await db
         .update(kanbanUserRoles)
-        .set({ role, updatedAt: new Date() })
+        .set({ role, updatedAt: new Date().toISOString() })
         .where(
           and(
             eq(kanbanUserRoles.kanbanId, kanbanId),
@@ -152,7 +152,7 @@ router.post('/', async (req, res, next) => {
 
 router.delete('/:userId', async (req, res, next) => {
   try {
-    const { kanbanId, userId } = req.params;
+    const { kanbanId, userId } = req.params as { kanbanId: string; userId: string };
     if (!kanbanId || !userId) {
       throw createError('Kanban ID and user ID are required', 400);
     }

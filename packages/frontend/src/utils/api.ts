@@ -144,7 +144,7 @@ export const kanbanApi = {
   },
 };
 
-type KanbanAccessPayload = Omit<AssignKanbanUser, "kanbanId">;
+export type KanbanAccessPayload = Omit<AssignKanbanUser, "kanbanId">;
 
 export type KanbanUserAssignment = KanbanUserRoleRecord & {
   user: User;
