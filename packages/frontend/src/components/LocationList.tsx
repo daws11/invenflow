@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Location } from '@invenflow/shared';
 import {
   ChevronDownIcon,
