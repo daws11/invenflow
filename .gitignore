@@ -110,4 +110,4 @@ logs/*
 
 .VSCodeCounter/*
 
-backend/uploads/*
+backend/uploads/*build-info.json
