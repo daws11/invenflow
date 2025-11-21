@@ -15,6 +15,7 @@ import { departmentsRouter } from "./routes/departments";
 import { healthRouter } from "./routes/health";
 import { inventoryRouter } from "./routes/inventory";
 import { kanbansRouter } from "./routes/kanbans";
+import { kanbanUsersRouter } from "./routes/kanban-users";
 import { locationsRouter } from "./routes/locations";
 import { movementsRouter } from "./routes/movements";
 import { personsRouter } from "./routes/persons";
@@ -149,6 +150,7 @@ app.use("/api/public", publicRouter);
 
 // Protected routes (require authentication)
 app.use("/api/bulk-movements", bulkMovementsRouter);
+app.use("/api/kanbans/:kanbanId/users", kanbanUsersRouter);
 app.use("/api/kanbans", kanbansRouter);
 app.use("/api/departments", departmentsRouter);
 app.use("/api/locations", locationsRouter);

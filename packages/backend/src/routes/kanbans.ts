@@ -1,10 +1,21 @@
 import { Router } from 'express';
 import { nanoid } from 'nanoid';
 import { db } from '../db';
-import { kanbans, products, kanbanLinks, locations, productGroups, productGroupSettings, storedLogs } from '../db/schema';
+import {
+  kanbans,
+  products,
+  kanbanLinks,
+  locations,
+  productGroups,
+  productGroupSettings,
+  storedLogs,
+  kanbanUserRoles,
+} from '../db/schema';
 import { eq, and, asc, sql, isNull } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { authenticateToken } from '../middleware/auth';
+import type { AuthenticatedRequest } from '../middleware/auth';
+import { requireAdmin, requireKanbanAccess } from '../utils/authorization';
 // import { emitInventoryEvent } from '../services/inventoryEvents'; // Temporarily disabled due to TypeScript issues
 import { UpdateKanbanSchema, FormFieldSettingsSchema, DEFAULT_FORM_FIELD_SETTINGS, CreateKanbanSchema } from '@invenflow/shared';
 
@@ -14,9 +25,17 @@ const router = Router();
 router.use(authenticateToken);
 
 // Get all kanbans
-router.get('/', async (req, res, next) => {
+router.get('/', async (req: AuthenticatedRequest, res, next) => {
   try {
-    const allKanbans = await db
+    if (!req.user) {
+      throw createError('Authentication required', 401);
+    }
+
+    const userId = req.user.id;
+    const isAdmin = req.user.role === 'admin';
+    const fallbackRole = isAdmin ? 'admin' : 'viewer';
+
+    const baseQuery = db
       .select({
         id: kanbans.id,
         name: kanbans.name,
@@ -33,6 +52,7 @@ router.get('/', async (req, res, next) => {
         storedAutoArchiveAfterMinutes: kanbans.storedAutoArchiveAfterMinutes,
         createdAt: kanbans.createdAt,
         updatedAt: kanbans.updatedAt,
+        userRole: sql<string>`coalesce(max(${kanbanUserRoles.role}), ${fallbackRole})`,
         // Only count non-rejected products so summary counts match board view
         productCount: sql<number>`cast(count(*) filter (where ${products.isRejected} = false) as integer)`.as(
           'productCount',
@@ -40,6 +60,21 @@ router.get('/', async (req, res, next) => {
       })
       .from(kanbans)
       .leftJoin(products, eq(kanbans.id, products.kanbanId))
+      .leftJoin(
+        kanbanUserRoles,
+        and(
+          eq(kanbanUserRoles.kanbanId, kanbans.id),
+          eq(kanbanUserRoles.userId, userId),
+        ),
+      );
+
+    let kanbanQuery = baseQuery;
+
+    if (!isAdmin) {
+      kanbanQuery = kanbanQuery.where(eq(kanbanUserRoles.userId, userId));
+    }
+
+    const allKanbans = await kanbanQuery
       .groupBy(kanbans.id)
       .orderBy(asc(kanbans.createdAt));
 
@@ -50,7 +85,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // Get kanban with products
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', requireKanbanAccess(), async (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -87,6 +122,22 @@ router.get('/:id', async (req, res, next) => {
     }
 
     const kanban = kanbanData[0];
+
+    const [assignment] = await db
+      .select({ role: kanbanUserRoles.role })
+      .from(kanbanUserRoles)
+      .where(
+        and(
+          eq(kanbanUserRoles.kanbanId, id),
+          eq(kanbanUserRoles.userId, req.user?.id ?? ''),
+        ),
+      )
+      .limit(1);
+
+    const userRole =
+      req.user?.role === 'admin'
+        ? 'admin'
+        : (assignment?.role as string | undefined) ?? 'viewer';
 
     // Get products for this kanban
     const kanbanProductsQuery = await db
@@ -170,8 +221,9 @@ router.get('/:id', async (req, res, next) => {
       };
     });
 
-    res.json({ 
-      ...kanban, 
+    res.json({
+      ...kanban,
+      userRole,
       products: kanbanProducts,
       location,
       linkedKanbans,
@@ -183,7 +235,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // Create kanban
-router.post('/', async (req, res, next) => {
+router.post('/', requireAdmin, async (req, res, next) => {
   try {
     // Validate request body against schema
     const validationResult = CreateKanbanSchema.safeParse(req.body);
@@ -229,7 +281,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // Update kanban
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireKanbanAccess({ minRole: 'editor' }), async (req, res, next) => {
   try {
     const { id } = req.params;
     
@@ -405,7 +457,10 @@ router.put('/:id', async (req, res, next) => {
 });
 
 // Update public form settings
-router.put('/:id/public-form-settings', async (req, res, next) => {
+router.put(
+  '/:id/public-form-settings',
+  requireKanbanAccess({ minRole: 'editor' }),
+  async (req, res, next) => {
   try {
     const { id } = req.params;
     const { isPublicFormEnabled, formFieldSettings } = req.body;
@@ -464,7 +519,7 @@ router.put('/:id/public-form-settings', async (req, res, next) => {
 });
 
 // Get linked receive kanbans for an order kanban
-router.get('/:id/links', async (req, res, next) => {
+router.get('/:id/links', requireKanbanAccess(), async (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -507,7 +562,10 @@ router.get('/:id/links', async (req, res, next) => {
 });
 
 // Add link between order kanban and receive kanban
-router.post('/:id/links', async (req, res, next) => {
+router.post(
+  '/:id/links',
+  requireKanbanAccess({ minRole: 'editor' }),
+  async (req, res, next) => {
   try {
     const { id } = req.params;
     const { receiveKanbanId } = req.body;
@@ -621,7 +679,10 @@ router.post('/:id/links', async (req, res, next) => {
 });
 
 // Remove link between order kanban and receive kanban
-router.delete('/:id/links/:linkId', async (req, res, next) => {
+router.delete(
+  '/:id/links/:linkId',
+  requireKanbanAccess({ minRole: 'editor' }),
+  async (req, res, next) => {
   try {
     const { id, linkId } = req.params;
 
@@ -684,7 +745,7 @@ router.delete('/:id/links/:linkId', async (req, res, next) => {
 });
 
 // Delete kanban
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireAdmin, async (req, res, next) => {
   try {
     const { id } = req.params;
 

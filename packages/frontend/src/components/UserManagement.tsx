@@ -22,6 +22,8 @@ export default function UserManagement() {
     role: 'user',
   });
 
+  const isAdmin = currentUser?.role === 'admin';
+
   const fetchUsers = async () => {
     try {
       setLoading(true);
@@ -36,8 +38,10 @@ export default function UserManagement() {
   };
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (isAdmin) {
+      fetchUsers();
+    }
+  }, [isAdmin]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,6 +101,19 @@ export default function UserManagement() {
   const canDeleteUser = (user: User) => {
     return currentUser?.id !== user.id;
   };
+
+  if (!isAdmin) {
+    return (
+      <div className="p-6">
+        <div className="max-w-xl mx-auto bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <h1 className="text-lg font-semibold text-amber-900 mb-1">Restricted Access</h1>
+          <p className="text-sm text-amber-800">
+            You don't have permission to manage users. Please contact an administrator if you believe this is a mistake.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

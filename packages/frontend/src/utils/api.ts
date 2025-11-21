@@ -30,6 +30,8 @@ import {
   PublicMovementResponse,
   FormFieldSettings,
   LinkedReceiveKanban,
+  AssignKanbanUser,
+  KanbanUserRoleRecord,
   StoredLogWithRelations,
   StoredLogListResponse,
   StoredLogFilters,
@@ -68,9 +70,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Handle both 401 (Unauthorized) and 403 (Forbidden) for token expiration
-    // 401 is standard for expired/invalid tokens, 403 kept for backward compatibility
-    if (error.response?.status === 401 || error.response?.status === 403) {
+    if (error.response?.status === 401) {
       // Get store instance and call logout with redirect
       const logout = useAuthStore.getState().logout;
       logout(true); // Clear state and redirect to login
@@ -141,6 +141,29 @@ export const kanbanApi = {
   ): Promise<LinkedReceiveKanban[]> => {
     const response = await api.delete(`/api/kanbans/${id}/links/${linkId}`);
     return response.data;
+  },
+};
+
+type KanbanAccessPayload = Omit<AssignKanbanUser, "kanbanId">;
+
+export type KanbanUserAssignment = KanbanUserRoleRecord & {
+  user: User;
+};
+
+export const kanbanAccessApi = {
+  list: async (kanbanId: string): Promise<KanbanUserAssignment[]> => {
+    const response = await api.get(`/api/kanbans/${kanbanId}/users`);
+    return response.data;
+  },
+  save: async (
+    kanbanId: string,
+    payload: KanbanAccessPayload,
+  ): Promise<KanbanUserAssignment> => {
+    const response = await api.post(`/api/kanbans/${kanbanId}/users`, payload);
+    return response.data;
+  },
+  remove: async (kanbanId: string, userId: string): Promise<void> => {
+    await api.delete(`/api/kanbans/${kanbanId}/users/${userId}`);
   },
 };
 

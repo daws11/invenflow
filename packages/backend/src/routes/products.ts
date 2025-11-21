@@ -5,15 +5,32 @@ import { eq, and, desc, getTableColumns, sql, inArray, isNull, ne } from 'drizzl
 import { createError } from '../middleware/errorHandler';
 import type { NewProduct } from '../db/schema';
 import { authenticateToken } from '../middleware/auth';
+import type { AuthenticatedRequest } from '../middleware/auth';
 import { invalidateInventoryCaches, type CacheTagDescriptor } from '../utils/cacheInvalidation';
 import { nanoid } from 'nanoid';
 import { generateStableSku, normalizeSku } from '../utils/sku';
 import { cacheMiddleware } from '../middleware/cache';
 import { UpdateStockLevelSchema } from '@invenflow/shared';
+import { requireKanbanAccess, ensureUserHasKanbanAccess } from '../utils/authorization';
 
 type ProductRecord = typeof products.$inferSelect;
 
 const router = Router();
+
+const resolveProductKanbanId =
+  (paramKey: string = 'id') =>
+  async (req: AuthenticatedRequest): Promise<string | undefined> => {
+    const productId = req.params[paramKey] as string | undefined;
+    if (!productId) {
+      return undefined;
+    }
+    const [productRow] = await db
+      .select({ kanbanId: products.kanbanId })
+      .from(products)
+      .where(eq(products.id, productId))
+      .limit(1);
+    return productRow?.kanbanId;
+  };
 
 type ProductInvalidationContext = {
   productIds?: Array<string | null | undefined>;
@@ -106,6 +123,7 @@ router.get('/rejected', async (req, res, next) => {
 // Get product by ID
 router.get(
   '/:id',
+  requireKanbanAccess({ minRole: 'viewer', getKanbanId: resolveProductKanbanId('id') }),
   cacheMiddleware({
     ttl: 3 * 60 * 1000,
     tags: [{ resource: 'product' }],
@@ -139,7 +157,7 @@ router.get(
 });
 
 // Create product
-router.post('/', async (req, res, next) => {
+router.post('/', requireKanbanAccess({ minRole: 'editor' }), async (req, res, next) => {
   try {
     const {
       kanbanId,
@@ -269,7 +287,13 @@ router.post('/', async (req, res, next) => {
 });
 
 // Adjust stock level at a specific location
-router.put('/:productId/locations/:locationId/stock', async (req, res, next) => {
+router.put(
+  '/:productId/locations/:locationId/stock',
+  requireKanbanAccess({
+    minRole: 'editor',
+    getKanbanId: resolveProductKanbanId('productId'),
+  }),
+  async (req, res, next) => {
   try {
     const { productId, locationId } = req.params;
     const { newStockLevel } = UpdateStockLevelSchema.parse(req.body);
@@ -410,7 +434,13 @@ router.put('/:productId/locations/:locationId/stock', async (req, res, next) => 
 });
 
 // Update product details
-router.put('/:id', async (req, res, next) => {
+router.put(
+  '/:id',
+  requireKanbanAccess({
+    minRole: 'editor',
+    getKanbanId: resolveProductKanbanId('id'),
+  }),
+  async (req, res, next) => {
   let locationIdInput: string | null | undefined = undefined;
   try {
     const { id } = req.params;
@@ -587,7 +617,13 @@ router.put('/:id', async (req, res, next) => {
 });
 
 // Move product to different column
-router.put('/:id/move', async (req, res, next) => {
+router.put(
+  '/:id/move',
+  requireKanbanAccess({
+    minRole: 'editor',
+    getKanbanId: resolveProductKanbanId('id'),
+  }),
+  async (req, res, next) => {
   try {
     const { id } = req.params;
     const { columnStatus, locationId, skipValidation } = req.body;
@@ -810,7 +846,13 @@ router.put('/:id/move', async (req, res, next) => {
 });
 
 // Transfer product from order kanban to receive kanban
-router.post('/:id/transfer', async (req, res, next) => {
+router.post(
+  '/:id/transfer',
+  requireKanbanAccess({
+    minRole: 'editor',
+    getKanbanId: resolveProductKanbanId('id'),
+  }),
+  async (req, res, next) => {
   try {
     const { id } = req.params;
     const { targetKanbanId } = req.body;
@@ -925,7 +967,13 @@ router.post('/:id/transfer', async (req, res, next) => {
 });
 
 // Delete product
-router.delete('/:id', async (req, res, next) => {
+router.delete(
+  '/:id',
+  requireKanbanAccess({
+    minRole: 'editor',
+    getKanbanId: resolveProductKanbanId('id'),
+  }),
+  async (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -964,7 +1012,7 @@ router.delete('/:id', async (req, res, next) => {
 });
 
 // Bulk operations
-router.post('/bulk-delete', async (req, res, next) => {
+router.post('/bulk-delete', async (req: AuthenticatedRequest, res, next) => {
   try {
     const { productIds } = req.body;
 
@@ -973,6 +1021,17 @@ router.post('/bulk-delete', async (req, res, next) => {
     }
 
     const uniqueIds = Array.from(new Set(productIds));
+
+    const productsToDelete = await db
+      .select({ id: products.id, kanbanId: products.kanbanId })
+      .from(products)
+      .where(inArray(products.id, uniqueIds));
+
+    await ensureUserHasKanbanAccess(
+      req,
+      productsToDelete.map((product) => product.kanbanId).filter((value): value is string => Boolean(value)),
+      'editor'
+    );
 
     const deletedProducts = await db
       .delete(products)
@@ -1012,7 +1071,7 @@ router.post('/bulk-delete', async (req, res, next) => {
   }
 });
 
-router.post('/bulk-update', async (req, res, next) => {
+router.post('/bulk-update', async (req: AuthenticatedRequest, res, next) => {
   try {
     const { productIds, updateData } = req.body;
 
@@ -1034,6 +1093,16 @@ router.post('/bulk-update', async (req, res, next) => {
 
     const sanitizedUpdateData = Object.fromEntries(sanitizedUpdateEntries);
     const uniqueIds = Array.from(new Set(productIds));
+    const productsToUpdate = await db
+      .select({ id: products.id, kanbanId: products.kanbanId })
+      .from(products)
+      .where(inArray(products.id, uniqueIds));
+
+    await ensureUserHasKanbanAccess(
+      req,
+      productsToUpdate.map((product) => product.kanbanId).filter((value): value is string => Boolean(value)),
+      'editor'
+    );
 
     const updatedProducts = await db
       .update(products)
@@ -1067,7 +1136,7 @@ router.post('/bulk-update', async (req, res, next) => {
 });
 
 // Bulk reject products
-router.post('/bulk-reject', async (req, res, next) => {
+router.post('/bulk-reject', async (req: AuthenticatedRequest, res, next) => {
   try {
     const { productIds, rejectionReason } = req.body;
 
@@ -1081,6 +1150,12 @@ router.post('/bulk-reject', async (req, res, next) => {
       .select()
       .from(products)
       .where(inArray(products.id, uniqueIds));
+
+    await ensureUserHasKanbanAccess(
+      req,
+      productsToReject.map((product) => product.kanbanId).filter((value): value is string => Boolean(value)),
+      'editor'
+    );
 
     const validColumns = ['New Request', 'In Review'];
     const validIds = productsToReject
@@ -1131,7 +1206,13 @@ router.post('/bulk-reject', async (req, res, next) => {
 });
 
 // Unreject a single product
-router.post('/:id/unreject', async (req, res, next) => {
+router.post(
+  '/:id/unreject',
+  requireKanbanAccess({
+    minRole: 'editor',
+    getKanbanId: resolveProductKanbanId('id'),
+  }),
+  async (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -1173,7 +1254,7 @@ router.post('/:id/unreject', async (req, res, next) => {
 });
 
 // Bulk move products
-router.post('/bulk-move', async (req, res, next) => {
+router.post('/bulk-move', async (req: AuthenticatedRequest, res, next) => {
   try {
     const { productIds, targetColumn, locationId } = req.body;
 
@@ -1195,6 +1276,12 @@ router.post('/bulk-move', async (req, res, next) => {
       .select()
       .from(products)
       .where(inArray(products.id, uniqueIds));
+
+    await ensureUserHasKanbanAccess(
+      req,
+      productsToMove.map((product) => product.kanbanId).filter((value): value is string => Boolean(value)),
+      'editor'
+    );
 
     if (productsToMove.length === 0) {
       return res.json({
@@ -1263,7 +1350,10 @@ router.post('/bulk-move', async (req, res, next) => {
 });
 
 // Reorder products and groups within a single kanban column
-router.post('/reorder', async (req, res, next) => {
+router.post(
+  '/reorder',
+  requireKanbanAccess({ minRole: 'editor' }),
+  async (req, res, next) => {
   try {
     const {
       kanbanId,

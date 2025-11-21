@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocationStore } from '../store/locationStore';
+import { useAuthStore } from '../store/authStore';
 import { Location, CreateLocation, UpdateLocation } from '@invenflow/shared';
 import { LocationList } from '../components/LocationList';
 import { LocationViewModeToggle } from '../components/LocationViewModeToggle';
@@ -26,6 +27,9 @@ export default function LocationsPage() {
     clearError
   } = useLocationStore();
 
+  const currentUser = useAuthStore((state) => state.user);
+  const isAdmin = currentUser?.role === 'admin';
+
   const toast = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedArea, setSelectedArea] = useState<string>('');
@@ -37,17 +41,20 @@ export default function LocationsPage() {
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
 
   useEffect(() => {
-    fetchLocations();
-    fetchAreas();
-  }, [fetchLocations, fetchAreas]);
+    if (isAdmin) {
+      fetchLocations();
+      fetchAreas();
+    }
+  }, [fetchLocations, fetchAreas, isAdmin]);
 
   useEffect(() => {
+    if (!isAdmin) return;
     const params: { search?: string; area?: string; type?: string } = {};
     if (searchTerm) params.search = searchTerm;
     if (selectedArea) params.area = selectedArea;
     if (selectedType) params.type = selectedType;
     fetchLocations(params);
-  }, [searchTerm, selectedArea, selectedType, fetchLocations]);
+  }, [searchTerm, selectedArea, selectedType, fetchLocations, isAdmin]);
 
   const handleCreateLocation = async (data: CreateLocation) => {
     try {
@@ -93,6 +100,19 @@ export default function LocationsPage() {
     setSelectedLocation(location);
     setIsDeleteModalOpen(true);
   };
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-xl mx-auto bg-amber-50 border border-amber-200 rounded-lg p-6">
+          <h1 className="text-lg font-semibold text-amber-900 mb-2">Restricted Access</h1>
+          <p className="text-sm text-amber-800">
+            You don't have permission to manage locations. Please contact an administrator if you believe this is a mistake.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && locations.length === 0) {
     return (

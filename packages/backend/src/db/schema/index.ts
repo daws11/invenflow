@@ -1,6 +1,7 @@
 export * from './bulk-movements';
 export * from './kanbans';
 export * from './kanban-links';
+export * from './kanban-user-roles';
 export * from './departments';
 export * from './locations';
 export * from './movement-logs';

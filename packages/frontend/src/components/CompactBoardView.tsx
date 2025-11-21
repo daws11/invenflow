@@ -22,10 +22,11 @@ import { useToast } from '../store/toastStore';
 interface CompactBoardViewProps {
   kanban: Kanban & { products: Product[] };
   onProductView: (product: Product) => void;
-  onMoveProduct: (productId: string, newColumn: ColumnStatus) => Promise<void>;
+  onMoveProduct?: (productId: string, newColumn: ColumnStatus) => Promise<void>;
   searchQuery: string;
   locations: Location[];
   onOpenGroupSettings?: (group: ProductGroupWithDetails) => void;
+  isEditable?: boolean;
 }
 
 export default function CompactBoardView({
@@ -35,6 +36,7 @@ export default function CompactBoardView({
   searchQuery,
   locations,
   onOpenGroupSettings,
+  isEditable = true,
 }: CompactBoardViewProps) {
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
   const [activeGroup, setActiveGroup] = useState<ProductGroupWithDetails | null>(null);
@@ -57,6 +59,7 @@ export default function CompactBoardView({
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+  const activeSensors = isEditable ? sensors : [];
 
   const getColumns = () => {
     switch (kanban.type) {
@@ -192,6 +195,7 @@ export default function CompactBoardView({
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    if (!isEditable) return;
     const { active } = event;
     const activeId = active.id.toString();
 
@@ -206,6 +210,7 @@ export default function CompactBoardView({
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    if (!isEditable) return;
     const { active, over } = event;
     setActiveProduct(null);
     setActiveGroup(null);
@@ -335,8 +340,8 @@ export default function CompactBoardView({
     if (!activeProduct) return;
 
     // Dropped on a column area: move between columns
-    if (columns.includes(overId as ColumnStatus)) {
-      if (activeProduct.columnStatus !== overId) {
+    if (columns.includes((overId as ColumnStatus))) {
+      if (activeProduct.columnStatus !== overId && onMoveProduct) {
         await onMoveProduct(activeProduct.id, overId as ColumnStatus);
       }
       return;
@@ -376,17 +381,17 @@ export default function CompactBoardView({
     }
 
     // Different column: treat as move to target column
-    if (sourceColumn !== targetColumn && targetColumn) {
+    if (sourceColumn !== targetColumn && targetColumn && onMoveProduct) {
       await onMoveProduct(activeProduct.id, targetColumn as ColumnStatus);
     }
   };
 
   return (
     <DndContext
-      sensors={sensors}
+      sensors={activeSensors}
       collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
+      onDragStart={isEditable ? handleDragStart : undefined}
+      onDragEnd={isEditable ? handleDragEnd : undefined}
     >
       <div className="space-y-4">
         {getColumns().map((column) => (

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { PlusIcon, MagnifyingGlassIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
 import { useDepartmentStore } from '../store/departmentStore';
+import { useAuthStore } from '../store/authStore';
 import { DepartmentModal } from '../components/DepartmentModal';
 import type { Department } from '@invenflow/shared';
 import { useToast } from '../store/toastStore';
@@ -12,6 +13,8 @@ export default function DepartmentsPage() {
     fetchDepartments,
     deleteDepartment,
   } = useDepartmentStore();
+  const currentUser = useAuthStore((state) => state.user);
+  const isAdmin = currentUser?.role === 'admin';
 
   const toast = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -22,16 +25,19 @@ export default function DepartmentsPage() {
   const [departmentToDelete, setDepartmentToDelete] = useState<Department | null>(null);
 
   useEffect(() => {
-    fetchDepartments({ activeOnly });
-  }, [fetchDepartments, activeOnly]);
+    if (isAdmin) {
+      fetchDepartments({ activeOnly });
+    }
+  }, [fetchDepartments, activeOnly, isAdmin]);
 
   useEffect(() => {
+    if (!isAdmin) return;
     if (searchQuery) {
       fetchDepartments({ search: searchQuery, activeOnly });
     } else {
       fetchDepartments({ activeOnly });
     }
-  }, [searchQuery, activeOnly, fetchDepartments]);
+  }, [searchQuery, activeOnly, fetchDepartments, isAdmin]);
 
   const handleCreateNew = () => {
     setSelectedDepartment(null);
@@ -83,6 +89,19 @@ export default function DepartmentsPage() {
     }
     return true;
   });
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-xl mx-auto bg-amber-50 border border-amber-200 rounded-lg p-6">
+          <h1 className="text-lg font-semibold text-amber-900 mb-2">Restricted Access</h1>
+          <p className="text-sm text-amber-800">
+            You don't have permission to manage departments. Please contact an administrator if you believe this is a mistake.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && departments.length === 0) {
     return (

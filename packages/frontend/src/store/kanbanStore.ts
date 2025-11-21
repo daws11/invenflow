@@ -60,10 +60,18 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     try {
       const kanban = await kanbanApi.getById(id);
       set({ currentKanban: kanban, loading: false });
-    } catch (error) {
+    } catch (error: any) {
+      const message =
+        error?.response?.status === 403
+          ? 'Access denied to this kanban'
+          : error instanceof Error
+          ? error.message
+          : 'Failed to fetch kanban';
+
       set({
-        error: error instanceof Error ? error.message : 'Failed to fetch kanban',
-        loading: false
+        error: message,
+        loading: false,
+        currentKanban: null,
       });
     }
   },
@@ -92,11 +100,18 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
       await kanbanApi.update(id, data);
       
       set(state => ({
-        kanbans: state.kanbans.map(k => k.id === id ? { ...k, ...data } : k),
-        currentKanban: state.currentKanban?.id === id
-          ? { ...state.currentKanban, ...data }
-          : state.currentKanban,
-        loading: false
+        kanbans: state.kanbans.map((k) =>
+          k.id === id ? { ...k, ...data, userRole: k.userRole } : k,
+        ),
+        currentKanban:
+          state.currentKanban?.id === id
+            ? {
+                ...state.currentKanban,
+                ...data,
+                userRole: state.currentKanban.userRole,
+              }
+            : state.currentKanban,
+        loading: false,
       }));
     } catch (error) {
       const message =

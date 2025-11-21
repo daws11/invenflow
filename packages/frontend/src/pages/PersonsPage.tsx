@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { PlusIcon, MagnifyingGlassIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import { usePersonStore } from '../store/personStore';
 import { useDepartmentStore } from '../store/departmentStore';
+import { useAuthStore } from '../store/authStore';
 import { PersonModal } from '../components/PersonModal';
 import { PersonCard } from '../components/PersonCard';
 import type { Person } from '@invenflow/shared';
@@ -9,6 +10,8 @@ import type { Person } from '@invenflow/shared';
 export default function PersonsPage() {
   const { persons, loading, fetchPersons } = usePersonStore();
   const { fetchDepartments } = useDepartmentStore();
+  const currentUser = useAuthStore((state) => state.user);
+  const isAdmin = currentUser?.role === 'admin';
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -16,9 +19,11 @@ export default function PersonsPage() {
   const [activeOnly, setActiveOnly] = useState(true);
 
   useEffect(() => {
-    fetchPersons({ activeOnly });
-    fetchDepartments();
-  }, [fetchPersons, fetchDepartments, activeOnly]);
+    if (isAdmin) {
+      fetchPersons({ activeOnly });
+      fetchDepartments();
+    }
+  }, [fetchPersons, fetchDepartments, activeOnly, isAdmin]);
 
   const handleSearch = () => {
     fetchPersons({
@@ -55,6 +60,19 @@ export default function PersonsPage() {
 
   const departmentGroups = Object.keys(groupedPersons).sort();
   const uniqueDepartments: string[] = [];
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-xl mx-auto bg-amber-50 border border-amber-200 rounded-lg p-6">
+          <h1 className="text-lg font-semibold text-amber-900 mb-2">Restricted Access</h1>
+          <p className="text-sm text-amber-800">
+            You don't have permission to manage team members. Please contact an administrator if you believe this is a mistake.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">

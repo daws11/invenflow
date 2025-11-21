@@ -21,6 +21,7 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
 } from "@heroicons/react/24/outline";
+import { useAuthStore } from "../store/authStore";
 import { useKanbanStore } from "../store/kanbanStore";
 import { useViewPreferencesStore } from "../store/viewPreferencesStore";
 import { useLocationStore } from "../store/locationStore";
@@ -80,6 +81,67 @@ export default function KanbanBoard() {
   const hasSelection = selectedProductIds.size > 0;
   const { createGroup, deleteGroup, updateGroup } = useProductGroupStore();
   const toast = useToast();
+  const authUser = useAuthStore((state) => state.user);
+  const isAdmin = authUser?.role === 'admin';
+  const accessRole = currentKanban?.userRole;
+  const canEditKanban = isAdmin || accessRole === 'editor';
+  const isViewer = Boolean(currentKanban) && !canEditKanban;
+
+  // Enhanced settings handler to ensure fresh data
+  const handleOpenSettings = async () => {
+    if (!id || isSettingsLoading || !canEditKanban) return;
+
+    setIsSettingsLoading(true);
+    try {
+      // Pre-fetch fresh kanban data with linkedKanbans before opening modal
+      await fetchKanbanById(id);
+      setIsSettingsModalOpen(true);
+    } catch (error: any) {
+      toast.error(
+        "Failed to load kanban data: " + (error?.message || "Unknown error"),
+      );
+    } finally {
+      setIsSettingsLoading(false);
+    }
+  };
+
+  const toggleFilters = () => {
+    if (window.innerWidth >= 640) {
+      setShowDesktopFilters((prev) => !prev);
+    } else {
+      setShowFilters((prev) => !prev);
+    }
+  };
+
+  const toggleViewMode = () =>
+    setKanbanBoardViewMode(
+      kanbanBoardViewMode === "board" ? "compact" : "board",
+    );
+
+  const focusSearchInput = () => {
+    const searchInput = document.querySelector(
+      'input[placeholder*="Search"]',
+    ) as HTMLInputElement;
+    if (searchInput) {
+      searchInput.focus();
+    }
+  };
+
+  const handleAddProductShortcut = canEditKanban
+    ? () => setShowAddForm(true)
+    : () => {};
+
+  const handleToggleSettingsShortcut = canEditKanban
+    ? handleOpenSettings
+    : () => {};
+
+  const { shortcuts } = useKanbanKeyboardShortcuts({
+    onAddProduct: handleAddProductShortcut,
+    onToggleFilters: toggleFilters,
+    onToggleSettings: handleToggleSettingsShortcut,
+    onToggleView: toggleViewMode,
+    onFocusSearch: focusSearchInput,
+  });
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
@@ -151,35 +213,10 @@ export default function KanbanBoard() {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
+  const activeSensors = canEditKanban ? sensors : [];
 
   // Initialize responsive preference (default compact on small screens)
   useResponsivePreference();
-
-  // Keyboard shortcuts
-  const { shortcuts } = useKanbanKeyboardShortcuts({
-    onAddProduct: () => setShowAddForm(true),
-    onToggleFilters: () => {
-      // On desktop, toggle desktop filters; on mobile, toggle mobile filters
-      if (window.innerWidth >= 640) {
-        setShowDesktopFilters((prev) => !prev);
-      } else {
-        setShowFilters((prev) => !prev);
-      }
-    },
-    onToggleSettings: () => setIsSettingsModalOpen(true),
-    onToggleView: () =>
-      setKanbanBoardViewMode(
-        kanbanBoardViewMode === "board" ? "compact" : "board",
-      ),
-    onFocusSearch: () => {
-      const searchInput = document.querySelector(
-        'input[placeholder*="Search"]',
-      ) as HTMLInputElement;
-      if (searchInput) {
-        searchInput.focus();
-      }
-    },
-  });
 
   useEffect(() => {
     if (id) {
@@ -213,23 +250,19 @@ export default function KanbanBoard() {
     fetchLocations();
   }, [fetchLocations]);
 
-  // Enhanced settings handler to ensure fresh data
-  const handleOpenSettings = async () => {
-    if (!id || isSettingsLoading) return;
-
-    setIsSettingsLoading(true);
-    try {
-      // Pre-fetch fresh kanban data with linkedKanbans before opening modal
-      await fetchKanbanById(id);
-      setIsSettingsModalOpen(true);
-    } catch (error: any) {
-      toast.error(
-        "Failed to load kanban data: " + (error?.message || "Unknown error"),
-      );
-    } finally {
-      setIsSettingsLoading(false);
-    }
-  };
+  if (!currentKanban) {
+    return (
+      <div className="px-4 py-6">
+        {loading ? (
+          <p className="text-sm text-gray-500">Loading kanban...</p>
+        ) : (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error || "Kanban not available"}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const getColumns = () => {
     if (!currentKanban) return [];
@@ -732,6 +765,7 @@ export default function KanbanBoard() {
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    if (!canEditKanban) return;
     const { active } = event;
     const activeId = active.id.toString();
 
@@ -746,6 +780,7 @@ export default function KanbanBoard() {
   };
 
   const handleDragOver = (event: DragOverEvent) => {
+    if (!canEditKanban) return;
     const { active, over } = event;
     if (!over) return;
 
@@ -766,6 +801,7 @@ export default function KanbanBoard() {
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    if (!canEditKanban) return;
     const { active, over } = event;
     setActiveProduct(null);
     setActiveGroup(null);
@@ -1041,13 +1077,18 @@ export default function KanbanBoard() {
 
   return (
     <DndContext
-      sensors={sensors}
+      sensors={activeSensors}
       collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
+      onDragStart={canEditKanban ? handleDragStart : undefined}
+      onDragOver={canEditKanban ? handleDragOver : undefined}
+      onDragEnd={canEditKanban ? handleDragEnd : undefined}
     >
       <div>
+        {error && (
+          <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        )}
         <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-200">
           <div className="px-0 py-3 md:py-4">
             {/* Main Header Row */}
@@ -1068,10 +1109,12 @@ export default function KanbanBoard() {
                     >
                       <FunnelIcon className="w-5 h-5" />
                     </button>
-                    <button
-                      className="btn-primary p-2"
-                      onClick={() => setShowAddForm(true)}
-                    >
+                  <button
+                    className="btn-primary p-2"
+                    onClick={() => canEditKanban && setShowAddForm(true)}
+                    disabled={!canEditKanban}
+                    aria-disabled={!canEditKanban}
+                  >
                       <PlusIcon className="w-5 h-5" />
                     </button>
                   </div>
@@ -1131,6 +1174,11 @@ export default function KanbanBoard() {
                         </code>
                       </div>
                     )}
+                  {isViewer && (
+                    <div className="rounded-md border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm font-medium text-yellow-900">
+                      You have view-only access to this kanban.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1167,7 +1215,7 @@ export default function KanbanBoard() {
                 {/* Action Buttons Group */}
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => setShowDesktopFilters((prev) => !prev)}
+                    onClick={toggleFilters}
                     className={`btn-secondary px-4 py-2 text-sm flex items-center ${
                       showDesktopFilters
                         ? "bg-blue-50 text-blue-700 border-blue-200"
@@ -1192,7 +1240,8 @@ export default function KanbanBoard() {
                   <button
                     className="btn-secondary px-4 py-2 text-sm flex items-center"
                     onClick={handleOpenSettings}
-                    disabled={isSettingsLoading}
+                    disabled={isSettingsLoading || !canEditKanban}
+                    aria-disabled={isSettingsLoading || !canEditKanban}
                   >
                     {isSettingsLoading ? (
                       <>
@@ -1205,7 +1254,9 @@ export default function KanbanBoard() {
                   </button>
                   <button
                     className="btn-primary px-4 py-2 text-sm flex items-center"
-                    onClick={() => setShowAddForm(true)}
+                    onClick={() => canEditKanban && setShowAddForm(true)}
+                    disabled={!canEditKanban}
+                    aria-disabled={!canEditKanban}
                   >
                     <PlusIcon className="w-4 h-4 mr-2" />
                     Add Product
@@ -1224,11 +1275,7 @@ export default function KanbanBoard() {
                       ? "bg-blue-50 text-blue-700 border-blue-200"
                       : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                   }`}
-                  onClick={() =>
-                    setKanbanBoardViewMode(
-                      kanbanBoardViewMode === "board" ? "compact" : "board",
-                    )
-                  }
+                  onClick={toggleViewMode}
                 >
                   {kanbanBoardViewMode === "board" ? (
                     <>
@@ -1261,7 +1308,7 @@ export default function KanbanBoard() {
 
               <div className="flex items-center space-x-2">
                 <button
-                  onClick={() => setShowDesktopFilters((prev) => !prev)}
+                  onClick={toggleFilters}
                   className={`btn-secondary px-3 py-2 text-sm flex items-center ${
                     showDesktopFilters
                       ? "bg-blue-50 text-blue-700 border-blue-200"
@@ -1273,13 +1320,17 @@ export default function KanbanBoard() {
                 </button>
                 <button
                   className="btn-secondary px-3 py-2 text-sm"
-                  onClick={() => setIsSettingsModalOpen(true)}
+                  onClick={handleOpenSettings}
+                  disabled={!canEditKanban}
+                  aria-disabled={!canEditKanban}
                 >
                   Settings
                 </button>
                 <button
                   className="btn-primary px-3 py-2 text-sm hidden sm:flex items-center"
-                  onClick={() => setShowAddForm(true)}
+                  onClick={() => canEditKanban && setShowAddForm(true)}
+                  disabled={!canEditKanban}
+                  aria-disabled={!canEditKanban}
                 >
                   <PlusIcon className="w-4 h-4 mr-1" />
                   Add Product
@@ -1305,7 +1356,7 @@ export default function KanbanBoard() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setShowDesktopFilters((prev) => !prev)}
+                    onClick={toggleFilters}
                     className={`px-3 py-2 text-sm font-medium border rounded-lg transition-all duration-200 flex items-center ${
                       showDesktopFilters
                         ? "bg-blue-50 text-blue-700 border-blue-200 shadow-sm"
@@ -1422,15 +1473,16 @@ export default function KanbanBoard() {
           <CompactBoardView
             kanban={currentKanban}
             onProductView={handleViewProduct}
-            onMoveProduct={handleMoveProduct}
+            onMoveProduct={canEditKanban ? handleMoveProduct : undefined}
             searchQuery={searchQuery}
             locations={locations}
             onOpenGroupSettings={handleOpenGroupSettings}
+            isEditable={canEditKanban}
           />
         )}
 
         {/* Add Product Form */}
-        {showAddForm && (
+        {showAddForm && canEditKanban && (
           <ProductForm
             kanbanId={currentKanban.id}
             initialColumn={getColumns()[0]}
@@ -1439,7 +1491,7 @@ export default function KanbanBoard() {
         )}
 
         {/* Edit Product Form */}
-        {editingProduct && (
+        {editingProduct && canEditKanban && (
           <ProductForm
             kanbanId={currentKanban.id}
             initialColumn={editingProduct.columnStatus}
@@ -1469,7 +1521,7 @@ export default function KanbanBoard() {
         )}
 
         {/* Settings Modal */}
-        {currentKanban && (
+        {currentKanban && canEditKanban && (
           <KanbanSettingsModal
             isOpen={isSettingsModalOpen}
             onClose={() => setIsSettingsModalOpen(false)}
@@ -1480,7 +1532,7 @@ export default function KanbanBoard() {
         )}
 
         {/* Transfer Confirmation Slider */}
-        {showTransferSlider && productToTransfer && currentKanban && (
+        {canEditKanban && showTransferSlider && productToTransfer && currentKanban && (
           <TransferConfirmationSlider
             isOpen={showTransferSlider}
             onClose={handleCloseTransferSlider}
@@ -1491,31 +1543,35 @@ export default function KanbanBoard() {
         )}
 
         {/* Bulk Action Modals */}
-        <BulkRejectModal
-          isOpen={showRejectModal}
-          onClose={() => setShowRejectModal(false)}
-          products={getSelectedProducts()}
-          onConfirm={handleBulkReject}
-        />
+        {canEditKanban && (
+          <>
+            <BulkRejectModal
+              isOpen={showRejectModal}
+              onClose={() => setShowRejectModal(false)}
+              products={getSelectedProducts()}
+              onConfirm={handleBulkReject}
+            />
 
-        <BulkMoveModal
-          isOpen={showMoveModal}
-          onClose={() => setShowMoveModal(false)}
-          products={getSelectedProducts()}
-          availableColumns={getColumns()}
-          currentColumn={getSelectedColumn(currentKanban?.products || []) || ""}
-          onConfirm={handleBulkMove}
-        />
+            <BulkMoveModal
+              isOpen={showMoveModal}
+              onClose={() => setShowMoveModal(false)}
+              products={getSelectedProducts()}
+              availableColumns={getColumns()}
+              currentColumn={getSelectedColumn(currentKanban?.products || []) || ""}
+              onConfirm={handleBulkMove}
+            />
 
-        <GroupItemsModal
-          isOpen={showGroupModal}
-          onClose={() => setShowGroupModal(false)}
-          products={getSelectedProducts()}
-          onConfirm={handleBulkGroup}
-        />
+            <GroupItemsModal
+              isOpen={showGroupModal}
+              onClose={() => setShowGroupModal(false)}
+              products={getSelectedProducts()}
+              onConfirm={handleBulkGroup}
+            />
+          </>
+        )}
 
         {/* Edit Group Modal */}
-        {currentKanban && activeGroup && (
+        {currentKanban && activeGroup && canEditKanban && (
           <EditGroupModal
             isOpen={showEditGroupModal}
             onClose={() => setShowEditGroupModal(false)}
@@ -1527,7 +1583,7 @@ export default function KanbanBoard() {
         )}
 
         {/* Bulk Action Bar */}
-        {hasSelection && currentKanban && (
+        {canEditKanban && hasSelection && currentKanban && (
           <BulkActionBar
             products={currentKanban.products}
             onReject={() => setShowRejectModal(true)}

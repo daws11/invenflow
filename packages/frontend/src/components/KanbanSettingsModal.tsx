@@ -23,6 +23,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { Slider } from './Slider';
 import { SliderTabs, SliderTab } from './SliderTabs';
+import { useAuthStore } from '../store/authStore';
+import { KanbanAccessSection } from './KanbanAccessSection';
 
 interface KanbanSettingsModalProps {
   isOpen: boolean;
@@ -32,7 +34,7 @@ interface KanbanSettingsModalProps {
   productCount?: number;
 }
 
-type TabType = 'overview' | 'edit' | 'linking' | 'publicForm' | 'threshold' | 'stored';
+type TabType = 'overview' | 'edit' | 'linking' | 'publicForm' | 'threshold' | 'stored' | 'access';
 
 export function KanbanSettingsModal({
   isOpen,
@@ -43,6 +45,7 @@ export function KanbanSettingsModal({
 }: KanbanSettingsModalProps) {
   const toast = useToast();
   const { togglePublicForm, currentKanban, fetchKanbanById, updateKanban } = useKanbanStore();
+  const isAdmin = useAuthStore((state) => state.user?.role === 'admin');
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   
   // Handle tab change - ensure data is loaded when switching to linking tab
@@ -572,6 +575,20 @@ export function KanbanSettingsModal({
             <p className="text-xs text-gray-500">Configure time-based alerts</p>
           </div>
         </button>
+        {isAdmin && (
+          <button
+            onClick={() => {
+              setActiveTab('access');
+            }}
+            className="w-full flex items-center px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors border border-gray-200"
+          >
+            <EyeIcon className="w-5 h-5 text-gray-400 mr-3" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900">Manage Access</p>
+              <p className="text-xs text-gray-500">Assign users and set roles</p>
+            </div>
+          </button>
+        )}
       </div>
 
       {/* Public Form (Order kanbans only) */}
@@ -1067,7 +1084,7 @@ export function KanbanSettingsModal({
       content: overviewContent,
       icon: <InformationCircleIcon className="h-4 w-4" />,
     },
-    {
+      {
       id: 'edit',
       label: 'Edit',
       content: editContent,
@@ -1096,6 +1113,18 @@ export function KanbanSettingsModal({
       content: thresholdContent,
       icon: <ClockIcon className="h-4 w-4" />,
     },
+    ...(isAdmin
+      ? [
+          {
+            id: 'access',
+            label: 'Access',
+            content: (
+              <KanbanAccessSection kanbanId={kanban.id} />
+            ),
+            icon: <EyeIcon className="h-4 w-4" />,
+          },
+        ]
+      : []),
   ];
 
   return (

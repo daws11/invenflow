@@ -12,6 +12,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange }) => {
   const location = useLocation();
   const { user, logout } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isManageOpen, setIsManageOpen] = useState(false);
@@ -355,46 +356,47 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
               );
             })}
 
-            {/* Manage Dropdown */}
-            {!isCollapsed ? (
-              <div className="space-y-1">
-                <button
-                  onClick={() => setIsManageOpen(!isManageOpen)}
-                  className={`
+            {/* Manage Dropdown - visible to admins only */}
+            {isAdmin && (
+              !isCollapsed ? (
+                <div className="space-y-1">
+                  <button
+                    onClick={() => setIsManageOpen(!isManageOpen)}
+                    className={`
                     flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200
                     ${isManageOpen || manageItems.some(item => location.pathname === item.path)
                       ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-700'
                       : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                     }
                   `}
-                >
-                  <div className="flex items-center">
-                    <Settings className="w-5 h-5 flex-shrink-0" />
-                    <span className="ml-3 truncate">Manage</span>
-                  </div>
-                  <ChevronDown 
-                    className={`w-4 h-4 flex-shrink-0 ml-2 transition-transform duration-300 ease-in-out ${
-                      isManageOpen ? 'rotate-0' : '-rotate-90'
+                  >
+                    <div className="flex items-center">
+                      <Settings className="w-5 h-5 flex-shrink-0" />
+                      <span className="ml-3 truncate">Manage</span>
+                    </div>
+                    <ChevronDown 
+                      className={`w-4 h-4 flex-shrink-0 ml-2 transition-transform duration-300 ease-in-out ${
+                        isManageOpen ? 'rotate-0' : '-rotate-90'
+                      }`}
+                    />
+                  </button>
+
+                  {/* Dropdown Menu Items with Animation */}
+                  <div
+                    className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                      isManageOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
                     }`}
-                  />
-                </button>
+                  >
+                    <div className="ml-8 mt-1 space-y-1">
+                      {manageItems.map((item, index) => {
+                        const isActive = location.pathname === item.path;
+                        const Icon = item.icon;
 
-                {/* Dropdown Menu Items with Animation */}
-                <div
-                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                    isManageOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                  }`}
-                >
-                  <div className="ml-8 mt-1 space-y-1">
-                    {manageItems.map((item, index) => {
-                      const isActive = location.pathname === item.path;
-                      const Icon = item.icon;
-
-                      return (
-                        <Link
-                          key={item.path}
-                          to={item.path}
-                          className={`
+                        return (
+                          <Link
+                            key={item.path}
+                            to={item.path}
+                            className={`
                             flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200
                             ${isActive
                               ? 'bg-blue-50 text-blue-700'
@@ -405,41 +407,42 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
                               : '-translate-x-2 opacity-0'
                             }
                           `}
-                          style={{
-                            transitionDelay: isManageOpen ? `${index * 30}ms` : `${(manageItems.length - index - 1) * 20}ms`,
-                          }}
-                        >
-                          <Icon className="w-4 h-4 flex-shrink-0" />
-                          <span className="ml-3 truncate">{item.name}</span>
-                        </Link>
-                      );
-                    })}
+                            style={{
+                              transitionDelay: isManageOpen ? `${index * 30}ms` : `${(manageItems.length - index - 1) * 20}ms`,
+                            }}
+                          >
+                            <Icon className="w-4 h-4 flex-shrink-0" />
+                            <span className="ml-3 truncate">{item.name}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              // Collapsed state: show individual icons
-              manageItems.map((item) => {
-                const isActive = location.pathname === item.path;
-                const Icon = item.icon;
+              ) : (
+                // Collapsed state: show individual icons
+                manageItems.map((item) => {
+                  const isActive = location.pathname === item.path;
+                  const Icon = item.icon;
 
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={`
                       flex items-center justify-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200
                       ${isActive
                         ? 'bg-blue-50 text-blue-700'
                         : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                       }
                     `}
-                    title={item.name}
-                  >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
-                  </Link>
-                );
-              })
+                      title={item.name}
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0" />
+                    </Link>
+                  );
+                })
+              )
             )}
           </nav>
 

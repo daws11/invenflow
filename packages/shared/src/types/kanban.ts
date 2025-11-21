@@ -3,6 +3,32 @@ import { z } from 'zod';
 export const KanbanTypeSchema = z.enum(['order', 'receive', 'investment']);
 export type KanbanType = z.infer<typeof KanbanTypeSchema>;
 
+export const KanbanUserRoleSchema = z.enum(['viewer', 'editor']);
+export type KanbanUserRole = z.infer<typeof KanbanUserRoleSchema>;
+
+export const KanbanAccessLevelSchema = z.union([
+  KanbanUserRoleSchema,
+  z.literal('admin'),
+]);
+export type KanbanAccessLevel = z.infer<typeof KanbanAccessLevelSchema>;
+
+export const AssignKanbanUserSchema = z.object({
+  kanbanId: z.string().uuid(),
+  userId: z.string().uuid(),
+  role: KanbanUserRoleSchema,
+});
+export type AssignKanbanUser = z.infer<typeof AssignKanbanUserSchema>;
+
+export const KanbanUserRoleRecordSchema = z.object({
+  id: z.string().uuid(),
+  kanbanId: z.string().uuid(),
+  userId: z.string().uuid(),
+  role: KanbanUserRoleSchema,
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+export type KanbanUserRoleRecord = z.infer<typeof KanbanUserRoleRecordSchema>;
+
 // Threshold configuration types
 export const ThresholdOperatorSchema = z.enum(['>', '<', '=', '>=', '<=']);
 export type ThresholdOperator = z.infer<typeof ThresholdOperatorSchema>;
@@ -67,6 +93,7 @@ export const KanbanSchema = z.object({
   productGroups: z.array(z.any()).optional(), // Will be ProductGroupWithDetails[] from product-group.ts
   linkedKanbans: z.array(z.any()).optional(), // Will be LinkedReceiveKanban[] 
   location: z.any().optional(), // Will be Location from location.ts
+  userRole: KanbanAccessLevelSchema.optional(),
 });
 
 export const CreateKanbanSchema = z.object({

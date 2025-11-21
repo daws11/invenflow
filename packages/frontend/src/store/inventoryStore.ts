@@ -514,10 +514,68 @@ export const useInventoryStore = create<InventoryState>((set, get) => {
 
   refreshInventory: () => Promise.all([get().fetchInventory(), get().fetchStats()]).then(() => {}),
 
+  /**
+   * After any mutation (update product, stock change, delete, etc)
+   * we want to:
+   * - Keep the UI responsive (no global spinner)
+   * - Ensure data is in sync with backend
+   *
+   * So we do a "silent" refresh that DOES NOT toggle `loading` flags.
+   */
   syncAfterMutation: async () => {
     // Clear pending requests to force fresh fetch after mutations
     globalRequestDeduplicator.clear();
-    await runInventoryRefresh();
+
+    try {
+      const {
+        filters,
+        currentPage,
+        pageSize,
+        viewMode,
+        displayMode,
+        lastGroupedParams,
+      } = get();
+
+      // Rebuild the same params used by fetchInventory, but without set({ loading: true })
+      const apiViewMode = viewMode === 'list' ? 'unified' : viewMode;
+      const mergedParams = {
+        ...filters,
+        viewMode: apiViewMode,
+        page: currentPage,
+        pageSize,
+      };
+
+      // Silent inventory refresh (no loading flag)
+      const response: InventoryResponse = await inventoryApi.getInventory(mergedParams);
+      set({
+        items: response.items,
+        availableFilters: response.filters,
+        currentPage: response.page,
+        pageSize: response.pageSize,
+        totalPages: response.totalPages,
+        totalItems: response.total,
+      });
+
+      // If currently in grouped mode, also silently refresh grouped data
+      if (displayMode === 'grouped') {
+        const groupedResponse: GroupedInventoryResponse = await inventoryApi.getGroupedInventory({
+          ...(lastGroupedParams || {}),
+          bypassCache: true,
+        });
+
+        set({
+          groupedItems: groupedResponse.items,
+          totalItems: groupedResponse.total,
+        });
+      }
+
+      // Silent stats refresh (no statsLoading flag)
+      const stats = await inventoryApi.getStats();
+      set({ stats });
+    } catch (error) {
+      // Log only; do not flip loading/error flags to avoid jarring UX
+      console.error('[inventoryStore] Failed to sync after mutation', error);
+    }
   },
   };
 });
