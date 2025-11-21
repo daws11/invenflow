@@ -100,6 +100,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
       path: '/movements',
       icon: ArrowRightLeft,
     },
+    {
+      name: 'Locations',
+      path: '/locations',
+      icon: MapPin,
+    },
   ];
 
   const kanbanItems = [
@@ -135,11 +140,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, onCollapseChange })
       name: 'Departments',
       path: '/departments',
       icon: Building2,
-    },
-    {
-      name: 'Locations',
-      path: '/locations',
-      icon: MapPin,
     },
     {
       name: 'Team',

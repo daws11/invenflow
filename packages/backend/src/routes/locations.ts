@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db';
 import { locations, products } from '../db/schema';
-import { eq, desc, asc, and, or, ilike, SQL, ne, sql } from 'drizzle-orm';
+import { eq, desc, asc, and, or, ilike, SQL, ne, sql, getTableColumns } from 'drizzle-orm';
 import { createError } from '../middleware/errorHandler';
 import { cacheMiddleware } from '../middleware/cache';
 import {
@@ -87,12 +87,27 @@ router.get('/', async (req, res, next) => {
       conditions.push(eq(locations.isActive, true));
     }
 
-    const baseQuery = db.select().from(locations);
+    const baseQuery = db
+      .select({
+        ...getTableColumns(locations),
+        stats: {
+          productCount: sql<number>`count(${products.id})`.mapWith(Number),
+          totalStock: sql<number>`coalesce(sum(${products.stockLevel}), 0)`.mapWith(Number),
+        },
+      })
+      .from(locations)
+      .leftJoin(products, eq(locations.id, products.locationId))
+      .groupBy(locations.id);
+
     const whereClause = combineSqlClauses(conditions);
     const queryWithWhere = baseQuery.where(whereClause);
 
     const orderField =
       SORTABLE_LOCATION_COLUMNS[sortByValue as keyof typeof SORTABLE_LOCATION_COLUMNS];
+    
+    // When using aggregation, we need to wrap the sort column in sql if it's not part of the selection directly? 
+    // No, getTableColumns includes them. But we need to ensure we use the correct column reference.
+    
     const orderedQuery =
       orderField !== undefined
         ? queryWithWhere.orderBy(

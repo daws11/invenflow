@@ -11,6 +11,8 @@ import {
   MapPinIcon,
   CalendarIcon,
   BuildingOfficeIcon,
+  ArchiveBoxIcon,
+  CubeIcon,
 } from '@heroicons/react/24/outline';
 
 interface LocationListProps {
@@ -18,6 +20,8 @@ interface LocationListProps {
   loading: boolean;
   onEdit: (location: Location) => void;
   onDelete: (location: Location) => void;
+  onViewProducts: (location: Location) => void;
+  isAdmin: boolean;
 }
 
 type SortField = 'name' | 'area' | 'code' | 'createdAt';
@@ -28,9 +32,9 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-export function LocationList({ locations, loading, onEdit, onDelete }: LocationListProps) {
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+export function LocationList({ locations, loading, onEdit, onDelete, onViewProducts, isAdmin }: LocationListProps) {
   const [sortConfig, setSortConfig] = useState<SortConfig>({ field: 'createdAt', direction: 'desc' });
+  const [expandedAreas, setExpandedAreas] = useState<Set<string>>(new Set());
 
   // Sort locations
   const sortedLocations = useMemo(() => {
@@ -75,18 +79,6 @@ export function LocationList({ locations, loading, onEdit, onDelete }: LocationL
     }));
   };
 
-  const toggleRowExpansion = (locationId: string) => {
-    setExpandedRows(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(locationId)) {
-        newSet.delete(locationId);
-      } else {
-        newSet.add(locationId);
-      }
-      return newSet;
-    });
-  };
-
   const getSortIcon = (field: SortField) => {
     if (sortConfig.field !== field) {
       return <ArrowsUpDownIcon className="h-4 w-4 text-gray-400" />;
@@ -120,7 +112,7 @@ export function LocationList({ locations, loading, onEdit, onDelete }: LocationL
       return acc;
     }, {} as Record<string, Location[]>);
   }, [sortedLocations]);
-  const [expandedAreas, setExpandedAreas] = useState<Set<string>>(new Set());
+
   const toggleAreaDropdown = (area: string) => {
     setExpandedAreas(prev => {
       const next = new Set(prev);
@@ -129,6 +121,7 @@ export function LocationList({ locations, loading, onEdit, onDelete }: LocationL
       return next;
     });
   };
+
 
   if (loading) {
     return (
@@ -159,56 +152,71 @@ export function LocationList({ locations, loading, onEdit, onDelete }: LocationL
   return (
     <div className="overflow-x-auto">
       <div className="divide-y divide-gray-200 w-full">
-        {Object.entries(locationsByArea).map(([area, areaLocations]) => (
-          <div key={area} className="">
-            <button
-              className="flex items-center w-full px-4 py-3 text-left bg-gray-100 hover:bg-gray-200 transition-colors rounded-t group"
-              onClick={() => toggleAreaDropdown(area)}
-              aria-expanded={expandedAreas.has(area)}
-            >
-              <span>{expandedAreas.has(area) ? <ChevronDownIcon className="h-5 w-5 text-gray-700 mr-2" /> : <ChevronRightIcon className="h-5 w-5 text-gray-700 mr-2" />}</span>
-              <span className="font-semibold text-lg text-gray-800 flex items-center gap-2">
-                <BuildingOfficeIcon className="h-4 w-4 mr-1 text-primary-500" />
-                {area}
-                <span className="ml-2 text-xs font-normal text-gray-500 bg-gray-200 rounded px-2 py-0.5">{areaLocations.length} lokasi</span>
-              </span>
-            </button>
-            <div className={expandedAreas.has(area) ? '' : 'hidden'}>
-              <table className="min-w-full divide-y divide-gray-200 bg-white">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 w-8"><span className="sr-only">Expand</span></th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('name')}>{/* eslint-disable-next-line */}<div className="flex items-center space-x-1"><span>Name</span>{getSortIcon('name')}</div></th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('area')}>{/* eslint-disable-next-line */}<div className="flex items-center space-x-1"><span>Area</span>{getSortIcon('area')}</div></th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('code')}>{/* eslint-disable-next-line */}<div className="flex items-center space-x-1"><span>Code</span>{getSortIcon('code')}</div></th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('createdAt')}>{/* eslint-disable-next-line */}<div className="flex items-center space-x-1"><span>Created</span>{getSortIcon('createdAt')}</div></th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {areaLocations.map(location => {
-                    const isExpanded = expandedRows.has(location.id);
-                    const hasDescription = Boolean(location.description && location.description.trim());
-                    return (
-                      <React.Fragment key={location.id}>
-                        <tr className="group hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {hasDescription && (
-                              <button
-                                onClick={() => toggleRowExpansion(location.id)}
-                                className="text-gray-400 hover:text-gray-600 transition-colors"
-                                aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                              >
-                                {isExpanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
-                              </button>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
+        {Object.entries(locationsByArea).map(([area, areaLocations]) => {
+          const areaProductCount = areaLocations.reduce((sum, loc) => sum + (loc.stats?.productCount || 0), 0);
+          const areaTotalStock = areaLocations.reduce((sum, loc) => sum + (loc.stats?.totalStock || 0), 0);
+
+          return (
+            <div key={area} className="">
+              <button
+                className="flex items-center w-full px-4 py-3 text-left bg-gray-100 hover:bg-gray-200 transition-colors rounded-t group justify-between"
+                onClick={() => toggleAreaDropdown(area)}
+                aria-expanded={expandedAreas.has(area)}
+              >
+                <div className="flex items-center">
+                  <span>
+                    {expandedAreas.has(area) ? (
+                      <ChevronDownIcon className="h-5 w-5 text-gray-700 mr-2" />
+                    ) : (
+                      <ChevronRightIcon className="h-5 w-5 text-gray-700 mr-2" />
+                    )}
+                  </span>
+                  <span className="font-semibold text-lg text-gray-800 flex items-center gap-2">
+                    <BuildingOfficeIcon className="h-4 w-4 mr-1 text-primary-500" />
+                    {area}
+                    <span className="ml-2 text-xs font-normal text-gray-500 bg-gray-200 rounded px-2 py-0.5">
+                      {areaLocations.length} lokasi
+                    </span>
+                  </span>
+                </div>
+                
+                {/* Area Statistics */}
+                <div className="flex items-center space-x-4 text-sm text-gray-600 mr-4">
+                  <div className="flex items-center" title="Total Products in Area">
+                    <CubeIcon className="h-4 w-4 mr-1 text-gray-500" />
+                    <span className="font-medium">{areaProductCount}</span> products
+                  </div>
+                  <div className="flex items-center border-l pl-4 border-gray-300" title="Total Stock in Area">
+                    <ArchiveBoxIcon className="h-4 w-4 mr-1 text-gray-500" />
+                    <span className="font-medium">{areaTotalStock}</span> items
+                  </div>
+                </div>
+              </button>
+              <div className={expandedAreas.has(area) ? '' : 'hidden'}>
+                <table className="min-w-full divide-y divide-gray-200 bg-white">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('name')}>{/* eslint-disable-next-line */}<div className="flex items-center space-x-1"><span>Name</span>{getSortIcon('name')}</div></th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('area')}>{/* eslint-disable-next-line */}<div className="flex items-center space-x-1"><span>Area</span>{getSortIcon('area')}</div></th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('code')}>{/* eslint-disable-next-line */}<div className="flex items-center space-x-1"><span>Code</span>{getSortIcon('code')}</div></th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stats</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('createdAt')}>{/* eslint-disable-next-line */}<div className="flex items-center space-x-1"><span>Created</span>{getSortIcon('createdAt')}</div></th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {areaLocations.map(location => {
+                      return (
+                        <tr key={location.id} className="group hover:bg-gray-50 transition-colors">
+                          <td 
+                            className="px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                            onClick={() => onViewProducts(location)}
+                            title="Click to view inventory"
+                          >
                             <div className="flex items-center gap-2">
                               <svg className="w-5 h-5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
                               <div>
-                                <div className="text-sm font-medium text-gray-900">{location.name}</div>
+                                <div className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">{location.name}</div>
                                 {location.building && (
                                   <div className="text-xs text-gray-500">{location.building}{location.floor && ` • ${location.floor}`}</div>
                                 )}
@@ -224,13 +232,16 @@ export function LocationList({ locations, loading, onEdit, onDelete }: LocationL
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900 font-mono">{location.code}</div>
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="text-sm text-gray-600 max-w-md">
-                              {hasDescription ? (
-                                <span className={isExpanded ? '' : 'truncate block'}>{location.description}</span>
-                              ) : (
-                                <span className="text-gray-400">—</span>
-                              )}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex flex-col space-y-1 text-xs text-gray-500">
+                              <div className="flex items-center" title="Product Count">
+                                <CubeIcon className="w-3.5 h-3.5 mr-1.5" />
+                                <span>{location.stats?.productCount || 0} prod</span>
+                              </div>
+                              <div className="flex items-center" title="Total Stock">
+                                <ArchiveBoxIcon className="w-3.5 h-3.5 mr-1.5" />
+                                <span>{location.stats?.totalStock || 0} stock</span>
+                              </div>
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -241,51 +252,24 @@ export function LocationList({ locations, loading, onEdit, onDelete }: LocationL
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div className="flex items-center justify-end space-x-2">
-                              <button onClick={() => onEdit(location)} className="text-blue-600 hover:text-blue-900 transition-colors" title="Edit location"><PencilIcon className="h-4 w-4" /></button>
-                              <button onClick={() => onDelete(location)} className="text-red-600 hover:text-red-900 transition-colors" title="Delete location"><TrashIcon className="h-4 w-4" /></button>
+                              {isAdmin && (
+                                <>
+                                  <button onClick={() => onEdit(location)} className="text-blue-600 hover:text-blue-900 transition-colors p-1 rounded hover:bg-blue-50" title="Edit location"><PencilIcon className="h-4 w-4" /></button>
+                                  <button onClick={() => onDelete(location)} className="text-red-600 hover:text-red-900 transition-colors p-1 rounded hover:bg-red-50" title="Delete location"><TrashIcon className="h-4 w-4" /></button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
-                        {/* Expandable Row */}
-                        {isExpanded && hasDescription && (
-                          <tr className="bg-gray-50">
-                            <td colSpan={7} className="px-6 py-4">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                <div>
-                                  <h4 className="font-medium text-gray-900 mb-2 flex items-center"><MapPinIcon className="h-4 w-4 text-gray-400 mr-2" />Location Details</h4>
-                                  <div className="space-y-1">
-                                    <div className="text-gray-600"><span className="font-medium">Name:</span> {location.name}</div>
-                                    <div className="text-gray-600"><span className="font-medium">Area:</span> {location.area}</div>
-                                    <div className="text-gray-600"><span className="font-medium">Code:</span> <span className="font-mono">{location.code}</span></div>
-                                  </div>
-                                </div>
-                                <div>
-                                  <h4 className="font-medium text-gray-900 mb-2 flex items-center"><CalendarIcon className="h-4 w-4 text-gray-400 mr-2" />Timeline</h4>
-                                  <div className="space-y-1">
-                                    <div className="text-gray-600"><span className="font-medium">Created:</span> {new Date(location.createdAt).toLocaleString()}</div>
-                                    <div className="text-gray-600"><span className="font-medium">Updated:</span> {new Date(location.updatedAt).toLocaleString()}</div>
-                                  </div>
-                                </div>
-                                {location.description && (
-                                  <div className="md:col-span-2">
-                                    <h4 className="font-medium text-gray-900 mb-2">Description</h4>
-                                    <p className="text-gray-700 bg-white p-3 rounded-md border border-gray-200">{location.description}</p>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
 }
-

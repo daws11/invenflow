@@ -12,6 +12,10 @@ export const LocationSchema = z.object({
   description: z.string().max(1000).nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
+  stats: z.object({
+    productCount: z.number(),
+    totalStock: z.number()
+  }).optional(),
 });
 
 export const CreateLocationSchema = z.object({

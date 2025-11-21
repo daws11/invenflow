@@ -7,8 +7,9 @@ import { LocationViewModeToggle } from '../components/LocationViewModeToggle';
 import { CreateLocationModal } from '../components/CreateLocationModal';
 import { EditLocationModal } from '../components/EditLocationModal';
 import { DeleteLocationModal } from '../components/DeleteLocationModal';
+import { LocationInventoryModal } from '../components/LocationInventoryModal';
 import { useToast } from '../store/toastStore';
-import { MapPinIcon } from '@heroicons/react/24/outline';
+import { MapPinIcon, ArchiveBoxIcon, CubeIcon as Package, BuildingOfficeIcon } from '@heroicons/react/24/outline';
 
 type ViewMode = 'grid' | 'list';
 
@@ -38,23 +39,21 @@ export default function LocationsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isInventoryModalOpen, setIsInventoryModalOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
 
   useEffect(() => {
-    if (isAdmin) {
       fetchLocations();
       fetchAreas();
-    }
-  }, [fetchLocations, fetchAreas, isAdmin]);
+  }, [fetchLocations, fetchAreas]);
 
   useEffect(() => {
-    if (!isAdmin) return;
     const params: { search?: string; area?: string; type?: string } = {};
     if (searchTerm) params.search = searchTerm;
     if (selectedArea) params.area = selectedArea;
     if (selectedType) params.type = selectedType;
     fetchLocations(params);
-  }, [searchTerm, selectedArea, selectedType, fetchLocations, isAdmin]);
+  }, [searchTerm, selectedArea, selectedType, fetchLocations]);
 
   const handleCreateLocation = async (data: CreateLocation) => {
     try {
@@ -101,18 +100,10 @@ export default function LocationsPage() {
     setIsDeleteModalOpen(true);
   };
 
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-xl mx-auto bg-amber-50 border border-amber-200 rounded-lg p-6">
-          <h1 className="text-lg font-semibold text-amber-900 mb-2">Restricted Access</h1>
-          <p className="text-sm text-amber-800">
-            You don't have permission to manage locations. Please contact an administrator if you believe this is a mistake.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const openInventoryModal = (location: Location) => {
+    setSelectedLocation(location);
+    setIsInventoryModalOpen(true);
+  };
 
   if (loading && locations.length === 0) {
     return (
@@ -153,7 +144,8 @@ export default function LocationsPage() {
                 )}
               </div>
               
-              {/* Add button with dropdown */}
+              {/* Add button with dropdown - Admin only */}
+              {isAdmin && (
               <div className="relative inline-block">
                 <button
                   onClick={() => setIsCreateModalOpen(true)}
@@ -165,6 +157,7 @@ export default function LocationsPage() {
                   <span className="font-medium">Add Location</span>
                 </button>
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -173,7 +166,7 @@ export default function LocationsPage() {
       {/* Statistics Banner */}
       {locations.length > 0 && (
         <div className="w-full px-3 sm:px-4 lg:px-6 py-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Total Locations */}
             <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200">
               <div className="flex items-center justify-between">
@@ -182,26 +175,52 @@ export default function LocationsPage() {
                   <p className="text-3xl font-bold text-gray-900 mt-1">{locations.length}</p>
                 </div>
                 <div className="p-3 bg-white rounded-lg shadow-sm">
-                  <svg className="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  </svg>
+                  <MapPinIcon className="w-8 h-8 text-gray-600" />
                 </div>
               </div>
             </div>
 
-            {/* Physical Locations */}
+            {/* Total Areas */}
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-blue-700">Physical Locations</p>
+                  <p className="text-sm text-blue-700">Total Areas</p>
                   <p className="text-3xl font-bold text-blue-900 mt-1">
-                    {locations.length}
+                    {areas.length > 0 ? areas.length : new Set(locations.map(l => l.area)).size}
                   </p>
                 </div>
                 <div className="p-3 bg-white rounded-lg shadow-sm">
-                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
+                  <BuildingOfficeIcon className="w-8 h-8 text-blue-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* Total Stock */}
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-green-700">Total Stock</p>
+                  <p className="text-3xl font-bold text-green-900 mt-1">
+                    {locations.reduce((sum, loc) => sum + (loc.stats?.totalStock || 0), 0)}
+                  </p>
+                </div>
+                <div className="p-3 bg-white rounded-lg shadow-sm">
+                  <ArchiveBoxIcon className="w-8 h-8 text-green-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* Total Products */}
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-purple-700">Total Products</p>
+                  <p className="text-3xl font-bold text-purple-900 mt-1">
+                    {locations.reduce((sum, loc) => sum + (loc.stats?.productCount || 0), 0)}
+                  </p>
+                </div>
+                <div className="p-3 bg-white rounded-lg shadow-sm">
+                  <Package className="w-8 h-8 text-purple-600" />
                 </div>
               </div>
             </div>
@@ -270,13 +289,21 @@ export default function LocationsPage() {
               loading={loading}
               onEdit={openEditModal}
               onDelete={openDeleteModal}
+              onViewProducts={openInventoryModal}
+              isAdmin={isAdmin}
             />
           </div>
         ) : (
           <div>
-            {Object.entries(groupedLocations).map(([area, areaLocations]) => (
+            {Object.entries(groupedLocations).map(([area, areaLocations]) => {
+              // Calculate area stats
+              const areaProductCount = areaLocations.reduce((sum, loc) => sum + (loc.stats?.productCount || 0), 0);
+              const areaTotalStock = areaLocations.reduce((sum, loc) => sum + (loc.stats?.totalStock || 0), 0);
+
+              return (
               <div key={area} className="mb-8 animate-fade-in">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-gray-900 flex items-center">
                   <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
                     {area}
                   </span>
@@ -284,6 +311,17 @@ export default function LocationsPage() {
                     ({areaLocations.length} locations)
                   </span>
                 </h2>
+                    <div className="flex items-center space-x-4 text-sm text-gray-600 mt-2 sm:mt-0 bg-white px-3 py-1 rounded-full shadow-sm border border-gray-200">
+                      <div className="flex items-center">
+                        <Package className="h-4 w-4 mr-1 text-gray-400" />
+                        <span className="font-medium">{areaProductCount}</span> products
+                      </div>
+                      <div className="flex items-center border-l pl-4 border-gray-300">
+                        <ArchiveBoxIcon className="h-4 w-4 mr-1 text-gray-400" />
+                        <span className="font-medium">{areaTotalStock}</span> items
+                      </div>
+                    </div>
+                  </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {areaLocations.map(location => (
                     <div
@@ -319,6 +357,18 @@ export default function LocationsPage() {
                         </p>
                       </div>
 
+                        {/* Stats Mini-Summary */}
+                        <div className="flex items-center space-x-4 mb-3 text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                          <div className="flex items-center">
+                            <Package className="w-3 h-3 mr-1" />
+                            {location.stats?.productCount || 0} Products
+                          </div>
+                          <div className="flex items-center">
+                            <ArchiveBoxIcon className="w-3 h-3 mr-1" />
+                            {location.stats?.totalStock || 0} Stock
+                          </div>
+                        </div>
+
                       {/* Description */}
                       {location.description && (
                         <p className="text-gray-600 text-sm mb-3 line-clamp-2 italic border-l-2 border-gray-200 pl-3">
@@ -335,6 +385,15 @@ export default function LocationsPage() {
                           {new Date(location.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </div>
                         <div className="flex space-x-1.5">
+                            <button
+                              onClick={() => openInventoryModal(location)}
+                              className="p-1.5 rounded-lg transition-colors text-teal-600 hover:bg-teal-50"
+                              title="View Inventory"
+                            >
+                              <ArchiveBoxIcon className="w-4 h-4" />
+                            </button>
+                            {isAdmin && (
+                              <>
                           <button
                             onClick={() => openEditModal(location)}
                             className="p-1.5 rounded-lg transition-colors text-blue-600 hover:bg-blue-50"
@@ -353,13 +412,16 @@ export default function LocationsPage() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                           </button>
+                              </>
+                            )}
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            ))}
+              );
+            })}
 
             {Object.keys(groupedLocations).length === 0 && !loading && (
               <div className="text-center py-12 bg-white rounded-lg shadow">
@@ -370,7 +432,7 @@ export default function LocationsPage() {
                     ? 'No locations match your search criteria. Try adjusting your filters.'
                     : 'Create your first location to get started'}
                 </p>
-                {!searchTerm && !selectedArea && (
+                {!searchTerm && !selectedArea && isAdmin && (
                   <button
                     onClick={() => setIsCreateModalOpen(true)}
                     className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
@@ -384,7 +446,12 @@ export default function LocationsPage() {
         )}
       </div>
 
-      {/* Modals */}
+      <LocationInventoryModal
+        isOpen={isInventoryModalOpen}
+        onClose={() => setIsInventoryModalOpen(false)}
+        location={selectedLocation}
+      />
+
       <CreateLocationModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
